@@ -1,0 +1,13 @@
+import 'package:flutter/material.dart';
+
+class OrdersTab extends StatelessWidget {
+  const OrdersTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return  Scaffold(
+      appBar: AppBar(title: Text('Orders')),
+      body: Center(child: Text('Orders Module')),
+    );
+  }
+}
