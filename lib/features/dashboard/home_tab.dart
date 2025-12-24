@@ -10,6 +10,7 @@ import '../../features/party/services/customer_service.dart';
 import '../../features/party/services/supplier_service.dart';
 import '../../features/inventory/services/inventory_repo_service.dart';
 
+
 import '../party/screens/customer_list_screen.dart';
 import '../party/screens/supplier_list_screen.dart';
 import '../ledger/screens/ledger_home_screen.dart';
@@ -44,13 +45,10 @@ class HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffF5F6FA),
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-      ),
+  appBar: AppBar(
+    title: const Text('Dashboard'),
+  ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -62,21 +60,21 @@ class HomeTab extends StatelessWidget {
                 _summaryStreamCard(
                   title: 'Customers',
                   icon: Icons.person,
-                  color: Colors.blue,
+                color: Theme.of(context).colorScheme.primary,
                   stream: _customerService.getCustomers(),
                 ),
                 const SizedBox(width: 12),
                 _summaryStreamCard(
                   title: 'Suppliers',
                   icon: Icons.people,
-                  color: Colors.orange,
+  color: Theme.of(context).colorScheme.secondary,
                   stream: _supplierService.getSuppliers(),
                 ),
                 const SizedBox(width: 12),
     _summaryStreamCard(
       title: 'Inventory',
       icon: Icons.inventory_2,
-      color: Colors.purple,
+     color: Theme.of(context).  colorScheme.tertiary,
       stream: InventoryService(userMobile).getInventoryItems(),
     ),
     const SizedBox(width: 12),
@@ -145,7 +143,7 @@ class HomeTab extends StatelessWidget {
                               spots: spots,
                               isCurved: true,
                               barWidth: 3,
-                              color: Colors.blue,
+                              color: Theme.of(context).colorScheme.primary,
                               dotData: FlDotData(show: false),
                             ),
                           ],

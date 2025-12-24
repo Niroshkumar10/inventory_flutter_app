@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/inventory_item_model.dart';
 
+
 class AddEditItemScreen extends StatefulWidget {
   final InventoryService inventoryService;
   final InventoryItem? item;
@@ -14,7 +15,7 @@ class AddEditItemScreen extends StatefulWidget {
     this.item,
     required this.userMobile,
     this.initialCategory, // ADD THIS
-  }) : super(key: key);
+  }) : super(key: key); 
 
   @override
   State<AddEditItemScreen> createState() => _AddEditItemScreenState();
