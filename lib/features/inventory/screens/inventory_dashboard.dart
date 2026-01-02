@@ -36,7 +36,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   @override
   void initState() {
     super.initState();
-    _inventoryService = InventoryService(widget.userMobile);
+    _inventoryService = widget.inventoryService; // ✅ USE PROVIDED INSTANCE
     _loadData();
   }
 

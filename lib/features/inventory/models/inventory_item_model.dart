@@ -1,3 +1,4 @@
+// ./lib/features/inventory/models/inventory_item_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class InventoryItem {
@@ -13,13 +14,12 @@ class InventoryItem {
   final String unit;
   final String? location;
   final String? supplierId;
+  final String? supplierName;
   final String? imageUrl;
-  final String userMobile; // Add userMobile field
+  final String userMobile;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isActive;
-    final String? supplierName; // Add this
-
 
   InventoryItem({
     required this.id,
@@ -34,10 +34,9 @@ class InventoryItem {
     this.unit = 'pcs',
     this.location,
     this.supplierId,
+    this.supplierName,
     this.imageUrl,
-    required this.userMobile, // Add to constructor
-        this.supplierName, // Add this
-
+    required this.userMobile,
     DateTime? createdAt,
     DateTime? updatedAt,
     this.isActive = true,
@@ -73,7 +72,7 @@ class InventoryItem {
       'unit': unit,
       'location': location,
       'supplierId': supplierId,
-      'supplierName': supplierName, // Add this
+      'supplierName': supplierName,
       'imageUrl': imageUrl,
       'userMobile': userMobile,
       'createdAt': FieldValue.serverTimestamp(),
@@ -96,10 +95,9 @@ class InventoryItem {
       unit: map['unit']?.toString() ?? 'pcs',
       location: map['location']?.toString(),
       supplierId: map['supplierId']?.toString(),
+      supplierName: map['supplierName']?.toString(),
       imageUrl: map['imageUrl']?.toString(),
-      userMobile: map['userMobile']?.toString() ?? '', // Parse userMobile
-      supplierName: map['supplierName'] as String?, // Add this
-
+      userMobile: map['userMobile']?.toString() ?? '',
       createdAt: _parseDate(map['createdAt']),
       updatedAt: _parseDate(map['updatedAt']),
       isActive: map['isActive'] ?? true,
@@ -120,6 +118,7 @@ class InventoryItem {
       'unit': unit,
       'location': location,
       'supplierId': supplierId,
+      'supplierName': supplierName,
       'imageUrl': imageUrl,
       'userMobile': userMobile,
       'createdAt': createdAt.toIso8601String(),
@@ -142,8 +141,9 @@ class InventoryItem {
       unit: data['unit'] ?? 'pcs',
       location: data['location'],
       supplierId: data['supplierId'],
+      supplierName: data['supplierName'],
       imageUrl: data['imageUrl'],
-      userMobile: data['userMobile'] ?? '', // Get userMobile
+      userMobile: data['userMobile'] ?? '',
       createdAt: _parseDate(data['createdAt']),
       updatedAt: _parseDate(data['updatedAt']),
       isActive: data['isActive'] ?? true,
@@ -163,6 +163,7 @@ class InventoryItem {
     String? unit,
     String? location,
     String? supplierId,
+    String? supplierName,
     String? imageUrl,
     String? userMobile,
     bool? isActive,
@@ -180,8 +181,9 @@ class InventoryItem {
       unit: unit ?? this.unit,
       location: location ?? this.location,
       supplierId: supplierId ?? this.supplierId,
+      supplierName: supplierName ?? this.supplierName,
       imageUrl: imageUrl ?? this.imageUrl,
-      userMobile: userMobile ?? this.userMobile, // Copy userMobile
+      userMobile: userMobile ?? this.userMobile,
       createdAt: this.createdAt,
       updatedAt: DateTime.now(),
       isActive: isActive ?? this.isActive,
@@ -191,4 +193,7 @@ class InventoryItem {
   bool get isLowStock => quantity <= lowStockThreshold;
   double get totalValue => price * quantity;
   double get profitMargin => price > 0 ? ((price - cost) / price) * 100 : 0;
+  
+  // Helper getter for isDeleted (reverse of isActive)
+  bool get isDeleted => !isActive;
 }

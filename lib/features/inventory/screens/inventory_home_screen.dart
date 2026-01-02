@@ -113,15 +113,15 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventory'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
-          ),
-        ],
-      ),
+      // appBar: AppBar(
+      //   title: const Text('Inventory'),
+      //   actions: [
+      //     IconButton(
+      //       icon: const Icon(Icons.filter_list),
+      //       onPressed: _showFilterDialog,
+      //     ),
+      //   ],
+      // ),
       body: Column(
         children: [
           Padding(
@@ -129,7 +129,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search items...',
+                hintText: 'Search item...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),

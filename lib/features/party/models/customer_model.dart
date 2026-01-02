@@ -1,3 +1,4 @@
+// ./lib/features/party/models/customer_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Customer {

@@ -205,12 +205,17 @@ class BillItem {
   int quantity;
   double price;
   double total;
+  String? inventoryItemId; // Add this field for inventory integration
+  String? unit; // Add this field for inventory unit (pcs, kg, etc.)
 
   BillItem({
     required this.description,
     required this.quantity,
     required this.price,
     required this.total,
+    this.inventoryItemId, // Add to constructor
+    this.unit, // Add to constructor
+
   });
 
   Map<String, dynamic> toMap() {
@@ -219,6 +224,9 @@ class BillItem {
       'quantity': quantity,
       'price': price,
       'total': total,
+      'inventoryItemId': inventoryItemId, // Add this
+      'unit': unit, // Add this
+
     };
   }
 
@@ -228,6 +236,9 @@ class BillItem {
       quantity: (map['quantity'] as num?)?.toInt() ?? 1,
       price: (map['price'] as num?)?.toDouble() ?? 0.0,
       total: (map['total'] as num?)?.toDouble() ?? 0.0,
+      inventoryItemId: map['inventoryItemId'] as String?, // Add this
+      unit: map['unit'] as String?, // Add this
+
     );
   }
 
@@ -235,12 +246,19 @@ class BillItem {
     String? description,
     int? quantity,
     double? price,
+      String? inventoryItemId, // ADD THIS
+    String? unit, // ADD THIS
   }) {
     return BillItem(
       description: description ?? this.description,
       quantity: quantity ?? this.quantity,
       price: price ?? this.price,
       total: (quantity ?? this.quantity) * (price ?? this.price),
+       inventoryItemId: inventoryItemId ?? this.inventoryItemId, // ADD THIS
+      unit: unit ?? this.unit, // ADD THIS
     );
+
+    
   }
+  
 }

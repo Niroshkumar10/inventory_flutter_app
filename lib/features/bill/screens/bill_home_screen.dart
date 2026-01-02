@@ -5,6 +5,8 @@ import '../services/bill_service.dart';
 import '../models/bill_model.dart';
 import 'add_edit_bill_screen.dart';
 import 'view_bill_screen.dart';
+import '../../inventory/services/inventory_repo_service.dart';
+import '../../../core/providers/app_providers.dart';
 
 class BillHomeScreen extends StatefulWidget {
   final String userMobile;
@@ -428,21 +430,26 @@ class _BillHomeScreenState extends State<BillHomeScreen> {
     );
   }
 
- void _navigateToAddBill(String type) {
+// REPLACE the _navigateToAddBill method with this:
+void _navigateToAddBill(String type) {
+  // Get services from Provider
   final billService = Provider.of<BillService>(context, listen: false);
+  final inventoryService = Provider.of<InventoryService>(context, listen: false);
   
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => AddEditBillScreen(
+ Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => AppProviders(
+      userMobile: widget.userMobile,
+      child: AddEditBillScreen(
         type: type,
         userMobile: widget.userMobile,
-        billService: billService, // Pass the service
+        billService: BillService(widget.userMobile),
       ),
     ),
-  );
+  ),
+);
 }
-
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }

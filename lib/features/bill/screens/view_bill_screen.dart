@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'add_edit_bill_screen.dart';
 import '../services/bill_service.dart';
 import '../models/bill_model.dart';
+import '../../inventory/services/inventory_repo_service.dart';
+import '../../../core/providers/app_providers.dart';
 
 class ViewBillScreen extends StatelessWidget {
   final String billId;
@@ -45,13 +47,23 @@ class ViewBillScreen extends StatelessWidget {
 class _BillDetailScreen extends StatefulWidget {
   final Bill bill;
 
-  const _BillDetailScreen({required this.bill});
+  _BillDetailScreen({required this.bill});
 
   @override
   State<_BillDetailScreen> createState() => __BillDetailScreenState();
 }
 
 class __BillDetailScreenState extends State<_BillDetailScreen> {
+  // ADD THIS: Declare billService
+  late BillService billService;
+  
+  @override
+  void initState() {
+    super.initState();
+    // Initialize billService
+    billService = BillService(widget.bill.userMobile);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -59,22 +71,24 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
         title: Text(widget.bill.invoiceNumber),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AddEditBillScreen(
-                    type: widget.bill.type,
-                    userMobile: widget.bill.userMobile,
-                    billToEdit: widget.bill,
-                    billService: BillService(widget.bill.userMobile), // Add this
-
-                  ),
-                ),
-              );
-            },
+  icon: const Icon(Icons.edit),
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AppProviders( // ✅ ADD THIS WRAPPER
+          userMobile: widget.bill.userMobile,
+          child: AddEditBillScreen(
+            type: widget.bill.type,
+            userMobile: widget.bill.userMobile,
+            billToEdit: widget.bill,
+            billService: billService,
           ),
+        ),
+      ),
+    );
+  },
+),
           IconButton(
             icon: const Icon(Icons.share),
             onPressed: _shareBill,
@@ -520,7 +534,6 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                 if (amount <= 0 || amount > widget.bill.amountDue) return;
 
                 try {
-                  final billService = BillService(widget.bill.userMobile);
                   await billService.addPayment(widget.bill.id, amount);
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -557,7 +570,6 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  final billService = BillService(widget.bill.userMobile);
                   await billService.deleteBill(widget.bill.id);
                   Navigator.pop(context); // Close dialog
                   Navigator.pop(context); // Go back to bills list

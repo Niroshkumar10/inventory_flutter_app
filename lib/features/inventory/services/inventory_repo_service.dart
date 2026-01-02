@@ -256,19 +256,20 @@ Future<void> updateInventoryItem(InventoryItem item) async {
     }
   }
 
-  Future<List<InventoryItem>> getAllInventoryItems() async {
-    try {
-      final snapshot = await _userInventoryCollection.get();
-      
-      return snapshot.docs.map((doc) {
-        return InventoryItem.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-      }).toList();
-    } catch (e) {
-      print('Error getting all items: $e');
-      return [];
-    }
+Future<List<InventoryItem>> getAllInventoryItems() async {
+  try {
+    final snapshot = await _userInventoryCollection
+        .where('isActive', isEqualTo: true)  // ADD THIS FILTER
+        .get();
+    
+    return snapshot.docs.map((doc) {
+      return InventoryItem.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    }).toList();
+  } catch (e) {
+    print('Error getting all items: $e');
+    return [];
   }
-
+}
   // Get all categories for this user
   Future<List<String>> getCategories() async {
     try {
@@ -387,36 +388,50 @@ Future<void> addCategory(String name, {String? description}) async { // Add desc
   }
 
   // Adjust stock quantity
-  Future<void> adjustStock(String id, int adjustment, String reason) async {
-    try {
-      final item = await getInventoryItem(id);
-      final newQuantity = item.quantity + adjustment;
-      
-      if (newQuantity < 0) {
-        throw Exception('Cannot set negative stock quantity');
-      }
-
-      // Update the quantity
-      await _userInventoryCollection.doc(id).update({
-        'quantity': newQuantity,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      // Log stock adjustment in subcollection
-      await _getStockAdjustmentsCollection(id).add({
-        'previousQuantity': item.quantity,
-        'adjustment': adjustment,
-        'newQuantity': newQuantity,
-        'reason': reason,
-        'adjustedAt': FieldValue.serverTimestamp(),
-        'adjustedBy': userMobile,
-      });
-    } catch (e) {
-      print('❌ Error adjusting stock: $e');
-      throw Exception('Failed to adjust stock: $e');
+// Adjust stock quantity
+Future<void> adjustStock(String id, int adjustment, String reason) async {
+  try {
+    print('🛠️ adjustStock called:');
+    print('  Item ID: $id');
+    print('  Adjustment: $adjustment');
+    print('  Reason: $reason');
+    
+    final item = await getInventoryItem(id);
+    print('  Current quantity: ${item.quantity}');
+    
+    final newQuantity = item.quantity + adjustment;
+    print('  New quantity will be: $newQuantity');
+    
+    if (newQuantity < 0) {
+      print('  ❌ ERROR: Cannot set negative stock quantity');
+      throw Exception('Cannot set negative stock quantity');
     }
-  }
 
+    // Update the quantity
+    print('  📝 Updating Firestore...');
+    await _userInventoryCollection.doc(id).update({
+      'quantity': newQuantity,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Log stock adjustment in subcollection
+    print('  📝 Logging adjustment...');
+    await _getStockAdjustmentsCollection(id).add({
+      'previousQuantity': item.quantity,
+      'adjustment': adjustment,
+      'newQuantity': newQuantity,
+      'reason': reason,
+      'adjustedAt': FieldValue.serverTimestamp(),
+      'adjustedBy': userMobile,
+    });
+    
+    print('  ✅ adjustStock completed successfully');
+  } catch (e) {
+    print('❌ Error in adjustStock: $e');
+    print('Stack trace: ${e.toString()}');
+    throw Exception('Failed to adjust stock: $e');
+  }
+}
   // Get total inventory value for this user
   Future<double> getTotalInventoryValue() async {
     try {

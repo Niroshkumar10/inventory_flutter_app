@@ -1,8 +1,10 @@
+// lib/auth_wrapper.dart
 import 'package:flutter/material.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import './features/auth/screens/login_screen.dart';
 import '../features/session/session_service_new.dart';
-import '../features/inventory/services/inventory_repo_service.dart'; // Add this import
+import '../core/providers/app_providers.dart'; // Add this import
+import '../features/inventory/services/inventory_repo_service.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({Key? key}) : super(key: key);
@@ -52,10 +54,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
         },
       );
     }
-    final inventoryService = InventoryService(_userMobile!);
     
-    // Show dashboard with userMobile
-    return DashboardScreen(userMobile: _userMobile!,
-    inventoryService: inventoryService,);
+    // ✅ UPDATED PART: Wrap DashboardScreen with AppProviders
+    return AppProviders(
+      userMobile: _userMobile!,
+      child: DashboardScreen(
+        userMobile: _userMobile!,
+      ),
+    );
   }
 }

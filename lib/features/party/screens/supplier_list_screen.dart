@@ -30,12 +30,12 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
       backgroundColor: const Color(0xffF5F6FA),
 
       /// 🧭 APP BAR
-      appBar: AppBar(
-        title: const Text('Suppliers'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-      ),
+      // appBar: AppBar(
+      //   title: const Text('Suppliers'),
+      //   backgroundColor: Colors.white,
+      //   foregroundColor: Colors.black,
+      //   elevation: 0,
+      // ),
 
       /// ➕ ADD SUPPLIER BUTTON
       floatingActionButton: FloatingActionButton(

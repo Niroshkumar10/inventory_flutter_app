@@ -1,20 +1,18 @@
-// Update your dashboard screen
+// lib/features/dashboard/dashboard_screen.dart
 import 'package:flutter/material.dart';
+import '../../core/providers/app_providers.dart';
 import 'home_tab.dart';
 import 'profile_tab.dart';
 import 'bills_tab.dart';
 import 'reports_tab.dart';
 import '../inventory/services/inventory_repo_service.dart';
-import '../bill/services/bill_service.dart'; // Add this import
 
 class DashboardScreen extends StatefulWidget {
   final String userMobile;
-  final InventoryService inventoryService;
 
   const DashboardScreen({
     Key? key,
     required this.userMobile,
-    required this.inventoryService,
   }) : super(key: key);
 
   @override
@@ -23,25 +21,19 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
-  late final BillService _billService; // Add this
+  late final List<Widget> _tabs;
 
   @override
   void initState() {
     super.initState();
-    _billService = BillService(widget.userMobile); // Initialize BillService
     _tabs = [
       HomeTab(
-        userMobile: widget.userMobile,
-        inventoryService: widget.inventoryService,
-      ),
-      BillsTab(userMobile: widget.userMobile), // This will use BillService
+        userMobile: widget.userMobile      ),
+      BillsTab(userMobile: widget.userMobile),
       ReportsTab(),
       ProfileScreen(userMobile: widget.userMobile),
     ];
   }
-
-  // OR if you want to use late initialization:
-  late final List<Widget> _tabs;
 
   @override
   Widget build(BuildContext context) {
