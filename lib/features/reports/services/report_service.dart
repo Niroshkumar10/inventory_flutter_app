@@ -157,7 +157,7 @@ class ReportService {
     }
   }
 
-  // Get customer reports with purchase statistics
+  // Get customer reports - FIXED VERSION
   Future<List<CustomerReport>> getCustomerReports({
     required String userMobile,
     required DateTime startDate,
@@ -166,17 +166,6 @@ class ReportService {
     try {
       print('📊 Fetching customer reports for user: $userMobile');
       
-      // Get all customers from user's subcollection
-      final customersQuery = await _getUserCustomersCollection(userMobile)
-          .where('isActive', isEqualTo: true)
-          .get();
-
-      final customers = customersQuery.docs.map((doc) {
-        return Customer.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-      }).toList();
-
-      print('✅ Found ${customers.length} customers');
-
       // Get sales data for period
       final salesQuery = await _getUserBillsCollection(userMobile)
           .where('type', isEqualTo: 'sales')
@@ -186,16 +175,25 @@ class ReportService {
 
       print('📊 Found ${salesQuery.docs.length} sales in period');
 
-      // Process sales data
-      final customerStats = <String, Map<String, dynamic>>{};
+      // Group sales by customer name
+      final Map<String, Map<String, dynamic>> customerData = {};
 
       for (final doc in salesQuery.docs) {
         try {
-          final bill = Bill.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-          final customerName = bill.partyName;
+          final data = doc.data() as Map<String, dynamic>;
+          final bill = Bill.fromMap(data, doc.id);
+          final customerName = bill.partyName.trim();
+          
+          if (customerName.isEmpty) {
+            print('⚠️ Bill ${bill.invoiceNumber} has empty customer name');
+            continue;
+          }
 
-          if (!customerStats.containsKey(customerName)) {
-            customerStats[customerName] = {
+          if (!customerData.containsKey(customerName)) {
+            customerData[customerName] = {
+              'name': customerName,
+              'mobile': bill.partyPhone,
+              'address': bill.partyAddress,
               'totalPurchases': 0,
               'totalSpent': 0.0,
               'outstandingBalance': 0.0,
@@ -203,7 +201,7 @@ class ReportService {
             };
           }
 
-          final stats = customerStats[customerName]!;
+          final stats = customerData[customerName]!;
           stats['totalPurchases'] = (stats['totalPurchases'] as int) + 1;
           stats['totalSpent'] = (stats['totalSpent'] as double) + bill.totalAmount;
           stats['outstandingBalance'] = (stats['outstandingBalance'] as double) + bill.amountDue;
@@ -216,25 +214,31 @@ class ReportService {
         }
       }
 
-      // Create customer reports using existing CustomerReport.fromCustomer factory
-      final reports = customers.map((customer) {
-        final stats = customerStats[customer.name] ?? {
-          'totalPurchases': 0,
-          'totalSpent': 0.0,
-          'outstandingBalance': 0.0,
-          'lastPurchaseDate': DateTime(1970),
-        };
-
-        return CustomerReport.fromCustomer(
-          customer,
+      // Convert to CustomerReport objects
+      final reports = customerData.values.map((stats) {
+        return CustomerReport(
+          customerId: 'customer_${stats['name']}_${DateTime.now().millisecondsSinceEpoch}',
+          name: stats['name'] as String,
+          mobile: stats['mobile'] as String,
+          address: stats['address'] as String,
           totalPurchases: stats['totalPurchases'] as int,
           totalSpent: stats['totalSpent'] as double,
           outstandingBalance: stats['outstandingBalance'] as double,
           lastPurchaseDate: stats['lastPurchaseDate'] as DateTime,
+          userMobile: userMobile,
         );
       }).toList();
 
+      // Sort by total spent (descending)
+      reports.sort((a, b) => b.totalSpent.compareTo(a.totalSpent));
+
       print('✅ Generated ${reports.length} customer reports');
+      
+      // Debug output
+      for (final report in reports) {
+        print('   👤 ${report.name}: ${report.totalPurchases} purchases, ₹${report.totalSpent}');
+      }
+      
       return reports;
     } catch (e, stackTrace) {
       print('❌ Error getting customer reports: $e');
@@ -319,6 +323,9 @@ class ReportService {
           lastOrderDate: stats['lastOrderDate'] as DateTime,
         );
       }).toList();
+
+      // Sort by total purchases (descending)
+      reports.sort((a, b) => b.totalPurchases.compareTo(a.totalPurchases));
 
       print('✅ Generated ${reports.length} supplier reports');
       return reports;

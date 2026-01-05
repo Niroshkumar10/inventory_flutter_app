@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:provider/provider.dart'; // ADD THIS
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'auth_wrapper.dart';
 import 'core/theme/app_theme.dart';
-
+import './features/splash/splash_screen.dart'; // Import SplashScreen
 
 Future<void> main() async {
   // Ensure Flutter is initialized
@@ -35,9 +35,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Inventory App',
-     
       theme: AppTheme.lightTheme,
-      home: const AuthWrapper(),
+      home: const SplashScreen(), // Changed: AuthWrapper → SplashScreen
       debugShowCheckedModeBanner: false,
     );
   }

@@ -7,9 +7,9 @@
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
         android:minSdkVersion="30" />
     <application
-        android:label="inventory_app"
+        android:label="Shop-Inventory"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/app_logo"
         android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"

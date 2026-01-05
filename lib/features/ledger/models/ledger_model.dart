@@ -15,6 +15,7 @@ class LedgerEntry {
   String reference;
   String notes;
   String userMobile;
+  String status; // 'paid', 'pending', 'cancelled'
 
   LedgerEntry({
     required this.id,
@@ -30,6 +31,7 @@ class LedgerEntry {
     required this.reference,
     required this.notes,
     required this.userMobile,
+    this.status = 'completed',
   });
 
   // Factory constructor for creating new entries
@@ -44,6 +46,7 @@ class LedgerEntry {
     String reference = '',
     String notes = '',
     required String userMobile,
+    String status = 'completed',
   }) {
     return LedgerEntry(
       id: '',
@@ -59,6 +62,7 @@ class LedgerEntry {
       reference: reference,
       notes: notes,
       userMobile: userMobile,
+      status: status,
     );
   }
 
@@ -76,6 +80,7 @@ class LedgerEntry {
       'reference': reference,
       'notes': notes,
       'userMobile': userMobile,
+      'status': status,
     };
   }
 
@@ -102,6 +107,7 @@ class LedgerEntry {
       reference: map['reference']?.toString() ?? '',
       notes: map['notes']?.toString() ?? '',
       userMobile: map['userMobile']?.toString() ?? '',
+      status: map['status']?.toString() ?? 'completed',
     );
   }
 
@@ -119,6 +125,7 @@ class LedgerEntry {
     String? reference,
     String? notes,
     String? userMobile,
+    String? status,
   }) {
     return LedgerEntry(
       id: id ?? this.id,
@@ -134,11 +141,12 @@ class LedgerEntry {
       reference: reference ?? this.reference,
       notes: notes ?? this.notes,
       userMobile: userMobile ?? this.userMobile,
+      status: status ?? this.status,
     );
   }
 
   // Helper methods
-  double get amount => debit + credit;
+  double get amount => debit > 0 ? debit : credit;
   
   bool isDebit() => debit > 0;
   bool isCredit() => credit > 0;
@@ -153,13 +161,45 @@ class LedgerEntry {
     }
   }
   
+  String get statusLabel {
+    switch (status.toLowerCase()) {
+      case 'paid':
+      case 'completed':
+        return 'Paid';
+      case 'pending':
+      case 'due':
+        return 'Pending';
+      case 'cancelled':
+      case 'void':
+        return 'Cancelled';
+      default:
+        return status;
+    }
+  }
+  
   Color get typeColor {
     switch (type) {
       case 'sale': return Colors.green;
       case 'payment': return Colors.green;
-      case 'purchase': return Colors.red;
+      case 'purchase': return Colors.orange;
       case 'receipt': return Colors.red;
       default: return Colors.grey;
+    }
+  }
+  
+  Color get statusColor {
+    switch (status.toLowerCase()) {
+      case 'paid':
+      case 'completed':
+        return Colors.green;
+      case 'pending':
+      case 'due':
+        return Colors.orange;
+      case 'cancelled':
+      case 'void':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
   
@@ -172,4 +212,26 @@ class LedgerEntry {
       default: return Icons.receipt;
     }
   }
+}
+
+// Ledger Report Model
+class LedgerReport {
+  final String userMobile;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<LedgerEntry> entries;
+  final Map<String, double> summary;
+
+  LedgerReport({
+    required this.userMobile,
+    required this.startDate,
+    required this.endDate,
+    required this.entries,
+    required this.summary,
+  });
+
+  double get totalDebit => summary['totalDebit'] ?? 0;
+  double get totalCredit => summary['totalCredit'] ?? 0;
+  double get netBalance => summary['netBalance'] ?? 0;
+  int get totalEntries => entries.length;
 }

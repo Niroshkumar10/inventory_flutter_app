@@ -394,47 +394,176 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
                 ),
     );
   }
-
-  Future<void> _showExportDialog() async {
-    return showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Export Report'),
-        content: const Text('Choose export format:'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _handleExport('pdf');
-            },
-            icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
-            label: const Text('PDF'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _handleExport('excel');
-            },
-            icon: const Icon(Icons.table_chart, color: Colors.green),
-            label: const Text('Excel'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _handleExport('both');
-            },
-            icon: const Icon(Icons.file_copy, color: Colors.blue),
-            label: const Text('Both'),
-          ),
-        ],
+Future<void> _showExportDialog() async {
+  return showDialog(
+    context: context,
+    barrierColor: Colors.black54,
+    builder: (context) => Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
       ),
-    );
-  }
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Export Report',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 8),
+            
+            Text(
+              'Select format to export',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // Format Options
+            _buildExportOption(
+              context,
+              icon: Icons.picture_as_pdf,
+              title: 'PDF Document',
+              subtitle: 'Best for printing & sharing',
+              color: Colors.red,
+              onTap: () {
+                Navigator.pop(context);
+                _handleExport('pdf');
+              },
+            ),
+            
+            const SizedBox(height: 16),
+            
+            _buildExportOption(
+              context,
+              icon: Icons.table_chart,
+              title: 'Excel Spreadsheet',
+              subtitle: 'Best for data analysis',
+              color: Colors.green,
+              onTap: () {
+                Navigator.pop(context);
+                _handleExport('excel');
+              },
+            ),
+            
+            const SizedBox(height: 16),
+            
+            _buildExportOption(
+              context,
+              icon: Icons.file_copy,
+              title: 'Both Formats',
+              subtitle: 'Export as PDF & Excel',
+              color: Colors.blue,
+              onTap: () {
+                Navigator.pop(context);
+                _handleExport('both');
+              },
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // Cancel Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Cancel'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
+Widget _buildExportOption(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required Color color,
+  required VoidCallback onTap,
+}) {
+  return Material(
+    borderRadius: BorderRadius.circular(12),
+    color: Colors.grey[50],
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            
+            const SizedBox(width: 16),
+            
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    ),
+  );
+}
   // ==================== HELPER METHODS ====================
   void _selectPeriod(String period) {
     setState(() {

@@ -11,60 +11,54 @@ import 'package:universal_html/html.dart' as html;
 // Import for mobile file operations
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
-import 'package:csv/csv.dart';
+
+// Import PDF packages
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 class ExportService {
   static final _dateFormat = DateFormat('dd/MM/yyyy');
   static final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+  static final _pdfCurrencyFormat = NumberFormat('#,##0.00', 'en_IN');
 
-  // Helper method to format dates
-  String formatDate(DateTime date) {
-    return _dateFormat.format(date);
-  }
-
-  // Export to PDF with REAL data
+  // Export to PDF
   Future<String> exportToPdf({
     required String reportType,
     required String userMobile,
     required DateTime startDate,
     required DateTime endDate,
-    required dynamic data, // This should contain your real data
+    required dynamic data,
     required String title,
   }) async {
     try {
       print('📄 Starting PDF export for $reportType...');
       
+      // Process real data
+      final dataRows = _parseDataToRows(data, reportType);
+      final summary = _calculateSummary(dataRows, reportType);
+      
       if (kIsWeb) {
         // ============ WEB VERSION ============
-        final content = await _createPdfHtmlContent(
-          reportType: reportType,
-          userMobile: userMobile,
-          startDate: startDate,
-          endDate: endDate,
-          title: title,
-          data: data, // Pass real data here
-        );
-        
-        final fileName = '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.html';
-        final success = await _realWebDownload(content, fileName, 'text/html');
+        final pdf = _generatePdfDocument(dataRows, summary, title, userMobile, startDate, endDate, reportType);
+        final bytes = await pdf.save();
+        final fileName = '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        final success = await _downloadPdfWeb(bytes, fileName);
         
         if (success) {
           return '✅ PDF file downloaded! Check your downloads folder.';
         } else {
-          return '❌ Download failed. Check browser console for details.';
+          return '❌ PDF download failed. Check browser console for details.';
         }
       } else {
         // ============ MOBILE VERSION ============
         return await _generateMobilePdf(
-          reportType: reportType,
+          dataRows: dataRows,
+          summary: summary,
+          title: title,
           userMobile: userMobile,
           startDate: startDate,
           endDate: endDate,
-          title: title,
-          data: data,
+          reportType: reportType,
         );
       }
     } catch (e) {
@@ -104,10 +98,7 @@ class ExportService {
         }
       } else {
         // ============ MOBILE VERSION ============
-        return await _saveCsvToFile(
-          csvContent: csvContent,
-          reportType: reportType,
-        );
+        return await _saveCsvToMobile(csvContent, reportType);
       }
     } catch (e) {
       print('❌ Excel Export Error: $e');
@@ -115,59 +106,70 @@ class ExportService {
     }
   }
 
-  // Open file - for mobile
-  Future<void> openFile(String filePath) async {
-    if (!kIsWeb) {
-      final result = await OpenFile.open(filePath);
-      print('📂 Open file result: ${result.message}');
-    } else {
-      print('📂 On web, files are downloaded directly to browser');
-    }
+  // ============ PDF GENERATION ============
+
+  pw.Document _generatePdfDocument(
+    List<Map<String, dynamic>> dataRows,
+    Map<String, dynamic> summary,
+    String title,
+    String userMobile,
+    DateTime startDate,
+    DateTime endDate,
+    String reportType,
+  ) {
+    final pdf = pw.Document();
+    
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: pw.EdgeInsets.all(10), // Reduced margin for mobile
+        build: (pw.Context context) {
+          return [
+            // Header
+            _buildPdfHeader(title, userMobile, startDate, endDate, reportType, dataRows.length),
+            
+            // Summary
+            pw.SizedBox(height: 12), // Reduced spacing
+            _buildPdfSummary(summary, reportType),
+            
+            // Data table
+            pw.SizedBox(height: 12), // Reduced spacing
+            _buildPdfDataTable(dataRows, reportType, context),
+            
+            // Footer
+            pw.SizedBox(height: 20), // Reduced spacing
+            _buildPdfFooter(),
+          ];
+        },
+      ),
+    );
+    
+    return pdf;
   }
 
-  // ============ MOBILE PDF GENERATION ============
-  
   Future<String> _generateMobilePdf({
-    required String reportType,
+    required List<Map<String, dynamic>> dataRows,
+    required Map<String, dynamic> summary,
+    required String title,
     required String userMobile,
     required DateTime startDate,
     required DateTime endDate,
-    required String title,
-    required dynamic data,
+    required String reportType,
   }) async {
     try {
-      // Parse data
-      final dataRows = _parseDataToRows(data, reportType);
-      final summary = _calculateSummary(dataRows, reportType);
+      final pdf = _generatePdfDocument(dataRows, summary, title, userMobile, startDate, endDate, reportType);
       
-      // Create PDF document
-      final pdf = pw.Document();
-      
-      // Add report header
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          build: (pw.Context context) {
-            return [
-              // Header
-              _buildPdfHeader(title, userMobile, startDate, endDate, reportType, dataRows.length),
-              
-              // Summary section
-              _buildPdfSummary(summary, reportType),
-              
-              // Data table
-              _buildPdfDataTable(dataRows, reportType, context),
-              
-              // Footer
-              _buildPdfFooter(),
-            ];
-          },
-        ),
-      );
-      
-      // Save PDF to file
+      // Save PDF to file on mobile
+      final directory = await getApplicationDocumentsDirectory();
       final fileName = '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final filePath = await _savePdfToFile(pdf, fileName);
+      final filePath = '${directory.path}/$fileName';
+      final file = File(filePath);
+      
+      // Save the PDF
+      final bytes = await pdf.save();
+      await file.writeAsBytes(bytes);
+      
+      print('📄 PDF saved to: $filePath');
       
       // Open the file
       await openFile(filePath);
@@ -179,7 +181,8 @@ class ExportService {
     }
   }
 
-  // Build PDF header
+  // ============ PDF WIDGET BUILDERS (WITH REDUCED FONT SIZES) ============
+
   pw.Widget _buildPdfHeader(
     String title,
     String userMobile,
@@ -194,31 +197,31 @@ class ExportService {
         pw.Text(
           title,
           style: pw.TextStyle(
-            fontSize: 24,
+            fontSize: 18, // Reduced from 24
             fontWeight: pw.FontWeight.bold,
           ),
         ),
-        pw.SizedBox(height: 10),
+        pw.SizedBox(height: 3), // Reduced
         pw.Text(
           'Inventory Management System',
           style: pw.TextStyle(
-            fontSize: 10,
+            fontSize: 8, // Reduced from 10
             color: PdfColors.grey600,
           ),
         ),
         pw.Text(
           'Generated on: ${formatDate(DateTime.now())} at ${DateFormat('HH:mm').format(DateTime.now())}',
           style: pw.TextStyle(
-            fontSize: 10,
+            fontSize: 8, // Reduced from 10
             color: PdfColors.grey600,
           ),
         ),
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 12), // Reduced from 20
         pw.Container(
-          padding: const pw.EdgeInsets.all(10),
+          padding: const pw.EdgeInsets.all(8), // Reduced from 10
           decoration: pw.BoxDecoration(
             color: PdfColors.grey100,
-            borderRadius: pw.BorderRadius.circular(5),
+            borderRadius: pw.BorderRadius.circular(4), // Reduced from 5
           ),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -227,20 +230,19 @@ class ExportService {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   _buildInfoRow('User ID:', userMobile),
-                  _buildInfoRow('Report Period:', '${formatDate(startDate)} to ${formatDate(endDate)}'),
+                  _buildInfoRow('Period:', '${formatDate(startDate)} to ${formatDate(endDate)}'),
                 ],
               ),
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  _buildInfoRow('Report Type:', reportType.toUpperCase()),
-                  _buildInfoRow('Total Records:', recordCount.toString()),
+                  _buildInfoRow('Type:', reportType.toUpperCase()),
+                  _buildInfoRow('Records:', recordCount.toString()),
                 ],
               ),
             ],
           ),
         ),
-        pw.SizedBox(height: 20),
       ],
     );
   }
@@ -251,63 +253,64 @@ class ExportService {
         pw.Text(
           label,
           style: pw.TextStyle(
-            fontSize: 10,
+            fontSize: 8, // Reduced from 10
             fontWeight: pw.FontWeight.bold,
             color: PdfColors.grey700,
           ),
         ),
-        pw.SizedBox(width: 5),
+        pw.SizedBox(width: 3), // Reduced from 5
         pw.Text(
           value,
-          style: const pw.TextStyle(fontSize: 10),
+          style: pw.TextStyle(fontSize: 8), // Reduced from 10
         ),
       ],
     );
   }
 
-  // Build PDF summary
   pw.Widget _buildPdfSummary(Map<String, dynamic> summary, String reportType) {
     return pw.Container(
-      padding: const pw.EdgeInsets.all(10),
+      padding: const pw.EdgeInsets.all(8), // Reduced from 10
       decoration: pw.BoxDecoration(
         color: PdfColors.blue50,
-        borderRadius: pw.BorderRadius.circular(5),
-        border: pw.Border.all(color: PdfColors.blue200, width: 1),
+        borderRadius: pw.BorderRadius.circular(4), // Reduced from 5
+        border: pw.Border.all(color: PdfColors.blue200, width: 0.8), // Reduced from 1
       ),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            'Summary',
+            'SUMMARY',
             style: pw.TextStyle(
-              fontSize: 14,
+              fontSize: 11, // Reduced from 14
               fontWeight: pw.FontWeight.bold,
               color: PdfColors.blue900,
             ),
           ),
-          pw.SizedBox(height: 10),
+          pw.SizedBox(height: 6), // Reduced from 10
           pw.Table(
-            border: pw.TableBorder.all(color: PdfColors.blue100),
+            border: pw.TableBorder.all(color: PdfColors.blue100, width: 0.5), // Reduced width
             children: [
               pw.TableRow(
                 children: [
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
+                    padding: const pw.EdgeInsets.all(4), // Reduced from 5
                     child: pw.Text('Total ${reportType == 'sales' ? 'Sales' : 'Purchases'}:',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
-                    child: pw.Text('${summary['totalCount']}'),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
+                    child: pw.Text('${summary['totalCount']}',
+                      style: pw.TextStyle(fontSize: 8)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
                     child: pw.Text('Total Amount:', 
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
-                    child: pw.Text(_currencyFormat.format(summary['totalAmount']),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
+                    child: pw.Text(_formatAmountForPdf(summary['totalAmount']),
+                      style: pw.TextStyle(fontSize: 8), // Reduced font
                       textAlign: pw.TextAlign.right),
                   ),
                 ],
@@ -315,22 +318,24 @@ class ExportService {
               pw.TableRow(
                 children: [
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
                     child: pw.Text('Paid:', 
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
-                    child: pw.Text('${summary['paidCount']}'),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
+                    child: pw.Text('${summary['paidCount']}',
+                      style: pw.TextStyle(fontSize: 8)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
                     child: pw.Text('Paid Amount:', 
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
-                    child: pw.Text(_currencyFormat.format(summary['paidAmount']),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
+                    child: pw.Text(_formatAmountForPdf(summary['paidAmount']),
+                      style: pw.TextStyle(fontSize: 8), // Reduced font
                       textAlign: pw.TextAlign.right),
                   ),
                 ],
@@ -338,22 +343,24 @@ class ExportService {
               pw.TableRow(
                 children: [
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
                     child: pw.Text('Pending:', 
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
-                    child: pw.Text('${summary['pendingCount']}'),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
+                    child: pw.Text('${summary['pendingCount']}',
+                      style: pw.TextStyle(fontSize: 8)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
                     child: pw.Text('Pending Amount:', 
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), // Reduced font
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
-                    child: pw.Text(_currencyFormat.format(summary['pendingAmount']),
+                    padding: const pw.EdgeInsets.all(4), // Reduced
+                    child: pw.Text(_formatAmountForPdf(summary['pendingAmount']),
+                      style: pw.TextStyle(fontSize: 8), // Reduced font
                       textAlign: pw.TextAlign.right),
                   ),
                 ],
@@ -365,14 +372,17 @@ class ExportService {
     );
   }
 
-  // Build PDF data table
+  String _formatAmountForPdf(double amount) {
+    return 'Rs. ${_pdfCurrencyFormat.format(amount)}';
+  }
+
   pw.Widget _buildPdfDataTable(List<Map<String, dynamic>> rows, String reportType, pw.Context context) {
     if (rows.isEmpty) {
       return pw.Center(
         child: pw.Text(
           'No data available',
           style: pw.TextStyle(
-            fontSize: 14,
+            fontSize: 11, // Reduced from 14
             color: PdfColors.grey500,
             fontStyle: pw.FontStyle.italic,
           ),
@@ -395,99 +405,167 @@ class ExportService {
     
     return pw.Column(
       children: [
-        pw.SizedBox(height: 20),
         pw.Text(
           '${reportType == 'sales' ? 'Sales' : 'Purchase'} Details',
           style: pw.TextStyle(
-            fontSize: 16,
+            fontSize: 13, // Reduced from 16
             fontWeight: pw.FontWeight.bold,
           ),
         ),
-        pw.SizedBox(height: 10),
-        pw.Table.fromTextArray(
+        pw.SizedBox(height: 6), // Reduced from 10
+        pw.TableHelper.fromTextArray(
+          context: context,
           data: tableData,
-          border: pw.TableBorder.all(color: PdfColors.grey300),
+          border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5), // Reduced width
           headerStyle: pw.TextStyle(
+            fontSize: 8, // Reduced font
             fontWeight: pw.FontWeight.bold,
             color: PdfColors.white,
           ),
           headerDecoration: pw.BoxDecoration(
             color: PdfColors.blue700,
           ),
+          cellStyle: pw.TextStyle(fontSize: 7), // Reduced from 10 to 7
+          cellPadding: const pw.EdgeInsets.all(3), // Reduced from 5
           cellAlignment: pw.Alignment.centerLeft,
-          cellPadding: const pw.EdgeInsets.all(5),
-          columnWidths: {
-            for (var i = 0; i < columns.length; i++)
-              i: const pw.FlexColumnWidth(1.0),
-          },
+          columnWidths: _getMobileColumnWidths(columns), // Use mobile-optimized column widths
         ),
       ],
     );
   }
 
-  String _formatPdfCellValue(String column, dynamic value) {
-    if (value == null) return '-';
+  // Define column widths for mobile optimization
+  Map<int, pw.TableColumnWidth> _getMobileColumnWidths(List<String> columns) {
+    final widths = <int, pw.TableColumnWidth>{};
     
-    final lowerColumn = column.toLowerCase();
-    
-    if (lowerColumn.contains('date') && value is String) {
-      try {
-        final date = DateTime.parse(value);
-        return formatDate(date);
-      } catch (e) {
-        return value.toString();
+    for (var i = 0; i < columns.length; i++) {
+      final col = columns[i].toLowerCase();
+      
+      if (col.contains('amount') || col.contains('price') || col.contains('total')) {
+        widths[i] = const pw.FixedColumnWidth(35); // Compact for mobile
+      } else if (col.contains('status')) {
+        widths[i] = const pw.FixedColumnWidth(20);
+      } else if (col.contains('date')) {
+        widths[i] = const pw.FixedColumnWidth(35);
+      } else if (col.contains('mobile') || col.contains('phone')) {
+        widths[i] = const pw.FixedColumnWidth(40);
+      } else if (col.contains('name')) {
+        widths[i] = const pw.FixedColumnWidth(45);
+      } else if (col.contains('id') || col.contains('number')) {
+        widths[i] = const pw.FixedColumnWidth(40);
+      } else {
+        widths[i] = const pw.FixedColumnWidth(40);
       }
     }
     
-    if (lowerColumn.contains('amount') || 
-        lowerColumn.contains('price') || 
-        lowerColumn.contains('total') ||
-        lowerColumn.contains('value')) {
-      try {
-        if (value is num) return _currencyFormat.format(value);
-        if (value is String) {
-          final numValue = double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), ''));
-          if (numValue != null) return _currencyFormat.format(numValue);
-        }
-      } catch (e) {
-        // Fall through
-      }
-    }
-    
-    return value.toString();
+    return widths;
   }
 
-  // Build PDF footer
+String _formatPdfCellValue(String column, dynamic value) {
+  if (value == null) return '-';
+  
+  final lowerColumn = column.toLowerCase();
+  
+  if (lowerColumn.contains('date') && value is String) {
+    try {
+      final date = DateTime.parse(value);
+      return DateFormat('dd/MM').format(date); // Shorter date format for mobile
+    } catch (e) {
+      return value.toString();
+    }
+  }
+  
+  if (lowerColumn.contains('amount') || 
+      lowerColumn.contains('price') || 
+      lowerColumn.contains('total') ||
+      lowerColumn.contains('value')) {
+    try {
+      if (value is num) return _formatAmountForPdf(value.toDouble());
+      if (value is String) {
+        final numValue = double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), ''));
+        if (numValue != null) return _formatAmountForPdf(numValue);
+      }
+    } catch (e) {
+      // Fall through
+    }
+    return value.toString();
+  }
+  
+  // Truncate long text for mobile
+  String truncate(String text, int maxLength) {
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength - 2)}..';
+  }
+  
+  // ============ FIXED: Replace symbols with clear text ============
+  if (lowerColumn.contains('status')) {
+    final status = value.toString().toLowerCase();
+    
+    // Check for different status indicators
+    if (status.contains('paid') || 
+        status.contains('completed') || 
+        status == 'true' ||
+        status.contains('✓') ||
+        status.contains('✅') ||
+        status == '1') {
+      return 'Paid';  // Clear text instead of symbol
+    } else if (status.contains('pending') || 
+               status.contains('due') ||
+               status.contains('⏳') ||
+               status.contains('📄') ||
+               status.contains('invoice')) {
+      return 'Pending';  // Clear text instead of symbol
+    } else if (status.contains('cancel') || status.contains('void')) {
+      return 'Canceled';
+    } else {
+      // Capitalize first letter of status
+      if (status.isNotEmpty) {
+        return status[0].toUpperCase() + status.substring(1);
+      }
+      return truncate(value.toString(), 8);
+    }
+  }
+  // ============ END FIX ============
+  
+  if (lowerColumn.contains('name')) {
+    return truncate(value.toString(), 12);
+  }
+  
+  if (lowerColumn.contains('mobile') || lowerColumn.contains('phone')) {
+    return truncate(value.toString(), 10);
+  }
+  
+  return truncate(value.toString(), 15);
+}
   pw.Widget _buildPdfFooter() {
     return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 30),
-      padding: const pw.EdgeInsets.all(10),
+      padding: const pw.EdgeInsets.all(8), // Reduced from 10
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey300),
+        border: pw.Border.all(color: PdfColors.grey300, width: 0.5), // Reduced width
       ),
       child: pw.Column(
         children: [
           pw.Text(
-            'Note: This is a computer-generated report. No signature required.',
+            'Note: Computer-generated report. No signature required.',
             style: pw.TextStyle(
-              fontSize: 10,
+              fontSize: 7, // Reduced from 10
               color: PdfColors.grey600,
             ),
           ),
-          pw.SizedBox(height: 5),
+          pw.SizedBox(height: 3), // Reduced from 5
           pw.Text(
-            'Generated by Inventory Management System • ${DateFormat('dd MMMM yyyy').format(DateTime.now())}',
+            'Generated by Inventory Management System',
             style: pw.TextStyle(
-              fontSize: 10,
+              fontSize: 7, // Reduced from 10
               color: PdfColors.grey600,
             ),
           ),
-          pw.SizedBox(height: 5),
+          pw.SizedBox(height: 3), // Reduced from 5
           pw.Text(
-            'Page 1 of 1',
+            '${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())} | Page 1/1',
             style: pw.TextStyle(
-              fontSize: 10,
-              color: PdfColors.grey600,
+              fontSize: 7, // Reduced from 10
+              color: PdfColors.grey500,
             ),
           ),
         ],
@@ -495,26 +573,18 @@ class ExportService {
     );
   }
 
-  // Save PDF to file on mobile
-  Future<String> _savePdfToFile(pw.Document pdf, String fileName) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath = '${directory.path}/$fileName';
-    final file = File(filePath);
-    
-    // Save the PDF
-    final bytes = await pdf.save();
-    await file.writeAsBytes(bytes);
-    
-    print('📄 PDF saved to: $filePath');
-    return filePath;
+  // ============ FILE OPERATIONS ============
+
+  Future<void> openFile(String filePath) async {
+    if (!kIsWeb) {
+      final result = await OpenFile.open(filePath);
+      print('📂 Open file result: ${result.message}');
+    } else {
+      print('📂 On web, files are downloaded directly to browser');
+    }
   }
 
-  // ============ MOBILE CSV SAVING ============
-  
-  Future<String> _saveCsvToFile({
-    required String csvContent,
-    required String reportType,
-  }) async {
+  Future<String> _saveCsvToMobile(String csvContent, String reportType) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final fileName = '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
@@ -535,45 +605,102 @@ class ExportService {
 
   // ============ WEB DOWNLOAD METHODS ============
   
+  Future<bool> _downloadPdfWeb(Uint8List pdfBytes, String fileName) async {
+    try {
+      if (!kIsWeb) return false;
+      
+      // Create blob from PDF bytes
+      final blob = html.Blob([pdfBytes], 'application/pdf');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      
+      // Create download link
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..style.display = 'none';
+      
+      // Add to DOM and click
+      html.document.body?.append(anchor);
+      anchor.click();
+      
+      // Clean up
+      Future.delayed(Duration(milliseconds: 100), () {
+        anchor.remove();
+        html.Url.revokeObjectUrl(url);
+      });
+      
+      print('✅ PDF download initiated: $fileName');
+      return true;
+    } catch (e) {
+      print('❌ PDF download failed: $e');
+      return false;
+    }
+  }
+
   Future<bool> _realWebDownload(String content, String fileName, String mimeType) async {
     try {
       if (!kIsWeb) return false;
       
-      // Method 1: Direct download with data URI
-      final success = await _downloadWithDataUri(content, fileName, mimeType);
+      // Method 1: Try using universal_html package
+      final success = await _downloadWithUniversalHtml(content, fileName, mimeType);
       if (success) return true;
       
-      // Method 2: Fallback to simpler method
-      return _downloadWithSimpleDataUri(content, fileName);
+      // Method 2: Try using data URI
+      return await _downloadWithDataUri(content, fileName);
     } catch (e) {
       print('❌ Real web download error: $e');
       return false;
     }
   }
 
-  Future<bool> _downloadWithDataUri(String content, String fileName, String mimeType) async {
+  Future<bool> _downloadWithUniversalHtml(String content, String fileName, String mimeType) async {
     try {
-      // Encode content for data URI
-      final encodedContent = Uri.encodeComponent(content);
-      final dataUri = 'data:$mimeType;charset=utf-8,$encodedContent';
+      // Use universal_html package
+      final bytes = utf8.encode(content);
+      final blob = html.Blob([bytes], mimeType);
+      final url = html.Url.createObjectUrlFromBlob(blob);
       
-      // Create anchor element
-      final anchor = html.AnchorElement(href: dataUri)
+      // Create download link
+      final anchor = html.AnchorElement(href: url)
         ..setAttribute('download', fileName)
         ..style.display = 'none';
       
-      // Add to DOM
+      // Add to DOM and click
       html.document.body?.append(anchor);
-      
-      // Trigger download
       anchor.click();
       
-      // Remove anchor after download is triggered
-      Future.delayed(const Duration(milliseconds: 100), () {
+      // Clean up
+      Future.delayed(Duration(milliseconds: 100), () {
         anchor.remove();
+        html.Url.revokeObjectUrl(url);
       });
       
-      print('✅ Download initiated: $fileName');
+      print('✅ Download initiated via universal_html: $fileName');
+      return true;
+    } catch (e) {
+      print('❌ Universal HTML download failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _downloadWithDataUri(String content, String fileName) async {
+    try {
+      // Create data URI
+      final dataUri = 'data:text/plain;charset=utf-8,${Uri.encodeComponent(content)}';
+      
+      // Create download link
+      final downloadLink = '''
+        <a href="$dataUri" download="$fileName" id="downloadLink" style="display:none;">
+          Download $fileName
+        </a>
+        <script>
+          document.getElementById('downloadLink').click();
+        </script>
+      ''';
+      
+      // Inject HTML to trigger download
+      _injectHtml(downloadLink);
+      
+      print('✅ Download attempted via data URI: $fileName');
       return true;
     } catch (e) {
       print('❌ Data URI download failed: $e');
@@ -581,229 +708,66 @@ class ExportService {
     }
   }
 
-  bool _downloadWithSimpleDataUri(String content, String fileName) {
-    try {
-      // Create data URI
-      final encodedContent = Uri.encodeComponent(content);
-      final dataUri = 'data:text/html;charset=utf-8,$encodedContent';
+  void _injectHtml(String htmlString) {
+    if (kIsWeb) {
+      // Create a div element with the HTML
+      final div = html.DivElement()
+        ..style.display = 'none'
+        ..innerHtml = htmlString;
       
-      // Create download link HTML
-      final downloadLink = '''
-        <a href="$dataUri" download="$fileName" id="downloadLink" style="display:none;">
-          Download $fileName
-        </a>
-      ''';
-      
-      // Create a temporary element
-      final div = html.DivElement()..innerHtml = downloadLink;
+      // Add to body
       html.document.body?.append(div);
       
-      // Get the link and click it
-      final link = html.document.getElementById('downloadLink') as html.AnchorElement?;
-      link?.click();
-      
-      // Clean up
-      Future.delayed(const Duration(milliseconds: 100), () {
+      // Remove after a short delay
+      Future.delayed(Duration(milliseconds: 100), () {
         div.remove();
       });
-      
-      print('✅ Download initiated via simple method: $fileName');
-      return true;
-    } catch (e) {
-      print('❌ Simple download failed: $e');
-      return false;
     }
   }
 
-  // ============ HTML CONTENT CREATION (For Web) ============
+  // ============ CSV CONTENT CREATION ============
   
-  Future<String> _createPdfHtmlContent({
+  String _createCsvContent({
     required String reportType,
     required String userMobile,
     required DateTime startDate,
     required DateTime endDate,
-    required String title,
     required dynamic data,
-  }) async {
-    try {
-      // Parse real data based on report type
-      final dataRows = _parseDataToRows(data, reportType);
-      final summary = _calculateSummary(dataRows, reportType);
+  }) {
+    // Process real data
+    final dataRows = _parseDataToRows(data, reportType);
+    
+    // Create CSV content
+    String csv = '"${reportType.toUpperCase()} REPORT"\n\n';
+    
+    // Metadata
+    csv += '"METADATA"\n';
+    csv += '"User","$userMobile"\n';
+    csv += '"Start Date","${formatDate(startDate)}"\n';
+    csv += '"End Date","${formatDate(endDate)}"\n';
+    csv += '"Generated","${formatDate(DateTime.now())}"\n';
+    csv += '"Total Records","${dataRows.length}"\n\n';
+    
+    // Data headers - use actual data columns
+    if (dataRows.isNotEmpty) {
+      final headers = dataRows.first.keys.toList();
+      csv += '"REPORT DATA"\n';
+      csv += headers.map((h) => '"${_formatColumnName(h)}"').join(',') + '\n';
       
-      return '''
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>$title</title>
-    <style>
-        @page {
-            margin: 20mm;
-            size: A4 portrait;
-        }
-        body {
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 0;
-            color: #333;
-            line-height: 1.4;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 25px;
-            border-bottom: 3px solid #2c3e50;
-            padding-bottom: 15px;
-        }
-        .header h1 {
-            color: #2c3e50;
-            margin: 0 0 10px 0;
-            font-size: 24px;
-        }
-        .company-info {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 5px;
-        }
-        .info-box {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-        }
-        .info-item {
-            margin: 5px 0;
-        }
-        .info-label {
-            font-weight: bold;
-            color: #495057;
-        }
-        .summary-box {
-            background: #e7f3ff;
-            border: 1px solid #b6d4fe;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            font-size: 12px;
-            page-break-inside: avoid;
-        }
-        th {
-            background-color: #3498db;
-            color: white;
-            padding: 10px 8px;
-            text-align: left;
-            border: 1px solid #2980b9;
-            font-weight: bold;
-        }
-        td {
-            padding: 8px;
-            border: 1px solid #ddd;
-            vertical-align: top;
-        }
-        tr:nth-child(even) {
-            background-color: #f8f9fa;
-        }
-        .amount {
-            text-align: right;
-            font-family: 'Courier New', monospace;
-        }
-        .total-row {
-            background-color: #e8f5e8 !important;
-            font-weight: bold;
-            border-top: 2px solid #27ae60;
-        }
-        .status-paid {
-            color: #27ae60;
-            font-weight: bold;
-        }
-        .status-pending {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-        .footer {
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid #ddd;
-            text-align: center;
-            color: #666;
-            font-size: 10px;
-        }
-        .page-break {
-            page-break-before: always;
-        }
-        .no-data {
-            text-align: center;
-            padding: 40px;
-            color: #7f8c8d;
-            font-style: italic;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>$title</h1>
-        <div class="company-info">Inventory Management System</div>
-        <div class="company-info">Generated on: ${formatDate(DateTime.now())} at ${DateFormat('HH:mm').format(DateTime.now())}</div>
-    </div>
-    
-    <div class="info-box">
-        <div class="info-item">
-            <span class="info-label">User ID:</span> $userMobile
-        </div>
-        <div class="info-item">
-            <span class="info-label">Report Period:</span> ${formatDate(startDate)} to ${formatDate(endDate)}
-        </div>
-        <div class="info-item">
-            <span class="info-label">Report Type:</span> ${reportType.toUpperCase()}
-        </div>
-        <div class="info-item">
-            <span class="info-label">Total Records:</span> ${dataRows.length}
-        </div>
-    </div>
-    
-    <div class="summary-box">
-        <h3 style="margin-top: 0;">Summary</h3>
-        ${_generateSummaryHtml(summary, reportType)}
-    </div>
-    
-    ${_generateDataTableHtml(dataRows, reportType)}
-    
-    <div class="footer">
-        <p><strong>Note:</strong> This is a computer-generated report. No signature required.</p>
-        <p>Generated by Inventory Management System • ${DateFormat('dd MMMM yyyy').format(DateTime.now())}</p>
-        <p>Page 1 of 1</p>
-    </div>
-    
-    <script type="text/javascript">
-        // Auto trigger print dialog for PDF save
-        window.onload = function() {
-            setTimeout(function() {
-                window.print();
-            }, 500);
-        };
-    </script>
-</body>
-</html>
-      ''';
-    } catch (e) {
-      print('❌ Error creating PDF content: $e');
-      return _createSimplePdfContent(
-        reportType: reportType,
-        userMobile: userMobile,
-        startDate: startDate,
-        endDate: endDate,
-        title: title,
-        data: data,
-      );
+      // Add data rows
+      for (var row in dataRows) {
+        final rowData = headers.map((h) => '"${_formatCsvCellValue(h, row[h])}"').join(',');
+        csv += rowData + '\n';
+      }
+    } else {
+      // No data
+      csv += '"REPORT DATA"\n';
+      csv += '"No data available for the selected period"\n';
     }
+    
+    csv += '\n"Generated by Inventory Management System"';
+    
+    return csv;
   }
 
   // ============ HELPER METHODS ============
@@ -866,7 +830,7 @@ class ExportService {
   }
 
   double _extractAmount(Map<String, dynamic> row) {
-    final amountFields = ['amount', 'total', 'value', 'price', 'grandTotal', 'netAmount'];
+    final amountFields = ['amount', 'total', 'value', 'price', 'grandTotal', 'netAmount', 'totalAmount'];
     
     for (var field in amountFields) {
       if (row.containsKey(field) && row[field] != null) {
@@ -897,70 +861,6 @@ class ExportService {
     return 'pending';
   }
 
-  String _generateSummaryHtml(Map<String, dynamic> summary, String reportType) {
-    return '''
-    <table style="width: 100%; margin: 0;">
-      <tr>
-        <td><strong>Total ${reportType == 'sales' ? 'Sales' : 'Purchases'}:</strong></td>
-        <td>${summary['totalCount']}</td>
-        <td><strong>Total Amount:</strong></td>
-        <td class="amount">${_currencyFormat.format(summary['totalAmount'])}</td>
-      </tr>
-      <tr>
-        <td><strong>Paid:</strong></td>
-        <td>${summary['paidCount']}</td>
-        <td><strong>Paid Amount:</strong></td>
-        <td class="amount">${_currencyFormat.format(summary['paidAmount'])}</td>
-      </tr>
-      <tr>
-        <td><strong>Pending:</strong></td>
-        <td>${summary['pendingCount']}</td>
-        <td><strong>Pending Amount:</strong></td>
-        <td class="amount">${_currencyFormat.format(summary['pendingAmount'])}</td>
-      </tr>
-    </table>
-    ''';
-  }
-
-  String _generateDataTableHtml(List<Map<String, dynamic>> rows, String reportType) {
-    if (rows.isEmpty) {
-      return '''
-      <div class="no-data">
-        <h3>No Data Available</h3>
-        <p>No ${reportType} records found for the selected period.</p>
-      </div>
-      ''';
-    }
-    
-    final firstRow = rows.first;
-    final columns = firstRow.keys.toList();
-    
-    String tableHtml = '''
-    <h3>${reportType == 'sales' ? 'Sales' : 'Purchase'} Details</h3>
-    <table>
-      <thead>
-        <tr>
-    ''';
-    
-    for (var column in columns) {
-      tableHtml += '<th>${_formatColumnName(column)}</th>';
-    }
-    tableHtml += '</tr></thead><tbody>';
-    
-    for (var row in rows) {
-      tableHtml += '<tr>';
-      for (var column in columns) {
-        final value = row[column];
-        final cellClass = _getCellClass(column, value);
-        tableHtml += '<td class="$cellClass">${_formatCellValue(column, value)}</td>';
-      }
-      tableHtml += '</tr>';
-    }
-    
-    tableHtml += '</tbody></table>';
-    return tableHtml;
-  }
-
   String _formatColumnName(String columnName) {
     return columnName
         .replaceAll('_', ' ')
@@ -971,160 +871,63 @@ class ExportService {
         .join(' ');
   }
 
-  String _formatCellValue(String column, dynamic value) {
-    if (value == null) return '-';
-    
-    final lowerColumn = column.toLowerCase();
-    
-    if (lowerColumn.contains('date') && value is String) {
-      try {
-        final date = DateTime.parse(value);
-        return formatDate(date);
-      } catch (e) {
-        return value.toString();
-      }
+String _formatCsvCellValue(String column, dynamic value) {
+  if (value == null) return '';
+  
+  final lowerColumn = column.toLowerCase();
+  
+  if (lowerColumn.contains('date') && value is String) {
+    try {
+      final date = DateTime.parse(value);
+      return formatDate(date);
+    } catch (e) {
+      return value.toString();
     }
-    
-    if (lowerColumn.contains('amount') || 
-        lowerColumn.contains('price') || 
-        lowerColumn.contains('total') ||
-        lowerColumn.contains('value')) {
-      try {
-        if (value is num) return _currencyFormat.format(value);
-        if (value is String) {
-          final numValue = double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), ''));
-          if (numValue != null) return _currencyFormat.format(numValue);
-        }
-      } catch (e) {
-        // Fall through
-      }
-    }
-    
-    if (lowerColumn.contains('status')) {
-      final status = value.toString().toLowerCase();
-      if (status.contains('paid') || status.contains('completed')) {
-        return '<span class="status-paid">${value.toString().toUpperCase()}</span>';
-      } else {
-        return '<span class="status-pending">${value.toString().toUpperCase()}</span>';
-      }
-    }
-    
-    return value.toString();
   }
-
-  String _getCellClass(String column, dynamic value) {
-    final lowerColumn = column.toLowerCase();
-    
-    if (lowerColumn.contains('amount') || 
-        lowerColumn.contains('price') || 
-        lowerColumn.contains('total') ||
-        lowerColumn.contains('value')) {
-      return 'amount';
-    }
-    
-    return '';
-  }
-
-  String _createSimplePdfContent({
-    required String reportType,
-    required String userMobile,
-    required DateTime startDate,
-    required DateTime endDate,
-    required String title,
-    required dynamic data,
-  }) {
-    return '''
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>$title</title>
-    <style>
-        body { font-family: Arial; margin: 20px; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .info { margin: 15px 0; padding: 10px; background: #f0f0f0; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #4CAF50; color: white; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>$title</h1>
-    </div>
-    <div class="info">
-        <div><strong>User:</strong> $userMobile</div>
-        <div><strong>Period:</strong> ${formatDate(startDate)} - ${formatDate(endDate)}</div>
-        <div><strong>Generated:</strong> ${formatDate(DateTime.now())}</div>
-    </div>
-    <h3>Report Data</h3>
-    <p>Total Records: ${data is List ? data.length : 1}</p>
-    <p><em>Note: Data formatting may be simplified. View CSV export for full details.</em></p>
-</body>
-</html>
-    ''';
-  }
-
-  String _createCsvContent({
-    required String reportType,
-    required String userMobile,
-    required DateTime startDate,
-    required DateTime endDate,
-    required dynamic data,
-  }) {
-    // Create CSV content
-    String csv = '"${reportType.toUpperCase()} REPORT"\n\n';
-    
-    // Metadata
-    csv += '"METADATA"\n';
-    csv += '"User","$userMobile"\n';
-    csv += '"Start Date","${formatDate(startDate)}"\n';
-    csv += '"End Date","${formatDate(endDate)}"\n';
-    csv += '"Generated","${formatDate(DateTime.now())}"\n';
-    csv += '"Total Records","${_countRecords(data)}"\n\n';
-    
-    // Data headers
-    csv += '"REPORT DATA"\n';
-    
-    // Add actual data if available
-    if (data is List && data.isNotEmpty) {
-      // Add headers from first item if it's a Map
-      if (data.first is Map) {
-        final firstItem = data.first as Map;
-        final headers = firstItem.keys.toList();
-        csv += headers.map((h) => '"$h"').join(',') + '\n';
-        
-        // Add data rows
-        for (var item in data) {
-          final map = item as Map;
-          final row = headers.map((h) => '"${map[h]?.toString() ?? ""}"').join(',');
-          csv += row + '\n';
-        }
-      } else {
-        // Simple list
-        csv += '"Data"\n';
-        for (var item in data) {
-          csv += '"${item.toString()}"\n';
-        }
+  
+  if (lowerColumn.contains('amount') || 
+      lowerColumn.contains('price') || 
+      lowerColumn.contains('total') ||
+      lowerColumn.contains('value')) {
+    try {
+      if (value is num) return _currencyFormat.format(value);
+      if (value is String) {
+        final numValue = double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), ''));
+        if (numValue != null) return _currencyFormat.format(numValue);
       }
-    } else {
-      // Sample data (fallback)
-      if (reportType == 'sales') {
-        csv += '"Invoice No","Customer","Date","Amount","Status"\n';
-        csv += '"INV-001","John Doe","${formatDate(startDate)}","1000.00","Paid"\n';
-        csv += '"INV-002","Jane Smith","${formatDate(endDate)}","2000.00","Pending"\n';
-        csv += '"","","","3000.00",""\n';
-      }
+    } catch (e) {
+      // Fall through
     }
-    
-    csv += '\n"Generated by Inventory Management System"';
-    
-    return csv;
   }
+  
+  // ============ ADDED: Status formatting for CSV ============
+  if (lowerColumn.contains('status')) {
+    final status = value.toString().toLowerCase();
+    
+    if (status.contains('paid') || 
+        status.contains('completed') || 
+        status == 'true' ||
+        status.contains('✓') ||
+        status.contains('✅') ||
+        status == '1') {
+      return 'Paid';
+    } else if (status.contains('pending') || 
+               status.contains('due') ||
+               status.contains('⏳') ||
+               status.contains('📄') ||
+               status.contains('invoice')) {
+      return 'Pending';
+    } else if (status.contains('cancel') || status.contains('void')) {
+      return 'Canceled';
+    }
+  }
+  // ============ END ADDITION ============
+  
+  return value.toString();
+}
 
-  int _countRecords(dynamic data) {
-    if (data == null) return 0;
-    if (data is List) return data.length;
-    return 1;
+  // Format date helper
+  String formatDate(DateTime date) {
+    return _dateFormat.format(date);
   }
 }
