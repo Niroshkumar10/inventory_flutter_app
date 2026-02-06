@@ -7,3 +7,4 @@ String getCurrentUserId() {
   }
   return user.uid;
 }
+

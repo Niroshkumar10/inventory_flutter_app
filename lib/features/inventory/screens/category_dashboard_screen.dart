@@ -115,7 +115,7 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
             ),
           ],
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color.fromARGB(255, 7, 54, 114),
         foregroundColor: Colors.black,
         elevation: 1,
         actions: [

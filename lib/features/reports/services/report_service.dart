@@ -7,6 +7,20 @@ import '../../inventory/models/inventory_item_model.dart';
 import '../../party/models/customer_model.dart';
 import '../../party/models/supplier_model.dart';
 
+// Add this helper class inside the ReportService class (at the top, after FirebaseFirestore declaration):
+class SupplierStats {
+  int totalOrders;
+  double totalPurchases;
+  double pendingPayment;
+  DateTime lastOrderDate;
+
+  SupplierStats({
+    required this.totalOrders,
+    required this.totalPurchases,
+    required this.pendingPayment,
+    required this.lastOrderDate,
+  });
+}
 class ReportService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -81,6 +95,7 @@ class ReportService {
     }
   }
 
+
   // Get purchase reports within date range
   Future<List<PurchaseReport>> getPurchaseReports({
     required String userMobile,
@@ -118,6 +133,7 @@ class ReportService {
       rethrow;
     }
   }
+
 
   // Get inventory reports
   Future<List<InventoryReport>> getInventoryReports({
@@ -248,94 +264,158 @@ class ReportService {
   }
 
   // Get supplier reports with purchase statistics
-  Future<List<SupplierReport>> getSupplierReports({
-    required String userMobile,
-    required DateTime startDate,
-    required DateTime endDate,
-  }) async {
-    try {
-      print('📊 Fetching supplier reports for user: $userMobile');
+// Get supplier reports with purchase statistics - FIXED VERSION
+Future<List<SupplierReport>> getSupplierReports({
+  required String userMobile,
+  required DateTime startDate,
+  required DateTime endDate,
+}) async {
+  try {
+    print('📊 Fetching supplier reports for user: $userMobile');
+    print('📅 Date range: $startDate to $endDate');
+    
+    // 1. Get all suppliers from user's subcollection - REMOVE THE isActive FILTER
+    final suppliersQuery = await _getUserSuppliersCollection(userMobile)
+        .get(); // REMOVED: .where('isActive', isEqualTo: true)
+
+    final suppliers = suppliersQuery.docs.map((doc) {
+      return Supplier.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    }).toList();
+
+    print('✅ Found ${suppliers.length} suppliers for user: $userMobile');
+
+    if (suppliers.isEmpty) {
+      print('⚠️ No suppliers found for this user at all');
+      return [];
+    }
+
+    // Print ALL suppliers for debugging (not just active)
+    for (final supplier in suppliers) {
+      print('   👥 Supplier: "${supplier.name}", ID: ${supplier.id}, Active: ${supplier.isActive}');
+    }
+
+    // 2. Get purchase data for period
+    final purchasesQuery = await _getUserBillsCollection(userMobile)
+        .where('type', isEqualTo: 'purchase')
+        .where('date', isGreaterThanOrEqualTo: startDate)
+        .where('date', isLessThanOrEqualTo: endDate)
+        .get();
+
+    print('📊 Found ${purchasesQuery.docs.length} purchases in period');
+
+    // Process purchase data
+    final Map<String, SupplierStats> supplierStats = {};
+
+    for (final doc in purchasesQuery.docs) {
+      try {
+        final data = doc.data() as Map<String, dynamic>;
+        final bill = Bill.fromMap(data, doc.id);
+        final supplierName = bill.partyName;
+
+        if (supplierName.isEmpty) {
+          print('⚠️ Purchase bill ${doc.id} has empty supplier name');
+          continue;
+        }
+
+        print('   🔍 Processing purchase for supplier: "$supplierName"');
+
+        if (!supplierStats.containsKey(supplierName)) {
+          supplierStats[supplierName] = SupplierStats(
+            totalOrders: 0,
+            totalPurchases: 0.0,
+            pendingPayment: 0.0,
+            lastOrderDate: bill.date,
+          );
+        }
+
+        final stats = supplierStats[supplierName]!;
+        stats.totalOrders++;
+        stats.totalPurchases += bill.totalAmount;
+        stats.pendingPayment += bill.amountDue;
+
+        if (bill.date.isAfter(stats.lastOrderDate)) {
+          stats.lastOrderDate = bill.date;
+        }
+
+        print('   📝 Purchase details: ₹${bill.totalAmount}, Due: ₹${bill.amountDue}');
+      } catch (e) {
+        print('❌ Error processing purchase bill ${doc.id}: $e');
+      }
+    }
+
+    // 3. Show all supplier stats found in purchases
+    print('📋 Supplier stats from purchases:');
+    for (final entry in supplierStats.entries) {
+      print('   📍 "${entry.key}": ${entry.value.totalOrders} orders, ₹${entry.value.totalPurchases}');
+    }
+
+    // 4. Create supplier reports - Show ALL suppliers
+    final List<SupplierReport> reports = [];
+
+    for (final supplier in suppliers) {
+      // Try to find matching stats - check for exact name match
+      SupplierStats? matchingStats;
       
-      // Get all suppliers from user's subcollection
-      final suppliersQuery = await _getUserSuppliersCollection(userMobile)
-          .where('isActive', isEqualTo: true)
-          .get();
-
-      final suppliers = suppliersQuery.docs.map((doc) {
-        return Supplier.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-      }).toList();
-
-      print('✅ Found ${suppliers.length} suppliers');
-
-      // Get purchase data for period
-      final purchasesQuery = await _getUserBillsCollection(userMobile)
-          .where('type', isEqualTo: 'purchase')
-          .where('date', isGreaterThanOrEqualTo: startDate)
-          .where('date', isLessThanOrEqualTo: endDate)
-          .get();
-
-      print('📊 Found ${purchasesQuery.docs.length} purchases in period');
-
-      // Process purchase data
-      final supplierStats = <String, Map<String, dynamic>>{};
-
-      for (final doc in purchasesQuery.docs) {
-        try {
-          final bill = Bill.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-          final supplierName = bill.partyName;
-
-          if (!supplierStats.containsKey(supplierName)) {
-            supplierStats[supplierName] = {
-              'totalOrders': 0,
-              'totalPurchases': 0.0,
-              'pendingPayment': 0.0,
-              'lastOrderDate': bill.date,
-            };
-          }
-
-          final stats = supplierStats[supplierName]!;
-          stats['totalOrders'] = (stats['totalOrders'] as int) + 1;
-          stats['totalPurchases'] = (stats['totalPurchases'] as double) + bill.totalAmount;
-          stats['pendingPayment'] = (stats['pendingPayment'] as double) + bill.amountDue;
-
-          if (bill.date.isAfter(stats['lastOrderDate'] as DateTime)) {
-            stats['lastOrderDate'] = bill.date;
-          }
-        } catch (e) {
-          print('⚠️ Error processing purchase bill ${doc.id}: $e');
+      for (final entry in supplierStats.entries) {
+        // Normalize names for comparison (trim and lowercase)
+        final billSupplierName = entry.key.trim().toLowerCase();
+        final supplierName = supplier.name.trim().toLowerCase();
+        
+        print('   🔄 Comparing bill: "$billSupplierName" with supplier: "$supplierName"');
+        
+        if (billSupplierName == supplierName) {
+          matchingStats = entry.value;
+          print('   ✅ Exact match found for supplier: ${supplier.name}');
+          break;
         }
       }
 
-      // Create supplier reports using existing SupplierReport.fromSupplier factory
-      final reports = suppliers.map((supplier) {
-        final stats = supplierStats[supplier.name] ?? {
-          'totalOrders': 0,
-          'totalPurchases': 0.0,
-          'pendingPayment': 0.0,
-          'lastOrderDate': DateTime(1970),
-        };
+      // If no exact match, try partial match
+      if (matchingStats == null) {
+        for (final entry in supplierStats.entries) {
+          final billSupplierName = entry.key.trim().toLowerCase();
+          final supplierName = supplier.name.trim().toLowerCase();
+          
+          if (billSupplierName.contains(supplierName) || supplierName.contains(billSupplierName)) {
+            matchingStats = entry.value;
+            print('   🔄 Partial match for supplier: ${supplier.name} -> ${entry.key}');
+            break;
+          }
+        }
+      }
 
-        return SupplierReport.fromSupplier(
-          supplier,
-          totalOrders: stats['totalOrders'] as int,
-          totalPurchases: stats['totalPurchases'] as double,
-          pendingPayment: stats['pendingPayment'] as double,
-          lastOrderDate: stats['lastOrderDate'] as DateTime,
-        );
-      }).toList();
+      // Use matching stats or create zero stats
+      final stats = matchingStats ?? SupplierStats(
+        totalOrders: 0,
+        totalPurchases: 0.0,
+        pendingPayment: 0.0,
+        lastOrderDate: DateTime(1970),
+      );
 
-      // Sort by total purchases (descending)
-      reports.sort((a, b) => b.totalPurchases.compareTo(a.totalPurchases));
-
-      print('✅ Generated ${reports.length} supplier reports');
-      return reports;
-    } catch (e, stackTrace) {
-      print('❌ Error getting supplier reports: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
+      reports.add(SupplierReport.fromSupplier(
+        supplier,
+        totalOrders: stats.totalOrders,
+        totalPurchases: stats.totalPurchases,
+        pendingPayment: stats.pendingPayment,
+        lastOrderDate: stats.lastOrderDate,
+      ));
     }
-  }
 
+    // 5. DO NOT FILTER - Show ALL suppliers (even with zero purchases)
+    // Sort by total purchases (descending)
+    reports.sort((a, b) => b.totalPurchases.compareTo(a.totalPurchases));
+
+    print('✅ Generated ${reports.length} supplier reports');
+    print('📋 Suppliers with purchases: ${reports.where((r) => r.totalPurchases > 0).length}');
+    print('📋 Suppliers with zero purchases: ${reports.where((r) => r.totalPurchases == 0).length}');
+    
+    return reports; // Return ALL suppliers
+  } catch (e, stackTrace) {
+    print('❌ Error getting supplier reports: $e');
+    print('Stack trace: $stackTrace');
+    return []; // Return empty list instead of rethrowing
+  }
+} 
   // Get profit & loss report
   Future<ProfitLossReport> getProfitLossReport({
     required String userMobile,

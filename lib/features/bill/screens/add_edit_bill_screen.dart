@@ -129,7 +129,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           
           await _inventoryService.adjustStock(
             item.inventoryItemId!,
-            adjustment,
+            adjustment.toInt(),
             '${bill.type == 'sales' ? 'Sold' : 'Purchased'} ${item.quantity} in bill ${bill.invoiceNumber}',
           );
           
@@ -139,8 +139,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           final updatedItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
           print('    Verified stock: ${updatedItem.quantity}');
           
-        }
-         catch (e) {
+        } catch (e) {
           print('    ❌ Stock update FAILED: $e');
           print('    Stack trace: ${e.toString()}');
         }
@@ -163,14 +162,14 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
     // Collect old quantities
     for (final item in oldBill.items) {
       if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-        oldQuantities[item.inventoryItemId!] = item.quantity;
+        oldQuantities[item.inventoryItemId!] = item.quantity.toInt();
       }
     }
     
     // Collect new quantities
     for (final item in newBill.items) {
       if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-        newQuantities[item.inventoryItemId!] = item.quantity;
+        newQuantities[item.inventoryItemId!] = item.quantity.toInt();
       }
     }
     
@@ -565,52 +564,53 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
     );
   }
 
- void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
-  print('🔄 Adding inventory item to bill at index $itemIndex');
-  print('  Item name: ${inventoryItem.name}');
-  print('  Inventory ID: ${inventoryItem.id}');
-  print('  Unit: ${inventoryItem.unit}');
-  print('  Price: ${inventoryItem.price}');
-  
-  // Create a new BillItem with ALL properties
-  final newBillItem = BillItem(
-    description: inventoryItem.name,
-    quantity: 1,
-    price: inventoryItem.price,
-    total: inventoryItem.price,
-    inventoryItemId: inventoryItem.id, // Make sure this is set!
-    unit: inventoryItem.unit, // Make sure this is set!
-  );
-  
-  print('  Created new BillItem:');
-  print('    Inventory ID in newBillItem: ${newBillItem.inventoryItemId}');
-  print('    Unit in newBillItem: ${newBillItem.unit}');
-  
-  // Update the items array FIRST
-  final List<BillItem> updatedItems = List.from(_items);
-  updatedItems[itemIndex] = newBillItem;
-  
-  setState(() {
-    // Update the main items array
-    _items = updatedItems;
+  void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
+    print('🔄 Adding inventory item to bill at index $itemIndex');
+    print('  Item name: ${inventoryItem.name}');
+    print('  Inventory ID: ${inventoryItem.id}');
+    print('  Unit: ${inventoryItem.unit}');
+    print('  Price: ${inventoryItem.price}');
     
-    // Update controllers
-    _descControllers[itemIndex].text = inventoryItem.name;
-    _qtyControllers[itemIndex].text = '1';
-    _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
+    // Create a new BillItem with ALL properties
+    final newBillItem = BillItem.create(
+      description: inventoryItem.name,
+      quantity: 1.0,
+      price: inventoryItem.price,
+      inventoryItemId: inventoryItem.id,
+      unit: inventoryItem.unit,
+      category: inventoryItem.category,
+      name: inventoryItem.name,
+    );
     
-    _calculateTotals();
-  });
-  
-  // Verify after setState
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    print('✅ Verification after setState:');
-    print('  Description in _items: ${_items[itemIndex].description}');
-    print('  Inventory ID in _items: ${_items[itemIndex].inventoryItemId}');
-    print('  Unit in _items: ${_items[itemIndex].unit}');
-    print('  Price in _items: ${_items[itemIndex].price}');
-  });
-}
+    print('  Created new BillItem:');
+    print('    Inventory ID in newBillItem: ${newBillItem.inventoryItemId}');
+    print('    Unit in newBillItem: ${newBillItem.unit}');
+    
+    // Update the items array FIRST
+    final List<BillItem> updatedItems = List.from(_items);
+    updatedItems[itemIndex] = newBillItem;
+    
+    setState(() {
+      // Update the main items array
+      _items = updatedItems;
+      
+      // Update controllers
+      _descControllers[itemIndex].text = inventoryItem.name;
+      _qtyControllers[itemIndex].text = '1';
+      _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
+      
+      _calculateTotals();
+    });
+    
+    // Verify after setState
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('✅ Verification after setState:');
+      print('  Description in _items: ${_items[itemIndex].description}');
+      print('  Inventory ID in _items: ${_items[itemIndex].inventoryItemId}');
+      print('  Unit in _items: ${_items[itemIndex].unit}');
+      print('  Price in _items: ${_items[itemIndex].price}');
+    });
+  }
 
   Future<InventoryItem?> _getInventoryItemById(String id) async {
     try {
@@ -981,187 +981,186 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
             ),
     );
   }
-Widget _buildItemRow(int index) {
-  final item = _items[index];
-  final isFromInventory = item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty;
-  
-  return Card(
-    margin: const EdgeInsets.only(bottom: 12.0),
-    child: Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                flex: 4,
-                child: TextFormField(
-                  controller: _descControllers[index],
-                  readOnly: isFromInventory,
-                  decoration: InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                    suffixIcon: isFromInventory
-                        ? Tooltip(
-                            message: 'From Inventory',
-                            child: Icon(Icons.inventory, color: Colors.green, size: 16),
-                          )
-                        : null,
+
+  Widget _buildItemRow(int index) {
+    final item = _items[index];
+    final isFromInventory = item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty;
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: TextFormField(
+                    controller: _descControllers[index],
+                    readOnly: isFromInventory,
+                    decoration: InputDecoration(
+                      labelText: 'Description',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                      suffixIcon: isFromInventory
+                          ? Tooltip(
+                              message: 'From Inventory',
+                              child: Icon(Icons.inventory, color: Colors.green, size: 16),
+                            )
+                          : null,
+                    ),
+                    onChanged: (value) {
+                      if (!isFromInventory) {
+                        setState(() {
+                          // Now copyWith will preserve inventoryItemId and unit automatically
+                          _items[index] = item.copyWith(description: value);
+                        });
+                        _calculateTotals();
+                      }
+                    },
                   ),
-                  onChanged: (value) {
-                    if (!isFromInventory) {
+                ),
+                const SizedBox(width: 8),
+                
+                if (_isSelectingFromInventory && !isFromInventory)
+                  IconButton(
+                    onPressed: () => _showInventorySelectionDialog(index),
+                    icon: Icon(Icons.search, color: Colors.blue),
+                    tooltip: 'Select from Inventory',
+                  ),
+                
+                if (_items.length > 1)
+                  IconButton(
+                    onPressed: () => _removeItem(index),
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    tooltip: 'Remove Item',
+                  ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _qtyControllers[index],
+                    decoration: InputDecoration(
+                      labelText: 'Qty',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      final qty = double.tryParse(value) ?? 1.0;
                       setState(() {
-                        // Now copyWith will preserve inventoryItemId and unit automatically
-                        _items[index] = item.copyWith(description: value);
+                        _items[index] = item.copyWith(quantity: qty);
                       });
                       _calculateTotals();
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              
-              if (_isSelectingFromInventory && !isFromInventory)
-                IconButton(
-                  onPressed: () => _showInventorySelectionDialog(index),
-                  icon: Icon(Icons.search, color: Colors.blue),
-                  tooltip: 'Select from Inventory',
-                ),
-              
-              if (_items.length > 1)
-                IconButton(
-                  onPressed: () => _removeItem(index),
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  tooltip: 'Remove Item',
-                ),
-            ],
-          ),
-          
-          const SizedBox(height: 12),
-          
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _qtyControllers[index],
-                  decoration: InputDecoration(
-                    labelText: 'Qty',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                    },
                   ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    final qty = int.tryParse(value) ?? 1;
-                    setState(() {
-                      // Now copyWith will preserve inventoryItemId and unit automatically
-                      _items[index] = item.copyWith(quantity: qty);
-                    });
-                    _calculateTotals();
-                  },
                 ),
-              ),
-              
-              const SizedBox(width: 8),
-              
-              Expanded(
-                child: TextFormField(
-                  controller: _priceControllers[index],
-                  readOnly: isFromInventory,
-                  decoration: InputDecoration(
-                    labelText: 'Price',
-                    border: OutlineInputBorder(),
-                    prefixText: '₹ ',
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                    suffixIcon: isFromInventory
-                        ? Tooltip(
-                            message: 'Price from inventory',
-                            child: Icon(Icons.lock, color: Colors.blue, size: 16),
-                          )
-                        : null,
+                
+                const SizedBox(width: 8),
+                
+                Expanded(
+                  child: TextFormField(
+                    controller: _priceControllers[index],
+                    readOnly: isFromInventory,
+                    decoration: InputDecoration(
+                      labelText: 'Price',
+                      border: OutlineInputBorder(),
+                      prefixText: '₹ ',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                      suffixIcon: isFromInventory
+                          ? Tooltip(
+                              message: 'Price from inventory',
+                              child: Icon(Icons.lock, color: Colors.blue, size: 16),
+                            )
+                          : null,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: isFromInventory ? null : (value) {
+                      final price = double.tryParse(value) ?? 0.0;
+                      setState(() {
+                        _items[index] = item.copyWith(price: price);
+                      });
+                      _calculateTotals();
+                    },
                   ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: isFromInventory ? null : (value) {
-                    final price = double.tryParse(value) ?? 0.0;
-                    setState(() {
-                      // Now copyWith will preserve inventoryItemId and unit automatically
-                      _items[index] = item.copyWith(price: price);
-                    });
-                    _calculateTotals();
-                  },
                 ),
-              ),
-              
-              const SizedBox(width: 8),
-              
-              if (item.unit != null && item.unit!.isNotEmpty)
+                
+                const SizedBox(width: 8),
+                
+                if (item.unit != null && item.unit!.isNotEmpty)
+                  Expanded(
+                    child: Card(
+                      color: Colors.grey.shade100,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Text(
+                          item.unit!,
+                          style: TextStyle(fontSize: 14),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+                
+                const SizedBox(width: 8),
+                
                 Expanded(
                   child: Card(
                     color: Colors.grey.shade100,
                     child: Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: Text(
-                        item.unit!,
-                        style: TextStyle(fontSize: 14),
+                        '₹${(item.quantity * item.price).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                 ),
-              
-              const SizedBox(width: 8),
-              
-              Expanded(
-                child: Card(
-                  color: Colors.grey.shade100,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Text(
-                      '₹${(item.quantity * item.price).toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          
-          if (isFromInventory)
-            FutureBuilder<InventoryItem?>(
-              future: _getInventoryItemById(item.inventoryItemId!),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data != null) {
-                  final inventoryItem = snapshot.data!;
-                  if (item.quantity > inventoryItem.quantity) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        '⚠️ Insufficient stock! Available: ${inventoryItem.quantity}',
-                        style: TextStyle(color: Colors.red, fontSize: 12),
-                      ),
-                    );
-                  } else if (inventoryItem.quantity < 10) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        '⚠️ Low stock! Available: ${inventoryItem.quantity}',
-                        style: TextStyle(color: Colors.orange, fontSize: 12),
-                      ),
-                    );
-                  }
-                }
-                return const SizedBox.shrink(); // Added const and missing closing parenthesis
-              },
+              ],
             ),
-        ],
+            
+            if (isFromInventory)
+              FutureBuilder<InventoryItem?>(
+                future: _getInventoryItemById(item.inventoryItemId!),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData && snapshot.data != null) {
+                    final inventoryItem = snapshot.data!;
+                    if (item.quantity > inventoryItem.quantity) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          '⚠️ Insufficient stock! Available: ${inventoryItem.quantity}',
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      );
+                    } else if (inventoryItem.quantity < 10) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          '⚠️ Low stock! Available: ${inventoryItem.quantity}',
+                          style: TextStyle(color: Colors.orange, fontSize: 12),
+                        ),
+                      );
+                    }
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
  
   Widget _buildTotalRow(String label, double amount, {bool isTotal = false}) {
     return Row(
@@ -1187,297 +1186,285 @@ Widget _buildItemRow(int index) {
     );
   }
 
-Future<void> _saveBill() async {
-  print('💾 Saving bill...');
-  print('  Bill type: ${widget.type}');
-  print('  Is edit mode: ${widget.billToEdit != null}');
+  Future<void> _saveBill() async {
+    print('💾 Saving bill...');
+    print('  Bill type: ${widget.type}');
+    print('  Is edit mode: ${widget.billToEdit != null}');
 
-  void _debugCheckItems() {
-  print('🔍 DEBUG: Current _items state:');
-  for (int i = 0; i < _items.length; i++) {
-    final item = _items[i];
-    print('  Item $i: ${item.description}');
-    print('    Inventory ID: ${item.inventoryItemId}');
-    print('    Unit: ${item.unit}');
-    print('    Quantity: ${item.quantity}');
-    print('    Price: ${item.price}');
-  }
-}
-  
-  if (widget.billToEdit != null) {
-    print('  Bill ID: ${widget.billToEdit!.id}');
-    print('  Original Invoice Number: ${widget.billToEdit!.invoiceNumber}');
-  }
-  
-  if (!_formKey.currentState!.validate()) {
-    print('❌ Form validation failed');
-    return;
-  }
-  
-  // Validate party name
-  if (_partyNameController.text.isEmpty) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select a ${widget.type == 'sales' ? 'customer' : 'supplier'}')),
-      );
+    if (widget.billToEdit != null) {
+      print('  Bill ID: ${widget.billToEdit!.id}');
+      print('  Original Invoice Number: ${widget.billToEdit!.invoiceNumber}');
     }
-    return;
-  }
-  
-  
-  // Validate items
-  for (int i = 0; i < _items.length; i++) {
-    final item = _items[i];
-    if (item.description.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter item description')),
-        );
-      }
-      return;
-    }
-    if (item.price <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item price must be greater than 0')),
-        );
-      }
-      return;
-    }
-    if (item.quantity <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item quantity must be greater than 0')),
-        );
-      }
-      return;
-    }
-  }
-  
-  // Validate inventory stock for sales bills
-  if (widget.type == 'sales') {
-    bool hasInsufficientStock = false;
-    String errorMessage = '';
-    String errorItemName = '';
     
-    for (final item in _items) {
-      // Only check inventory if item has a valid inventoryItemId
-      if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-        try {
-          final inventoryItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
-          
-          if (item.quantity > inventoryItem.quantity) {
-            hasInsufficientStock = true;
-            errorMessage = 'Insufficient stock for ${inventoryItem.name}. '
-                'Available: ${inventoryItem.quantity}, Requested: ${item.quantity}';
-            errorItemName = inventoryItem.name;
-            break;
+    if (!_formKey.currentState!.validate()) {
+      print('❌ Form validation failed');
+      return;
+    }
+    
+    // Validate party name
+    if (_partyNameController.text.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Please select a ${widget.type == 'sales' ? 'customer' : 'supplier'}')),
+        );
+      }
+      return;
+    }
+    
+    // Validate items
+    for (int i = 0; i < _items.length; i++) {
+      final item = _items[i];
+      if (item.description.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter item description')),
+          );
+        }
+        return;
+      }
+      if (item.price <= 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Item price must be greater than 0')),
+          );
+        }
+        return;
+      }
+      if (item.quantity <= 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Item quantity must be greater than 0')),
+          );
+        }
+        return;
+      }
+    }
+    
+    // Validate inventory stock for sales bills
+    if (widget.type == 'sales') {
+      bool hasInsufficientStock = false;
+      String errorMessage = '';
+      String errorItemName = '';
+      
+      for (final item in _items) {
+        // Only check inventory if item has a valid inventoryItemId
+        if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
+          try {
+            final inventoryItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
+            
+            if (item.quantity > inventoryItem.quantity) {
+              hasInsufficientStock = true;
+              errorMessage = 'Insufficient stock for ${inventoryItem.name}. '
+                  'Available: ${inventoryItem.quantity}, Requested: ${item.quantity}';
+              errorItemName = inventoryItem.name;
+              break;
+            }
+          } catch (e) {
+            print('⚠️ Error checking inventory stock for item ${item.inventoryItemId}: $e');
+            // Don't fail if we can't check inventory, just log it
           }
-        } catch (e) {
-          print('⚠️ Error checking inventory stock for item ${item.inventoryItemId}: $e');
-          // Don't fail if we can't check inventory, just log it
         }
       }
+      
+      if (hasInsufficientStock) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
     }
     
-    if (hasInsufficientStock) {
+    // Check if widget is still mounted
+    if (!mounted) {
+      print('⚠️ Widget is disposed, skipping save');
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      // DEBUG: Log current items before processing
+      print('🔄 Processing items before creating bill:');
+      for (int i = 0; i < _items.length; i++) {
+        final item = _items[i];
+        print('  Item $i: ${item.description}');
+        print('    Inventory ID from UI: ${item.inventoryItemId}');
+        print('    Unit from UI: ${item.unit}');
+      }
+      
+      // Process items - preserve the inventoryItemId from the original items
+      final processedItems = _items.map((item) {
+        return BillItem.create(
+          description: item.description,
+          quantity: item.quantity,
+          price: item.price,
+          inventoryItemId: item.inventoryItemId ?? '',
+          unit: item.unit ?? '',
+          category: item.category ?? '',
+          name: item.name ?? item.description,
+        );
+      }).toList();
+      
+      // DEBUG: Log processed items
+      print('✅ Processed items for bill:');
+      for (int i = 0; i < processedItems.length; i++) {
+        final item = processedItems[i];
+        print('  Item $i: ${item.description}');
+        print('    Inventory ID: ${item.inventoryItemId}');
+        print('    Unit: ${item.unit}');
+      }
+      
+      // Use the factory method to create the bill
+      final bill = Bill.create(
+        type: widget.type,
+        invoiceNumber: _invoiceNumber!,
+        partyName: _partyNameController.text,
+        userMobile: widget.userMobile,
+        partyPhone: _partyPhoneController.text,
+        partyAddress: _partyAddressController.text,
+        items: processedItems,
+        subtotal: _subtotal,
+        gstRate: double.tryParse(_gstRateController.text) ?? 0.0,
+        gstAmount: _gstAmount,
+        totalAmount: _totalAmount,
+        amountPaid: double.tryParse(_amountPaidController.text) ?? 0.0,
+        amountDue: _amountDue,
+        paymentStatus: _amountDue <= 0 ? 'paid' : (_amountDue < _totalAmount ? 'partial' : 'due'),
+        isGST: _isGST,
+        notes: _notesController.text,
+      );
+      
+      print('📋 Bill created successfully:');
+      print('  Type: ${bill.type}');
+      print('  Invoice: ${bill.invoiceNumber}');
+      print('  Party: ${bill.partyName}');
+      print('  Items: ${bill.items.length}');
+      
+      // Log item details for debugging
+      for (int i = 0; i < bill.items.length; i++) {
+        final item = bill.items[i];
+        print('    Item ${i + 1}: ${item.description}');
+        print('      Qty: ${item.quantity}, Price: ${item.price}');
+        print('      Inventory ID: "${item.inventoryItemId}"');
+        print('      Unit: "${item.unit}"');
+        print('      Has inventory ID: ${item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty}');
+      }
+      
+      print('  Subtotal: $_subtotal');
+      print('  GST: $_gstAmount');
+      print('  Total: $_totalAmount');
+      
+      if (widget.billToEdit != null) {
+        print('✏️ Updating existing bill...');
+        print('  Original ID: ${widget.billToEdit!.id}');
+        
+        final updatedBill = bill.copyWith(id: widget.billToEdit!.id);
+        print('  Updated bill ID: ${updatedBill.id}');
+        
+        try {
+          await widget.billService.updateBill(updatedBill);
+          print('✅ Bill updated successfully in database');
+          
+          // Update inventory stock for edited bills
+          await _handleInventoryUpdatesForEdit(widget.billToEdit!, updatedBill);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Transaction updated successfully'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e, stackTrace) {
+          print('❌ Error in updateBill: $e');
+          print('Stack trace: $stackTrace');
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to update transaction: ${e.toString()}'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+      } else {
+        print('➕ Adding new bill to database...');
+        try {
+          await widget.billService.addBill(bill);
+          print('✅ Bill added successfully to database');
+          
+          // Handle inventory stock updates for BOTH sales and purchases
+          await _handleInventoryUpdatesForNewBill(bill);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Transaction saved successfully'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e, stackTrace) {
+          print('❌ Error adding bill to database: $e');
+          print('Stack trace: $stackTrace');
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to save transaction: ${e.toString()}'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+      }
+      
+      // Check if still mounted before navigating
+      if (mounted) {
+        print('✅ Navigating back...');
+        Navigator.pop(context);
+      } else {
+        print('⚠️ Widget was disposed before navigation');
+      }
+      
+    } catch (e, stackTrace) {
+      print('❌ Unexpected error in saveBill process: $e');
+      print('Stack trace: $stackTrace');
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text('Error saving transaction: ${e.toString()}'),
             duration: Duration(seconds: 3),
           ),
         );
       }
-      return;
-    }
-  }
-  
-  // Check if widget is still mounted
-  if (!mounted) {
-    print('⚠️ Widget is disposed, skipping save');
-    return;
-  }
-  
-  setState(() => _isLoading = true);
-  
-  try {
-    // DEBUG: Log current items before processing
-    print('🔄 Processing items before creating bill:');
-    for (int i = 0; i < _items.length; i++) {
-      final item = _items[i];
-      print('  Item $i: ${item.description}');
-      print('    Inventory ID from UI: ${item.inventoryItemId}');
-      print('    Unit from UI: ${item.unit}');
-    }
-    
-    // Process items - preserve the inventoryItemId from the original items
-    final processedItems = _items.map((item) {
-      return BillItem(
-        description: item.description,
-        quantity: item.quantity,
-        price: item.price,
-        total: item.quantity * item.price,
-        inventoryItemId: item.inventoryItemId ?? '', // Preserve the original ID
-        unit: item.unit ?? '',
-      );
-    }).toList();
-    
-    // DEBUG: Log processed items
-    print('✅ Processed items for bill:');
-    for (int i = 0; i < processedItems.length; i++) {
-      final item = processedItems[i];
-      print('  Item $i: ${item.description}');
-      print('    Inventory ID: ${item.inventoryItemId}');
-      print('    Unit: ${item.unit}');
-    }
-    
-    // Use the factory method to create the bill
-    final bill = Bill.create(
-      type: widget.type,
-      invoiceNumber: _invoiceNumber!,
-      partyName: _partyNameController.text,
-      userMobile: widget.userMobile,
-      partyPhone: _partyPhoneController.text,
-      partyAddress: _partyAddressController.text,
-      items: processedItems,
-      subtotal: _subtotal,
-      gstRate: double.tryParse(_gstRateController.text) ?? 0.0,
-      gstAmount: _gstAmount,
-      totalAmount: _totalAmount,
-      amountPaid: double.tryParse(_amountPaidController.text) ?? 0.0,
-      amountDue: _amountDue,
-      paymentStatus: _amountDue <= 0 ? 'paid' : (_amountDue < _totalAmount ? 'partial' : 'due'),
-      isGST: _isGST,
-      notes: _notesController.text,
-    );
-    
-    print('📋 Bill created successfully:');
-    print('  Type: ${bill.type}');
-    print('  Invoice: ${bill.invoiceNumber}');
-    print('  Party: ${bill.partyName}');
-    print('  Items: ${bill.items.length}');
-    
-    // Log item details for debugging
-    for (int i = 0; i < bill.items.length; i++) {
-      final item = bill.items[i];
-      print('    Item ${i + 1}: ${item.description}');
-      print('      Qty: ${item.quantity}, Price: ${item.price}');
-      print('      Inventory ID: "${item.inventoryItemId}"');
-      print('      Unit: "${item.unit}"');
-      print('      Has inventory ID: ${item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty}');
-    }
-    
-    print('  Subtotal: $_subtotal');
-    print('  GST: $_gstAmount');
-    print('  Total: $_totalAmount');
-    
-    if (widget.billToEdit != null) {
-      print('✏️ Updating existing bill...');
-      print('  Original ID: ${widget.billToEdit!.id}');
-      
-      final updatedBill = bill.copyWith(id: widget.billToEdit!.id);
-      print('  Updated bill ID: ${updatedBill.id}');
-      
-      try {
-        await widget.billService.updateBill(updatedBill);
-        print('✅ Bill updated successfully in database');
-        
-        // Update inventory stock for edited bills
-        await _handleInventoryUpdatesForEdit(widget.billToEdit!, updatedBill);
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Transaction updated successfully'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      } catch (e, stackTrace) {
-        print('❌ Error in updateBill: $e');
-        print('Stack trace: $stackTrace');
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to update transaction: ${e.toString()}'),
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
-        return;
-      }
-    } else {
-      print('➕ Adding new bill to database...');
-      try {
-        await widget.billService.addBill(bill);
-        print('✅ Bill added successfully to database');
-        
-        // Handle inventory stock updates for BOTH sales and purchases
-        await _handleInventoryUpdatesForNewBill(bill);
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Transaction saved successfully'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      } catch (e, stackTrace) {
-        print('❌ Error adding bill to database: $e');
-        print('Stack trace: $stackTrace');
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to save transaction: ${e.toString()}'),
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
-        return;
+    } finally {
+      // Check if mounted before setState
+      if (mounted) {
+        setState(() => _isLoading = false);
+      } else {
+        print('⚠️ Widget disposed, cannot update loading state');
       }
     }
-    
-    // Check if still mounted before navigating
-    if (mounted) {
-      print('✅ Navigating back...');
-      Navigator.pop(context);
-    } else {
-      print('⚠️ Widget was disposed before navigation');
-    }
-    
-  } catch (e, stackTrace) {
-    print('❌ Unexpected error in saveBill process: $e');
-    print('Stack trace: $stackTrace');
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error saving transaction: ${e.toString()}'),
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-  } finally {
-    // Check if mounted before setState
-    if (mounted) {
-      setState(() => _isLoading = false);
-    } else {
-      print('⚠️ Widget disposed, cannot update loading state');
-    }
   }
-}
+  
   void _addItem() {
     setState(() {
-      _items.add(BillItem(
+      _items.add(BillItem.create(
         description: '',
-        quantity: 1,
+        quantity: 1.0,
         price: 0.0,
-        total: 0.0,
-        inventoryItemId: '', // Add empty string instead of null
+        inventoryItemId: '',
         unit: '',
       ));
       
@@ -1509,12 +1496,11 @@ Future<void> _saveBill() async {
 
   void _addEmptyItem() {
     setState(() {
-      _items.add(BillItem(
+      _items.add(BillItem.create(
         description: '',
-        quantity: 1,
+        quantity: 1.0,
         price: 0.0,
-        total: 0.0,
-        inventoryItemId: '', // Add empty string instead of null
+        inventoryItemId: '',
         unit: '',
       ));
       

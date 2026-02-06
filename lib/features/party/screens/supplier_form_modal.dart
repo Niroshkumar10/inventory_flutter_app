@@ -194,15 +194,6 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               const SizedBox(height: 16),
               
               // Email Field
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
               
               const SizedBox(height: 16),
               

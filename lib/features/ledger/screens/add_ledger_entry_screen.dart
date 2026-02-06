@@ -287,9 +287,9 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
                         const SizedBox(width: 8),
                         _typeChip('purchase', 'Purchase', Colors.orange),
                         const SizedBox(width: 8),
-                        _typeChip('payment', 'Payment Received', Colors.purple),
+                        _typeChip('payment', 'Recevied', Colors.purple),
                         const SizedBox(width: 8),
-                        _typeChip('receipt', 'Payment Made', Colors.red),
+                        _typeChip('receipt', 'Paid', Colors.red),
                       ],
                     ),
                   ),
@@ -332,9 +332,9 @@ SizedBox(
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: const Color.fromARGB(255, 17, 17, 17),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: const Color.fromARGB(255, 5, 5, 5)),
                   ),
                   child: const Row(
                     children: [
@@ -348,9 +348,9 @@ SizedBox(
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: const Color.fromARGB(255, 22, 22, 22),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: const Color.fromARGB(255, 0, 0, 0)),
                   ),
                   child: Column(
                     children: [
@@ -359,17 +359,17 @@ SizedBox(
                             ? Icons.person_outline 
                             : Icons.store_outlined,
                         size: 48,
-                        color: Colors.grey,
+                        color: const Color.fromARGB(255, 12, 12, 12),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'No ${_selectedPartyType}s found',
-                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+                        style: const TextStyle(fontSize: 16, color: Color.fromARGB(255, 19, 19, 19)),
                       ),
                       const SizedBox(height: 4),
                       const Text(
                         'Please add customers/suppliers first',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -385,7 +385,7 @@ SizedBox(
       ),
       hintText: 'Select party',
       filled: true,
-      fillColor: Colors.white,
+      fillColor: const Color.fromARGB(255, 46, 45, 45),
     ),
     isExpanded: true,
     style: const TextStyle(fontSize: 14),
@@ -420,7 +420,7 @@ SizedBox(
                 text: contact,
                 style: const TextStyle(
                   fontSize: 12,
-                  color: Colors.grey,
+                  color: Color.fromARGB(255, 14, 12, 12),
                 ),
               ),
             ],

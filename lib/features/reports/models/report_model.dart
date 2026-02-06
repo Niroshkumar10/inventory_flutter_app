@@ -68,7 +68,6 @@ class ReportSummary {
   }
 }
 
-// Sales Report Model (extends your Bill model for sales)
 class SalesReport {
   final String billId;
   final String invoiceNumber;
@@ -84,6 +83,7 @@ class SalesReport {
   final double amountDue;
   final String paymentStatus;
   final String userMobile;
+  final List<SaleItemDetail> items;
 
   SalesReport({
     required this.billId,
@@ -100,12 +100,33 @@ class SalesReport {
     required this.amountDue,
     required this.paymentStatus,
     required this.userMobile,
+    required this.items,
   });
 
   // Helper to format currency
   String get formattedTotal => '₹${NumberFormat('#,##0.00').format(totalAmount)}';
   String get formattedDue => '₹${NumberFormat('#,##0.00').format(amountDue)}';
   String get formattedDate => DateFormat('dd MMM yyyy').format(date);
+
+  // Helper methods for UI
+  String get itemNames {
+    if (items.isEmpty) return 'No items';
+    return items.map((item) => item.name).join(', ');
+  }
+
+  String get categories {
+    if (items.isEmpty) return 'No categories';
+    final uniqueCategories = items
+        .where((item) => item.category != null && item.category!.isNotEmpty)
+        .map((item) => item.category!)
+        .toSet();
+    return uniqueCategories.isEmpty ? 'No categories' : uniqueCategories.join(', ');
+  }
+
+  String get itemsWithQuantities {
+    if (items.isEmpty) return 'No items';
+    return items.map((item) => '${item.name} ×${item.quantity}').join(', ');
+  }
 
   // Create from Bill model
   factory SalesReport.fromBill(Bill bill) {
@@ -124,9 +145,11 @@ class SalesReport {
       amountDue: bill.amountDue,
       paymentStatus: bill.paymentStatus,
       userMobile: bill.userMobile,
+      items: bill.items.map((item) => SaleItemDetail.fromBillItem(item)).toList(),
     );
   }
 
+  // Add toMap method if needed
   Map<String, dynamic> toMap() {
     return {
       'billId': billId,
@@ -143,11 +166,62 @@ class SalesReport {
       'amountDue': amountDue,
       'paymentStatus': paymentStatus,
       'userMobile': userMobile,
+      'items': items.map((item) => item.toMap()).toList(),
+    'categories': categories, // Include categories string
+    };
+  }
+}
+
+class SaleItemDetail {
+  final String id;
+  final String name;
+  final String? category;
+  final double quantity;
+  final double price;
+  final double total;
+  final String? unit;
+  final String description;
+
+  SaleItemDetail({
+    required this.id,
+    required this.name,
+    this.category,
+    required this.quantity,
+    required this.price,
+    required this.total,
+    this.unit,
+    required this.description,
+  });
+
+  factory SaleItemDetail.fromBillItem(BillItem item) {
+    return SaleItemDetail(
+      id: item.id,
+      name: item.itemName,
+      category: item.category,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.total,
+      unit: item.unit,
+      description: item.description,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'category': category,
+      'quantity': quantity,
+      'price': price,
+      'total': total,
+      'unit': unit,
+      'description': description,
     };
   }
 }
 
 // Purchase Report Model (extends your Bill model for purchases)
+
 class PurchaseReport {
   final String billId;
   final String invoiceNumber;
@@ -163,6 +237,7 @@ class PurchaseReport {
   final double amountDue;
   final String paymentStatus;
   final String userMobile;
+  final List<PurchaseItemDetail> items; // Add this
 
   PurchaseReport({
     required this.billId,
@@ -179,12 +254,35 @@ class PurchaseReport {
     required this.amountDue,
     required this.paymentStatus,
     required this.userMobile,
+    required this.items, // Add this
   });
 
+  // Helper to format currency
   String get formattedTotal => '₹${NumberFormat('#,##0.00').format(totalAmount)}';
   String get formattedDue => '₹${NumberFormat('#,##0.00').format(amountDue)}';
   String get formattedDate => DateFormat('dd MMM yyyy').format(date);
 
+  // Helper methods for UI
+  String get itemNames {
+    if (items.isEmpty) return 'No items';
+    return items.map((item) => item.name).join(', ');
+  }
+
+  String get categories {
+    if (items.isEmpty) return 'No categories';
+    final uniqueCategories = items
+        .where((item) => item.category != null && item.category!.isNotEmpty)
+        .map((item) => item.category!)
+        .toSet();
+    return uniqueCategories.isEmpty ? 'No categories' : uniqueCategories.join(', ');
+  }
+
+  String get itemsWithQuantities {
+    if (items.isEmpty) return 'No items';
+    return items.map((item) => '${item.name} ×${item.quantity}').join(', ');
+  }
+
+  // Create from Bill model
   factory PurchaseReport.fromBill(Bill bill) {
     return PurchaseReport(
       billId: bill.id,
@@ -201,6 +299,7 @@ class PurchaseReport {
       amountDue: bill.amountDue,
       paymentStatus: bill.paymentStatus,
       userMobile: bill.userMobile,
+      items: bill.items.map((item) => PurchaseItemDetail.fromBillItem(item)).toList(), // Add this
     );
   }
 
@@ -220,10 +319,60 @@ class PurchaseReport {
       'amountDue': amountDue,
       'paymentStatus': paymentStatus,
       'userMobile': userMobile,
+      'items': items.map((item) => item.toMap()).toList(), // Add this
+          'categories': categories, // Include categories string
+
     };
   }
 }
 
+class PurchaseItemDetail {
+  final String id;
+  final String name;
+  final String? category;
+  final double quantity;
+  final double price;
+  final double total;
+  final String? unit;
+  final String description;
+
+  PurchaseItemDetail({
+    required this.id,
+    required this.name,
+    this.category,
+    required this.quantity,
+    required this.price,
+    required this.total,
+    this.unit,
+    required this.description,
+  });
+
+  factory PurchaseItemDetail.fromBillItem(BillItem item) {
+    return PurchaseItemDetail(
+      id: item.id,
+      name: item.itemName,
+      category: item.category,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.total,
+      unit: item.unit,
+      description: item.description,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'category': category,
+      'quantity': quantity,
+      'price': price,
+      'total': total,
+      'unit': unit,
+      'description': description,
+    };
+  }
+}
 // Inventory Report Model (extends your InventoryItem model)
 class InventoryReport {
   final String itemId;
@@ -382,6 +531,7 @@ class SupplierReport {
   final double pendingPayment;
   final DateTime lastOrderDate;
   final String userMobile;
+  final bool isActive; // Add this
 
   SupplierReport({
     required this.supplierId,
@@ -394,6 +544,7 @@ class SupplierReport {
     required this.pendingPayment,
     required this.lastOrderDate,
     required this.userMobile,
+    required this.isActive, // Add this
   });
 
   String get formattedPurchases => '₹${NumberFormat('#,##0.00').format(totalPurchases)}';
@@ -418,6 +569,7 @@ class SupplierReport {
       pendingPayment: pendingPayment,
       lastOrderDate: lastOrderDate,
       userMobile: supplier.userMobile,
+      isActive: supplier.isActive, // Add this
     );
   }
 
@@ -433,10 +585,10 @@ class SupplierReport {
       'pendingPayment': pendingPayment,
       'lastOrderDate': lastOrderDate,
       'userMobile': userMobile,
+      'isActive': isActive, // Add this
     };
   }
 }
-
 // Profit & Loss Report Model
 class ProfitLossReport {
   final String id;

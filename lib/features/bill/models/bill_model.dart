@@ -199,66 +199,106 @@ class Bill {
     }
   }
 }
-
 class BillItem {
+  String id;
   String description;
-  int quantity;
+  double quantity;
   double price;
   double total;
-  String? inventoryItemId; // Add this field for inventory integration
-  String? unit; // Add this field for inventory unit (pcs, kg, etc.)
+  String? inventoryItemId;
+  String? unit;
+  String? category;
+  String? name;
 
   BillItem({
+    required this.id,
     required this.description,
     required this.quantity,
     required this.price,
     required this.total,
-    this.inventoryItemId, // Add to constructor
-    this.unit, // Add to constructor
-
+    this.inventoryItemId,
+    this.unit,
+    this.category,
+    this.name,
   });
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'description': description,
       'quantity': quantity,
       'price': price,
       'total': total,
-      'inventoryItemId': inventoryItemId, // Add this
-      'unit': unit, // Add this
-
+      'inventoryItemId': inventoryItemId,
+      'unit': unit,
+      'category': category,
+      'name': name,
     };
   }
 
   factory BillItem.fromMap(Map<String, dynamic> map) {
     return BillItem(
-      description: map['description'] ?? '',
-      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      id: map['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      description: map['description']?.toString() ?? '',
+      quantity: (map['quantity'] as num?)?.toDouble() ?? 0.0,
       price: (map['price'] as num?)?.toDouble() ?? 0.0,
       total: (map['total'] as num?)?.toDouble() ?? 0.0,
-      inventoryItemId: map['inventoryItemId'] as String?, // Add this
-      unit: map['unit'] as String?, // Add this
+      inventoryItemId: map['inventoryItemId']?.toString(),
+      unit: map['unit']?.toString(),
+    category: map['category']?.toString() ?? 'Uncategorized', // Add fallback
+      name: map['name']?.toString(),
+    );
+  }
 
+  // Factory method to create a new BillItem
+  factory BillItem.create({
+    required String description,
+    required double quantity,
+    required double price,
+    String? inventoryItemId,
+    String? unit,
+    String? category,
+    String? name,
+  }) {
+    return BillItem(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      description: description,
+      quantity: quantity,
+      price: price,
+      total: quantity * price,
+      inventoryItemId: inventoryItemId,
+      unit: unit,
+      category: category,
+      name: name,
     );
   }
 
   BillItem copyWith({
+    String? id,
     String? description,
-    int? quantity,
+    double? quantity,
     double? price,
-      String? inventoryItemId, // ADD THIS
-    String? unit, // ADD THIS
+    String? inventoryItemId,
+    String? unit,
+    String? category,
+    String? name,
   }) {
-    return BillItem(
-      description: description ?? this.description,
-      quantity: quantity ?? this.quantity,
-      price: price ?? this.price,
-      total: (quantity ?? this.quantity) * (price ?? this.price),
-       inventoryItemId: inventoryItemId ?? this.inventoryItemId, // ADD THIS
-      unit: unit ?? this.unit, // ADD THIS
-    );
-
+    final newQuantity = quantity ?? this.quantity;
+    final newPrice = price ?? this.price;
     
+    return BillItem(
+      id: id ?? this.id,
+      description: description ?? this.description,
+      quantity: newQuantity,
+      price: newPrice,
+      total: newQuantity * newPrice,
+      inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+      unit: unit ?? this.unit,
+      category: category ?? this.category,
+      name: name ?? this.name,
+    );
   }
   
+  // Helper getter to get item name
+  String get itemName => name ?? description;
 }

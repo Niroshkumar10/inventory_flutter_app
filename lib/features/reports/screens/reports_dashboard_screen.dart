@@ -134,6 +134,167 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
     }
   }
 
+Future<void> _debugSupplierData() async {
+  if (_userMobile == null) {
+    print('❌ Cannot debug: no user mobile available');
+    return;
+  }
+  
+  print('\n🔍 DEBUGGING SUPPLIER DATA FOR USER: $_userMobile\n');
+  
+  try {
+    // 1. Check suppliers in Firestore
+    final suppliersSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_userMobile)
+        .collection('suppliers')
+        .where('isActive', isEqualTo: true)
+        .get();
+    
+    print('📋 Suppliers found: ${suppliersSnapshot.docs.length}');
+    for (final doc in suppliersSnapshot.docs) {
+      final data = doc.data();
+      print('   👥 Name: "${data['name']}", ID: ${doc.id}');
+      print('      Phone: ${data['phone'] ?? "N/A"}, Email: ${data['email'] ?? "N/A"}');
+      print('      isActive: ${data['isActive'] ?? true}');
+    }
+    
+    // 2. Check purchase bills
+    final purchasesSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_userMobile)
+        .collection('bills')
+        .where('type', isEqualTo: 'purchase')
+        .where('date', isGreaterThanOrEqualTo: _startDate)
+        .where('date', isLessThanOrEqualTo: _endDate)
+        .limit(10)
+        .get();
+    
+    print('\n📋 Purchase bills found: ${purchasesSnapshot.docs.length}');
+    for (final doc in purchasesSnapshot.docs) {
+      final data = doc.data();
+      print('   🛒 Supplier: "${data['partyName']}"');
+      print('      Amount: ₹${data['totalAmount']}, Due: ₹${data['amountDue']}');
+      print('      Date: ${data['date']}, Status: ${data['paymentStatus']}');
+    }
+    
+    // 3. Check what getSupplierReports returns
+    print('\n🔄 Testing getSupplierReports()...');
+    try {
+      final testReports = await _reportService.getSupplierReports(
+        userMobile: _userMobile!,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
+      print('   ✅ getSupplierReports returned: ${testReports.length} reports');
+      
+      if (testReports.isEmpty) {
+        print('   ℹ️ No reports returned. Possible reasons:');
+        print('      • No purchase bills in date range');
+        print('      • Supplier names in bills don\'t match supplier names');
+        print('      • Suppliers might not be active');
+      }
+    } catch (e) {
+      print('   ❌ Error in getSupplierReports: $e');
+    }
+    
+    print('\n🔍 DEBUG COMPLETE\n');
+    
+    // Show debug info in a dialog
+    _showDebugDialog(suppliersSnapshot.docs.length, purchasesSnapshot.docs.length);
+    
+  } catch (e) {
+    print('❌ Debug error: $e');
+  }
+}
+
+void _showDebugDialog(int supplierCount, int purchaseCount) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Data Debug Info'),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('👤 User: $_userMobile'),
+            const SizedBox(height: 8),
+            Text('📅 Period: ${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}'),
+            const SizedBox(height: 8),
+            Text('👥 Active suppliers found: $supplierCount'),
+            const SizedBox(height: 8),
+            Text('🛒 Purchase bills in period: $purchaseCount'),
+            const SizedBox(height: 8),
+            Text('📊 Supplier reports loaded: ${_supplierReports.length}'),
+            const SizedBox(height: 16),
+            const Text(
+              'Possible issues:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text('• No purchase bills in this period'),
+            const Text('• Supplier names in bills don\'t match exactly'),
+            const Text('• Check date range is correct'),
+            const Text('• Check if suppliers are marked as active'),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+            _loadReports(); // Refresh
+          },
+          child: const Text('Refresh'),
+        ),
+      ],
+    ),
+  );
+}
+Future<void> _debugFirestoreStructure() async {
+  print('\n🔍 CHECKING FIRESTORE STRUCTURE FOR USER: $_userMobile\n');
+  
+  try {
+    // Check what's actually in the suppliers collection
+    final suppliersRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(_userMobile)
+        .collection('suppliers');
+    
+    final snapshot = await suppliersRef.get();
+    
+    print('📋 Suppliers collection path: users/$_userMobile/suppliers');
+    print('📋 Total documents: ${snapshot.docs.length}');
+    
+    for (final doc in snapshot.docs) {
+      print('\n📄 Document ID: ${doc.id}');
+      print('📄 Full data:');
+      doc.data().forEach((key, value) {
+        print('   $key: $value (${value.runtimeType})');
+      });
+    }
+    
+    // Check if there's an isActive field
+    if (snapshot.docs.isNotEmpty) {
+      final firstDoc = snapshot.docs.first;
+      final data = firstDoc.data();
+      print('\n🔍 Checking for isActive field:');
+      print('   Has isActive field: ${data.containsKey('isActive')}');
+      if (data.containsKey('isActive')) {
+        print('   isActive value: ${data['isActive']}');
+        print('   isActive type: ${data['isActive'].runtimeType}');
+      }
+    }
+    
+  } catch (e) {
+    print('❌ Error checking Firestore structure: $e');
+  }
+}
   // ==================== EXPORT METHODS ====================
   Future<void> _handleExport(String format) async {
     if (_userMobile == null) {
@@ -666,93 +827,313 @@ Widget _buildExportOption(
     }
   }
 
-  Widget _buildSalesReport() {
-    if (_salesReports.isEmpty) {
-      return const Center(
-        child: Text('No sales data available'),
-      );
-    }
 
-    final totalSales = _salesReports.fold(0.0, (sum, report) => sum + report.totalAmount);
-    final totalCollected = _salesReports.fold(0.0, (sum, report) => sum + report.amountPaid);
-    final totalDue = _salesReports.fold(0.0, (sum, report) => sum + report.amountDue);
+Widget _buildSalesReport() {
+  if (_salesReports.isEmpty) {
+    return const Center(
+      child: Text('No sales data available'),
+    );
+  }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Summary at top
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildCompactSummaryItem('Total Sales', totalSales, Colors.blue),
-                  _buildCompactSummaryItem('Collected', totalCollected, Colors.green),
-                  _buildCompactSummaryItem('Due', totalDue, Colors.orange),
-                  _buildCompactSummaryItem('Invoices', _salesReports.length.toDouble(), Colors.purple),
-                ],
-              ),
+  final totalSales = _salesReports.fold(0.0, (sum, report) => sum + report.totalAmount);
+  final totalCollected = _salesReports.fold(0.0, (sum, report) => sum + report.amountPaid);
+  final totalDue = _salesReports.fold(0.0, (sum, report) => sum + report.amountDue);
+
+  return SingleChildScrollView(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      children: [
+        // Summary at top
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildCompactSummaryItem('Total Sales', totalSales, Colors.blue),
+                _buildCompactSummaryItem('Collected', totalCollected, Colors.green),
+                _buildCompactSummaryItem('Due', totalDue, Colors.orange),
+                _buildCompactSummaryItem('Invoices', _salesReports.length.toDouble(), Colors.purple),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          
-          // Data table
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Sales Report',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+        ),
+        const SizedBox(height: 16),
+        
+        // Data table
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sales Report',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Invoice')),
-                        DataColumn(label: Text('Customer')),
-                        DataColumn(label: Text('Date')),
-                        DataColumn(label: Text('Amount', textAlign: TextAlign.right)),
-                        DataColumn(label: Text('Status')),
-                      ],
-                      rows: _salesReports.take(10).map((report) {
-                        return DataRow(cells: [
-                          DataCell(SizedBox(
-                            width: 100,
-                            child: Text(
-                              report.invoiceNumber,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )),
-                          DataCell(SizedBox(
-                            width: 120,
-                            child: Text(
-                              report.customerName,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )),
-                          DataCell(Text(report.formattedDate)),
-                          DataCell(
-                            Text(
-                              report.formattedTotal,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columnSpacing: 20,
+                    horizontalMargin: 10,
+                    columns: const [
+                      DataColumn(label: Text('Invoice')),
+                      DataColumn(label: Text('Customer')),
+                      DataColumn(label: Text('Date')),
+                      DataColumn(label: Text('Categories')),
+                      DataColumn(label: Text('Items')),
+                      DataColumn(label: Text('Amount', textAlign: TextAlign.right)),
+                      DataColumn(label: Text('Status')),
+                    ],
+                    rows: _salesReports.take(10).map((report) {
+                      return DataRow(cells: [
+                        // Invoice
+                        DataCell(SizedBox(
+                          width: 100,
+                          child: Text(
+                            report.invoiceNumber,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          DataCell(_buildStatusBadge(report.paymentStatus)),
-                        ]);
-                      }).toList(),
+                        )),
+                        // Customer
+                        DataCell(SizedBox(
+                          width: 120,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                report.customerName,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                              Text(
+                                report.customerMobile,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
+                        )),
+                        // Date
+                        DataCell(Text(report.formattedDate)),
+                        // Categories
+                       DataCell(Container(
+  width: 150,
+  constraints: BoxConstraints(maxHeight: 48), // Limit height
+  child: SingleChildScrollView( // Add scrolling for overflow
+    physics: NeverScrollableScrollPhysics(), // Disable scroll bar
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${report.items.length} item(s)',
+          style: TextStyle(fontSize: 11, color: Colors.grey[600]), // Smaller font
+        ),
+        const SizedBox(height: 2),
+        ...report.items.take(2).map((item) {
+          return Text(
+            '• ${item.category ?? "No category"}', // Handle null category
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11), // Smaller font
+          );
+        }).toList(),
+        if (report.items.length > 2)
+          Text(
+            '+ ${report.items.length - 2} more',
+            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+          ),
+      ],
+    ),
+  ),
+)),
+                        // Items
+                        DataCell(SizedBox(
+                          width: 200,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ...report.items.take(3).map((item) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          item.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      Text(
+                                        '×${item.quantity}',
+                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              if (report.items.length > 3)
+                                Text(
+                                  '+ ${report.items.length - 3} more items',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                ),
+                            ],
+                          ),
+                        )),
+                        // Amount
+                        DataCell(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                report.formattedTotal,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                'Due: ${report.formattedDue}',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: report.amountDue > 0 ? Colors.red : Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Status
+                        DataCell(_buildStatusBadge(report.paymentStatus)),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
+                // View All Items Button
+                if (_salesReports.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        _showDetailedItemView();
+                      },
+                      icon: Icon(Icons.list_alt, size: 16),
+                      label: Text('View All Items with Categories'),
                     ),
                   ),
-                ],
-              ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// Method to show detailed items view
+void _showDetailedItemView() {
+  // Collect all items from all reports
+  final allItems = <SaleItemDetail>[];
+  for (var report in _salesReports) {
+    allItems.addAll(report.items);
+  }
+  
+  // Group by category
+  final itemsByCategory = <String, List<SaleItemDetail>>{};
+  for (var item in allItems) {
+itemsByCategory.putIfAbsent(item.category ?? 'Uncategorized', () => []).add(item);
+  }
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('All Items by Category'),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...itemsByCategory.entries.map((entry) {
+              final categoryTotal = entry.value.fold(0.0, (sum, item) => sum + item.total);
+              return Card(
+                margin: EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            entry.key,
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          Spacer(),
+                          Text(
+                            '₹${NumberFormat('#,##0.00').format(categoryTotal)}',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      ...entry.value.map((item) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(item.name),
+                              ),
+                              Text('${item.quantity} × ₹${item.price}'),
+                              SizedBox(width: 16),
+                              Text(
+                                '₹${item.total.toStringAsFixed(2)}',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
+ // Updated _buildPurchaseReport() method in your reports_dashboard_screen.dart
+Widget _buildPurchaseReport() {
+  if (_purchaseReports.isEmpty) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.shopping_cart, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No Purchase Data',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No purchase transactions found for this period',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[600],
             ),
           ),
         ],
@@ -760,116 +1141,491 @@ Widget _buildExportOption(
     );
   }
 
-  Widget _buildPurchaseReport() {
-    if (_purchaseReports.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.shopping_cart, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No Purchase Data',
-              style: Theme.of(context).textTheme.headlineSmall,
+  final totalPurchases = _purchaseReports.fold(0.0, (sum, report) => sum + report.totalAmount);
+  final totalPaid = _purchaseReports.fold(0.0, (sum, report) => sum + report.amountPaid);
+  final totalDue = _purchaseReports.fold(0.0, (sum, report) => sum + report.amountDue);
+
+  return 
+  SingleChildScrollView(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      children: [
+        // Summary at top
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildCompactSummaryItem('Total Purchases', totalPurchases, Colors.blue),
+                _buildCompactSummaryItem('Paid', totalPaid, Colors.green),
+                _buildCompactSummaryItem('Due', totalDue, Colors.orange),
+                _buildCompactSummaryItem('Invoices', _purchaseReports.length.toDouble(), Colors.purple),
+              ],
             ),
-            const SizedBox(height: 8),
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        // Data table with items and categories
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Purchase Report',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+               SingleChildScrollView(
+  scrollDirection: Axis.horizontal,
+  child: DataTable(
+    columnSpacing: 20,
+    columns: const [
+      DataColumn(label: Text('Invoice')),
+      DataColumn(label: Text('Supplier')),
+      DataColumn(label: Text('Date')),
+      DataColumn(label: Text('Categories')),
+      DataColumn(label: Text('Items')),
+      DataColumn(label: Text('Amount', textAlign: TextAlign.right)),
+      DataColumn(label: Text('Status')),
+      // REMOVED: DataColumn(label: Text('Action')),
+    ],
+    rows: _purchaseReports.take(10).map((report) {
+      return DataRow(cells: [
+        // Invoice
+        DataCell(SizedBox(
+          width: 100,
+          child: Text(
+            report.invoiceNumber,
+            overflow: TextOverflow.ellipsis,
+          ),
+        )),
+        // Supplier
+        DataCell(SizedBox(
+          width: 120,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                report.supplierName,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (report.supplierMobile.isNotEmpty)
+                Text(
+                  report.supplierMobile,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+            ],
+          ),
+        )),
+        // Date
+        DataCell(Text(report.formattedDate)),
+        // Categories
+        DataCell(Container(
+          width: 150,
+          constraints: BoxConstraints(maxHeight: 60),
+          child: SingleChildScrollView(
+            physics: NeverScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (report.items.isNotEmpty)
+                  ..._getUniqueCategories(report.items).take(2).map((category) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        '• $category',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11),
+                        maxLines: 1,
+                      ),
+                    );
+                  }).toList(),
+                if (_getUniqueCategories(report.items).length > 2)
+                  Text(
+                    '+ ${_getUniqueCategories(report.items).length - 2} more',
+                    style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                  ),
+                if (report.items.isEmpty)
+                  Text(
+                    'No items',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+              ],
+            ),
+          ),
+        )),
+        // Items
+        DataCell(Container(
+          width: 200,
+          constraints: BoxConstraints(maxHeight: 60),
+          child: SingleChildScrollView(
+            physics: NeverScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ...report.items.take(3).map((item) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 11),
+                            maxLines: 1,
+                          ),
+                        ),
+                        Text(
+                          '×${item.quantity}',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                if (report.items.length > 3)
+                  Text(
+                    '+ ${report.items.length - 3} more items',
+                    style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                  ),
+              ],
+            ),
+          ),
+        )),
+        // Amount
+        DataCell(Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Text(
-              'No purchase transactions found for this period',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
+              report.formattedTotal,
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            ),
+            Text(
+              'Due: ${report.formattedDue}',
+              style: TextStyle(
+                fontSize: 11,
+                color: report.amountDue > 0 ? Colors.red : Colors.green,
               ),
             ),
           ],
-        ),
-      );
-    }
-
-    final totalPurchases = _purchaseReports.fold(0.0, (sum, report) => sum + report.totalAmount);
-    final totalPaid = _purchaseReports.fold(0.0, (sum, report) => sum + report.amountPaid);
-    final totalDue = _purchaseReports.fold(0.0, (sum, report) => sum + report.amountDue);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Summary at top
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildCompactSummaryItem('Total Purchases', totalPurchases, Colors.blue),
-                  _buildCompactSummaryItem('Paid', totalPaid, Colors.green),
-                  _buildCompactSummaryItem('Due', totalDue, Colors.orange),
-                  _buildCompactSummaryItem('Invoices', _purchaseReports.length.toDouble(), Colors.purple),
-                ],
-              ),
+        )),
+        // Status
+        DataCell(_buildStatusBadge(report.paymentStatus)),
+        // REMOVED: Action cell
+      ]);
+    }).toList(),
+  ),
+),
+                // View All Items Button
+                if (_purchaseReports.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        _showAllPurchaseItems();
+                      },
+                      icon: Icon(Icons.list_alt, size: 16),
+                      label: Text('View All Items with Categories'),
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          
-          // Data table
-          Card(
-            child: Padding(
+        ),
+      ],
+    ),
+  );
+}
+
+// Helper method to show purchase details
+void _showPurchaseDetails(PurchaseReport report) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Text(
+                  'Purchase Invoice Details',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                Spacer(),
+                IconButton(
+                  icon: Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1),
+          Expanded(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Purchase Report',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Invoice')),
-                        DataColumn(label: Text('Supplier')),
-                        DataColumn(label: Text('Date')),
-                        DataColumn(label: Text('Amount', textAlign: TextAlign.right)),
-                        DataColumn(label: Text('Status')),
-                      ],
-                      rows: _purchaseReports.take(10).map((report) {
-                        return DataRow(cells: [
-                          DataCell(SizedBox(
-                            width: 100,
-                            child: Text(
-                              report.invoiceNumber,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )),
-                          DataCell(SizedBox(
-                            width: 120,
-                            child: Text(
-                              report.supplierName,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )),
-                          DataCell(Text(report.formattedDate)),
-                          DataCell(
+                  // Invoice info
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              report.formattedTotal,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              'Invoice: ${report.invoiceNumber}',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                          ),
-                          DataCell(_buildStatusBadge(report.paymentStatus)),
-                        ]);
-                      }).toList(),
+                            Text('Date: ${report.formattedDate}'),
+                          ],
+                        ),
+                      ),
+                      _buildStatusBadge(report.paymentStatus),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  
+                  // Supplier info
+                  Text(
+                    'Supplier Details',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(report.supplierName),
+                          if (report.supplierMobile.isNotEmpty)
+                            Text('Mobile: ${report.supplierMobile}'),
+                          if (report.supplierAddress.isNotEmpty)
+                            Text('Address: ${report.supplierAddress}'),
+                        ],
+                      ),
                     ),
                   ),
+                  SizedBox(height: 16),
+                  
+                  // Items list
+                  Text(
+                    'Items (${report.totalItems})',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+                          // Header
+                          Row(
+                            children: [
+                              Expanded(child: Text('Item', style: TextStyle(fontWeight: FontWeight.bold))),
+                              SizedBox(width: 50, child: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                              SizedBox(width: 80, child: Text('Price', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                              SizedBox(width: 80, child: Text('Total', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                            ],
+                          ),
+                          Divider(height: 16),
+                          // Items
+                          ...report.items.map((item) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(item.name),
+                                        if (item.category != null && item.category!.isNotEmpty)
+                                          Text(
+                                            'Category: ${item.category}',
+                                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(width: 50, child: Text('${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}', textAlign: TextAlign.right)),
+                                  SizedBox(width: 80, child: Text('₹${item.price.toStringAsFixed(2)}', textAlign: TextAlign.right)),
+                                  SizedBox(width: 80, child: Text('₹${item.total.toStringAsFixed(2)}', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w600))),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  
+                  // Totals
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: Text('Subtotal:')),
+                              Text('₹${NumberFormat('#,##0.00').format(report.subtotal)}'),
+                            ],
+                          ),
+                          SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Expanded(child: Text('GST:')),
+                              Text('₹${NumberFormat('#,##0.00').format(report.gstAmount)}'),
+                            ],
+                          ),
+                          Divider(height: 16),
+                          Row(
+                            children: [
+                              Expanded(child: Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                              Text('₹${NumberFormat('#,##0.00').format(report.totalAmount)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(child: Text('Amount Paid:', style: TextStyle(color: Colors.green))),
+                              Text('₹${NumberFormat('#,##0.00').format(report.amountPaid)}', style: TextStyle(color: Colors.green)),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Expanded(child: Text('Amount Due:', style: TextStyle(color: report.amountDue > 0 ? Colors.red : Colors.grey))),
+                              Text('₹${NumberFormat('#,##0.00').format(report.amountDue)}', style: TextStyle(color: report.amountDue > 0 ? Colors.red : Colors.grey)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
                 ],
               ),
             ),
           ),
         ],
       ),
-    );
+    ),
+  );
+}
+
+// Helper method for unique categories (add to your class)
+List<String> _getUniqueCategories(List<PurchaseItemDetail> items) {
+  final categories = items
+      .map((item) => item.category ?? 'No category')
+      .where((cat) => cat.isNotEmpty && cat != 'Uncategorized')
+      .toSet()
+      .toList();
+  
+  if (categories.isEmpty) return ['No category'];
+  return categories;
+}
+
+// Method to show all purchase items
+void _showAllPurchaseItems() {
+  // Collect all items from all purchase reports
+  final allItems = <PurchaseItemDetail>[];
+  for (var report in _purchaseReports) {
+    allItems.addAll(report.items);
   }
+  
+  // Group by category
+  final itemsByCategory = <String, List<PurchaseItemDetail>>{};
+  for (var item in allItems) {
+    itemsByCategory.putIfAbsent(item.category ?? 'Uncategorized', () => []).add(item);
+  }
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('All Purchase Items by Category'),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...itemsByCategory.entries.map((entry) {
+              final categoryTotal = entry.value.fold(0.0, (sum, item) => sum + item.total);
+              return Card(
+                margin: EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            entry.key,
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          Spacer(),
+                          Text(
+                            '₹${NumberFormat('#,##0.00').format(categoryTotal)}',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      ...entry.value.map((item) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(item.name),
+                              ),
+                              Text('${item.quantity} × ₹${item.price}'),
+                              SizedBox(width: 16),
+                              Text(
+                                '₹${item.total.toStringAsFixed(2)}',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildProfitLossReport() {
     return FutureBuilder<ProfitLossReport>(
@@ -1147,103 +1903,241 @@ Widget _buildExportOption(
     );
   }
 
-  Widget _buildSupplierReport() {
-    if (_supplierReports.isEmpty) {
-      return const Center(
-        child: Text('No supplier data available'),
-      );
-    }
-
-    final totalSuppliers = _supplierReports.length;
-    final totalPurchases = _supplierReports.fold(0.0, (sum, report) => sum + report.totalPurchases);
-    final totalPending = _supplierReports.fold(0.0, (sum, report) => sum + report.pendingPayment);
-    final avgOrderValue = totalSuppliers > 0 ? totalPurchases / totalSuppliers : 0;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Summary at top
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildCompactSummaryItem('Suppliers', totalSuppliers.toDouble(), Colors.blue),
-                  _buildCompactSummaryItem('Purchases', totalPurchases, Colors.green),
-                  _buildCompactSummaryItem('Pending', totalPending, Colors.orange),
-                  _buildCompactSummaryItem('Avg Order', avgOrderValue.toDouble(), Colors.purple),
-                ],
+Widget _buildSupplierReport() {
+  print('📊 Building supplier report UI...');
+  print('📊 Supplier reports count: ${_supplierReports.length}');
+  
+  if (_supplierReports.isEmpty) {
+    print('ℹ️ Showing empty state for supplier reports');
+    print('📅 Date range: $_startDate to $_endDate');
+    print('👤 User mobile: $_userMobile');
+    
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.group_outlined,
+              size: 80,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No Supplier Purchase Data',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Data table
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Supplier Report',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Supplier')),
-                        DataColumn(label: Text('Contact')),
-                        DataColumn(label: Text('Orders')),
-                        DataColumn(label: Text('Total Purchases', textAlign: TextAlign.right)),
-                        DataColumn(label: Text('Pending', textAlign: TextAlign.right)),
-                      ],
-                      rows: _supplierReports.take(10).map((report) {
-                        return DataRow(cells: [
-                          DataCell(SizedBox(
-                            width: 120,
-                            child: Text(
-                              report.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )),
-                          DataCell(Text(report.phone)),
-                          DataCell(Text('${report.totalOrders}')),
-                          DataCell(
-                            Text(
-                              report.formattedPurchases,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              report.formattedPending,
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                color: report.pendingPayment > 0 ? Colors.orange : Colors.green,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ]);
-                      }).toList(),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 10),
+            Text(
+              'No purchase transactions found for suppliers in the selected period.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Period: ${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                print('🔄 Refreshing supplier data...');
+                _loadReports(); // Refresh all reports
+              },
+              child: const Text('Refresh Data'),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () {
+                _debugSupplierData();
+              },
+              child: const Text('Debug Data'),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  final totalSuppliers = _supplierReports.length;
+  final totalPurchases = _supplierReports.fold(0.0, (sum, report) => sum + report.totalPurchases);
+  final totalPending = _supplierReports.fold(0.0, (sum, report) => sum + report.pendingPayment);
+  final avgOrderValue = totalSuppliers > 0 ? totalPurchases / totalSuppliers : 0;
+
+  print('📊 Supplier report stats:');
+  print('   Total suppliers: $totalSuppliers');
+  print('   Total purchases: ₹$totalPurchases');
+  print('   Total pending: ₹$totalPending');
+  
+  for (final report in _supplierReports.take(3)) {
+    print('   📍 ${report.name}: ₹${report.totalPurchases} in ${report.totalOrders} orders');
+  }
+
+  return SingleChildScrollView(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      children: [
+        // Summary at top
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildCompactSummaryItem('Suppliers', totalSuppliers.toDouble(), Colors.blue),
+                _buildCompactSummaryItem('Purchases', totalPurchases, Colors.green),
+                _buildCompactSummaryItem('Pending', totalPending, Colors.orange),
+                _buildCompactSummaryItem('Avg Order', avgOrderValue.toDouble(), Colors.purple),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        // Data table
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Supplier Report',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: _refreshReports,
+                      tooltip: 'Refresh',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Supplier')),
+                      DataColumn(label: Text('Contact')),
+                      DataColumn(label: Text('Orders')),
+                      DataColumn(label: Text('Total Purchases', textAlign: TextAlign.right)),
+                      DataColumn(label: Text('Pending', textAlign: TextAlign.right)),
+                      DataColumn(label: Text('Last Order')),
+                    ],
+                    rows: _supplierReports.take(10).map((report) {
+                      return DataRow(cells: [
+                        DataCell(SizedBox(
+                          width: 120,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                report.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                              if (report.email.isNotEmpty)
+                                Text(
+                                  report.email,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                ),
+                            ],
+                          ),
+                        )),
+                        DataCell(Text(report.phone)),
+                        DataCell(
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${report.totalOrders}',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            report.formattedPurchases,
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            report.formattedPending,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              color: report.pendingPayment > 0 ? Colors.orange : Colors.green,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            report.lastOrderDate.year > 1970 
+                                ? report.formattedLastOrder 
+                                : 'No orders',
+                            style: TextStyle(
+                              color: report.lastOrderDate.year > 1970 
+                                  ? Colors.grey[800] 
+                                  : Colors.grey[500],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
+                
+                // Show total count if more than 10
+                if (_supplierReports.length > 10)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      'Showing 10 of ${_supplierReports.length} suppliers',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 
   // ==================== HELPER WIDGETS ====================
   Widget _buildCompactSummaryItem(String title, double value, Color color) {

@@ -29,14 +29,6 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
     return Scaffold(
       backgroundColor: const Color(0xffF5F6FA),
 
-      /// 🧭 APP BAR
-      // appBar: AppBar(
-      //   title: const Text('Suppliers'),
-      //   backgroundColor: Colors.white,
-      //   foregroundColor: Colors.black,
-      //   elevation: 0,
-      // ),
-
       /// ➕ ADD SUPPLIER BUTTON
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.orange,
@@ -67,33 +59,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
           ),
 
           /// 👤 USER INFO
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Icon(Icons.person, color: Colors.orange, size: 16),
-                SizedBox(width: 8),
-                Text(
-                  'User: ${widget.userMobile}',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
-                ),
-                Spacer(),
-                StreamBuilder<int>(
-                  stream: _supplierService.getSupplierCount(),
-                  builder: (context, snapshot) {
-                    final count = snapshot.data ?? 0;
-                    return Chip(
-                      label: Text('$count suppliers'),
-                      backgroundColor: Colors.orange.shade100,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
+         
 
           /// 📋 SUPPLIER LIST
           Expanded(

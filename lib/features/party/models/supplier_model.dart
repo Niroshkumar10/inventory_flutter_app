@@ -12,6 +12,7 @@ class Supplier {
   String userMobile; // Owner of this supplier
   DateTime createdAt;
   DateTime updatedAt;
+  final bool isActive;
 
   Supplier({
     required this.id,
@@ -22,6 +23,8 @@ class Supplier {
     required this.userMobile,
     required this.createdAt,
     required this.updatedAt,
+    this.isActive = true, // Add this default value
+
   });
 
   // Create new supplier for current user
@@ -54,6 +57,8 @@ class Supplier {
       'userMobile': userMobile,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'isActive': isActive, // Add this to map
+
     };
   }
 
@@ -67,6 +72,7 @@ class Supplier {
       userMobile: map['userMobile'] ?? '',
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isActive: map['isActive'] ?? true, // Handle missing field
     );
   }
 

@@ -40,7 +40,7 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('All Ledger Entries'),
-        backgroundColor: Colors.white,
+        backgroundColor:  const Color.fromARGB(255, 7, 54, 114),
         foregroundColor: Colors.black,
         elevation: 0,
         actions: [

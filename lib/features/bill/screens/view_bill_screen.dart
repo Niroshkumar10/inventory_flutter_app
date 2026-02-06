@@ -89,10 +89,7 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
     );
   },
 ),
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: _shareBill,
-          ),
+         
           IconButton(
             icon: const Icon(Icons.payment),
             onPressed: () => _showAddPaymentDialog(context),

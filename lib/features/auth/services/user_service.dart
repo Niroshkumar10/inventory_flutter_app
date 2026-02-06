@@ -27,25 +27,31 @@ class UserService {
 
     return query.docs.isNotEmpty;
   }
+  /// 📝 Ensure user profile document exists
+Future<void> ensureUserProfile({
+  required String uid,
+  required String mobile,
+}) async {
+  final ref = _db.collection('users').doc(mobile);
+  final snap = await ref.get();
 
-  /// 🛡️ Ensure Firestore profile exists (FIX FOR YOUR ISSUE)
-  Future<void> ensureUserProfile({
-    required String uid,
-    required String mobile,
-  }) async {
-    final ref = _db.collection('users').doc(uid);
-    final snap = await ref.get();
-
-    if (!snap.exists) {
-      await ref.set({
-        'userId': uid,
-        'mobile': mobile,
-        'name': '',
-        'location': '',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
+  if (!snap.exists) {
+    await ref.set({
+      'userId': mobile,
+      'mobile': mobile,
+      'name': '',
+      'location': '',
+      'authUid': uid, // store UID as reference only
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  } else {
+    // Optional: update authUid if missing
+    await ref.update({
+      'authUid': uid,
+    });
   }
+}
+
 
   /// 💾 Save new user
   Future<void> saveUser(UserModel user) async {

@@ -203,260 +203,328 @@ class _DashboardContentState extends State<DashboardContent> {
           ),
           const SizedBox(height: 12),
 
-          StreamBuilder<List<Bill>>(
-            stream: Provider.of<BillService>(context, listen: false).getBills(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return _buildEmptyGraph();
-              }
-              
-              final bills = snapshot.data!;
-              final salesBills = bills.where((bill) => bill.type == 'sales').toList();
-              
-              if (salesBills.isEmpty) {
-                return _buildEmptyGraph();
-              }
-              
-              // Get filtered data
-              final filteredData = _getFilteredData(salesBills, _selectedFilter);
-              final totalAmount = filteredData.total;
-              final chartData = filteredData.data;
-              final maxValue = chartData.isNotEmpty 
-                  ? chartData.reduce((a, b) => a > b ? a : b) 
-                  : 0.0;
-              
-              return Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+StreamBuilder<List<Bill>>(
+  stream: Provider.of<BillService>(context, listen: false).getBills(),
+  builder: (context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return _buildLoadingGraph();
+    }
+    
+    if (snapshot.hasError) {
+      return _buildErrorGraph();
+    }
+    
+    if (!snapshot.hasData) {
+      return _buildEmptyGraph();
+    }
+    
+    final bills = snapshot.data!;
+    final salesBills = bills.where((bill) => bill.type == 'sales').toList();
+    
+    if (salesBills.isEmpty) {
+      // Show welcoming message for new users
+      return Card(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(30),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.analytics_outlined,
+                size: 80,
+                color: Colors.grey.shade300,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Welcome to Your Sales Dashboard!',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
                 ),
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Graph Header with Total
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _filterTitles[_selectedFilter]!,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'No sales data available yet.\n'
+                'Start by creating your first sale to see insights here.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  // Navigate to create sale screen
+                  Navigator.pushNamed(context, '/create-sale');
+                },
+                icon: const Icon(Icons.add_shopping_cart),
+                label: const Text('Create First Sale'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Get filtered data
+    final filteredData = _getFilteredData(salesBills, _selectedFilter);
+    final totalAmount = filteredData.total;
+    final chartData = filteredData.data;
+    final maxValue = chartData.isNotEmpty 
+        ? chartData.reduce((a, b) => a > b ? a : b) 
+        : 0.0;
+    
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Graph Header with Total
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _filterTitles[_selectedFilter]!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  'Total: ₹${totalAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Bar Graph
+            SizedBox(
+              height: 180,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: maxValue > 0 ? maxValue * 1.2 : 100,
+                  barTouchData: BarTouchData(
+                    enabled: true,
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        return BarTooltipItem(
+                          '₹${rod.toY.toStringAsFixed(0)}',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          if (value == meta.min || value == meta.max) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              '₹${value.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          );
+                        },
+                        reservedSize: 40,
+                      ),
+                    ),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final labels = _getBottomLabels(_selectedFilter);
+                          if (value >= 0 && value < labels.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                labels[value.toInt()],
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            );
+                          }
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                  ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maxValue > 0 ? maxValue / 4 : 25,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(
+                        color: Colors.grey[200]!,
+                        strokeWidth: 1,
+                        dashArray: const [4, 4],
+                      );
+                    },
+                  ),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: Border.all(
+                      color: Colors.grey[300]!,
+                      width: 1,
+                    ),
+                  ),
+                  barGroups: List.generate(chartData.length, (index) {
+                    final sales = chartData[index];
+                    final colors = sales > 0
+                        ? [
+                            Colors.blue.shade400,
+                            Colors.blue.shade200,
+                          ]
+                        : [
+                            Colors.grey.shade300,
+                            Colors.grey.shade200,
+                          ];
+                    
+                    return BarChartGroupData(
+                      x: index,
+                      barRods: [
+                        BarChartRodData(
+                          toY: sales,
+                          width: _getBarWidth(_selectedFilter),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(6),
+                            topRight: Radius.circular(6),
+                          ),
+                          gradient: LinearGradient(
+                            colors: colors,
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                          ),
+                          backDrawRodData: BackgroundBarChartRodData(
+                            show: true,
+                            toY: maxValue > 0 ? maxValue * 1.2 : 100,
+                            color: Colors.grey[50],
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ),
+            
+            // Today's Sales Indicator (for day filter)
+            if (_selectedFilter == TimeFilter.day)
+              const SizedBox(height: 16),
+            if (_selectedFilter == TimeFilter.day)
+              StreamBuilder<List<Bill>>(
+                stream: Provider.of<BillService>(context, listen: false).getBills(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const SizedBox();
+                  
+                  final todaySales = snapshot.data!
+                      .where((bill) => bill.type == 'sales' && 
+                          _isToday(bill.date))
+                      .fold<double>(0, (sum, bill) => sum + bill.totalAmount);
+                  
+                  if (todaySales == 0) return const SizedBox();
+                  
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.green.shade100,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Today: ₹${todaySales.toStringAsFixed(0)}',
                             style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
+                              fontSize: 13,
+                              color: Colors.green.shade800,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          Text(
-                            'Total: ₹${totalAmount.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Bar Graph
-                      SizedBox(
-                        height: 180,
-                        child: BarChart(
-                          BarChartData(
-                            alignment: BarChartAlignment.spaceAround,
-                            maxY: maxValue > 0 ? maxValue * 1.2 : 100,
-                            barTouchData: BarTouchData(
-                              enabled: true,
-                              touchTooltipData: BarTouchTooltipData(
-                                getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                                  return BarTooltipItem(
-                                    '₹${rod.toY.toStringAsFixed(0)}',
-                                    const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            titlesData: FlTitlesData(
-                              show: true,
-                              leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (value, meta) {
-                                    if (value == meta.min || value == meta.max) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: Text(
-                                        '₹${value.toStringAsFixed(0)}',
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  reservedSize: 40,
-                                ),
-                              ),
-                              rightTitles: AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              topTitles: AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (value, meta) {
-                                    final labels = _getBottomLabels(_selectedFilter);
-                                    if (value >= 0 && value < labels.length) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 8),
-                                        child: Text(
-                                          labels[value.toInt()],
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                    return const Text('');
-                                  },
-                                ),
-                              ),
-                            ),
-                            gridData: FlGridData(
-                              show: true,
-                              drawVerticalLine: false,
-                              horizontalInterval: maxValue > 0 ? maxValue / 4 : 25,
-                              getDrawingHorizontalLine: (value) {
-                                return FlLine(
-                                  color: Colors.grey[200]!,
-                                  strokeWidth: 1,
-                                  dashArray: const [4, 4],
-                                );
-                              },
-                            ),
-                            borderData: FlBorderData(
-                              show: true,
-                              border: Border.all(
-                                color: Colors.grey[300]!,
-                                width: 1,
-                              ),
-                            ),
-                            barGroups: List.generate(chartData.length, (index) {
-                              final sales = chartData[index];
-                              final colors = sales > 0
-                                  ? [
-                                      Colors.blue.shade400,
-                                      Colors.blue.shade200,
-                                    ]
-                                  : [
-                                      Colors.grey.shade300,
-                                      Colors.grey.shade200,
-                                    ];
-                              
-                              return BarChartGroupData(
-                                x: index,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: sales,
-                                    width: _getBarWidth(_selectedFilter),
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(6),
-                                      topRight: Radius.circular(6),
-                                    ),
-                                    gradient: LinearGradient(
-                                      colors: colors,
-                                      begin: Alignment.bottomCenter,
-                                      end: Alignment.topCenter,
-                                    ),
-                                    backDrawRodData: BackgroundBarChartRodData(
-                                      show: true,
-                                      toY: maxValue > 0 ? maxValue * 1.2 : 100,
-                                      color: Colors.grey[50],
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }),
-                          ),
                         ),
-                      ),
-                      
-                      // Today's Sales Indicator (for day filter)
-                      if (_selectedFilter == TimeFilter.day)
-                        const SizedBox(height: 16),
-                      if (_selectedFilter == TimeFilter.day)
-                        StreamBuilder<List<Bill>>(
-                          stream: Provider.of<BillService>(context, listen: false).getBills(),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) return const SizedBox();
-                            
-                            final todaySales = snapshot.data!
-                                .where((bill) => bill.type == 'sales' && 
-                                    _isToday(bill.date))
-                                .fold<double>(0, (sum, bill) => sum + bill.totalAmount);
-                            
-                            if (todaySales == 0) return const SizedBox();
-                            
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Colors.green.shade100,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.green,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Today: ₹${todaySales.toStringAsFixed(0)}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.green.shade800,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.trending_up,
-                                    color: Colors.green,
-                                    size: 16,
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                        const Icon(
+                          Icons.trending_up,
+                          color: Colors.green,
+                          size: 16,
                         ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  },
+),
+
 
           const SizedBox(height: 24),
 
@@ -623,14 +691,6 @@ class _DashboardContentState extends State<DashboardContent> {
                 ),
               ),
               _actionCard(
-                title: 'Ledger',
-                icon: Icons.menu_book,
-                onTap: () => widget.onNavigate(
-                  LedgerHomeScreen(userMobile: widget.userMobile),
-                  'Ledger',
-                ),
-              ),
-              _actionCard(
                 title: 'Inventory',
                 icon: Icons.inventory_2,
                 onTap: () => widget.onNavigate(
@@ -641,6 +701,15 @@ class _DashboardContentState extends State<DashboardContent> {
                   'Inventory',
                 ),
               ),
+              _actionCard(
+                title: 'Ledger',
+                icon: Icons.menu_book,
+                onTap: () => widget.onNavigate(
+                  LedgerHomeScreen(userMobile: widget.userMobile),
+                  'Ledger',
+                ),
+              ),
+              
             ],
           ),
         ],
@@ -1127,6 +1196,8 @@ class _DashboardContentState extends State<DashboardContent> {
            date.day == now.day;
   }
 
+// ... your existing code continues ...
+
   Widget _buildEmptyGraph() {
     return Card(
       shape: RoundedRectangleBorder(
@@ -1180,4 +1251,126 @@ class _DashboardContentState extends State<DashboardContent> {
       ),
     );
   }
-}
+
+  // ============ ADD THESE THREE NEW METHODS HERE ============
+
+  Widget _buildLoadingGraph() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: Colors.blue.shade400,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Loading sales data...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorGraph() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 60,
+              color: Colors.red.shade300,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Failed to load sales data',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Please check your connection',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============ OR REPLACE THE EXISTING _buildEmptyGraph() ============
+  // If you want the new version, rename or replace the existing one
+
+  Widget _buildEmptyGraphForNewUsers() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.analytics_outlined,
+              size: 80,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No Sales Data Available',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Create sales transactions to see analytics here',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+} 
+
+// <-- This is the closing brace of _DashboardContentState class
+

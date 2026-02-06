@@ -61,7 +61,7 @@ class _CategoryItemsScreenState extends State<CategoryItemsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.category.name),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color.fromARGB(255, 7, 54, 114),
         foregroundColor: Colors.black,
         elevation: 1,
       ),

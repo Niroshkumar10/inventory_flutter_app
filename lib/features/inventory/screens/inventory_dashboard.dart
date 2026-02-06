@@ -6,16 +6,14 @@ import './inventory_item_screen.dart';
 import './categories_screen.dart';
 
 class InventoryDashboard extends StatefulWidget {
-    final InventoryService inventoryService; // Make sure this exists
-
+  final InventoryService inventoryService;
   final String userMobile;
-  
- const InventoryDashboard({
-    Key? key,
-    required this.inventoryService, // This should be here
-    required this.userMobile, // And this
-  }) : super(key: key);
 
+  const InventoryDashboard({
+    Key? key,
+    required this.inventoryService,
+    required this.userMobile,
+  }) : super(key: key);
 
   @override
   State<InventoryDashboard> createState() => _InventoryDashboardState();
@@ -36,7 +34,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   @override
   void initState() {
     super.initState();
-    _inventoryService = widget.inventoryService; // ✅ USE PROVIDED INSTANCE
+    _inventoryService = widget.inventoryService;
     _loadData();
   }
 
@@ -66,52 +64,39 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
 
   Widget _buildStatsCard() {
     return Card(
-      elevation: 2,
+      elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Inventory Management',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Track & manage your stock',
+              'Inventory Summary',
               style: TextStyle(
                 fontSize: 14,
+                fontWeight: FontWeight.w600,
                 color: Colors.grey,
               ),
             ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             
-            // Stats Grid
-            SizedBox(
-              height: 90, // Increased height to accommodate text
-              child: GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 4,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-                childAspectRatio: 0.9, // Adjusted aspect ratio
-                children: [
-                  _statItem('Total Items', _stats['totalItems']?.toString() ?? '0', Colors.blue),
-                  _statItem('In Stock', _stats['inStockItems']?.toString() ?? '0', Colors.green),
-                  _statItem('Low Stock', _stats['lowStockItems']?.toString() ?? '0', Colors.orange),
-                  _statItem('Out of Stock', _stats['outOfStockItems']?.toString() ?? '0', Colors.red),
-                ],
-              ),
+            // Compact Stats Grid
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 4,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 0.75,
+              children: [
+                _statItem('Total', _stats['totalItems']?.toString() ?? '0', Colors.blue),
+                _statItem('In Stock', _stats['inStockItems']?.toString() ?? '0', Colors.green),
+                _statItem('Low', _stats['lowStockItems']?.toString() ?? '0', Colors.orange),
+                _statItem('Out', _stats['outOfStockItems']?.toString() ?? '0', Colors.red),
+              ],
             ),
           ],
         ),
@@ -120,46 +105,103 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   }
 
   Widget _statItem(String title, String value, Color color) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.grey,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterRow() {
     return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
         children: [
-          // Value
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+          // Status Filter Dropdown
+          Expanded(
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedFilter ?? 'All Items',
+                  icon: const Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey),
+                  isExpanded: true,
+                  style: const TextStyle(fontSize: 13, color: Colors.black),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedFilter = newValue == 'All Items' ? null : newValue;
+                    });
+                  },
+                  items: _filters.map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    );
+                  }).toList(),
                 ),
-                maxLines: 1,
               ),
             ),
           ),
-          const SizedBox(height: 4),
           
-          // Title
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 10, // Smaller font size
-                  color: Colors.grey,
+          const SizedBox(width: 8),
+          
+          // Category Filter Dropdown
+          Expanded(
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedCategory ?? 'All Categories',
+                  icon: const Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey),
+                  isExpanded: true,
+                  style: const TextStyle(fontSize: 13, color: Colors.black),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedCategory = newValue == 'All Categories' ? null : newValue;
+                    });
+                  },
+                  items: _categories.map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: const TextStyle(fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
                 ),
-                maxLines: 1,
-                textAlign: TextAlign.center,
               ),
             ),
           ),
@@ -168,254 +210,338 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     );
   }
 
-  Widget _buildFilterChips() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+  Widget _buildSearchSection() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+   
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
-        children: _filters.map((filter) {
-          final isSelected = _selectedFilter == filter;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text(filter),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  _selectedFilter = selected ? filter : null;
-                });
-              },
-              backgroundColor: Colors.grey.shade100,
-              selectedColor: Colors.blue.shade100,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.blue : Colors.grey.shade700,
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 40,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.category, size: 18),
+                label: const Text('Categories', style: TextStyle(fontSize: 13)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CategoriesScreen(
+                        userMobile: widget.userMobile,
+                        inventoryService: widget.inventoryService,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-          );
-        }).toList(),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 40,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Item', style: TextStyle(fontSize: 13)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddEditItemScreen(
+                        inventoryService: _inventoryService,
+                        userMobile: widget.userMobile,
+                      ),
+                    ),
+                  ).then((_) => _loadData());
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildCategoryChips() {
-    if (_categories.length <= 1) return const SizedBox();
+  Widget _buildCompactInventoryCard(InventoryItem item) {
+    Color statusColor;
+    String statusText;
     
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: _categories.map((category) {
-          final isSelected = _selectedCategory == category || 
-              (_selectedCategory == null && category == 'All Categories');
-          
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(
-                category,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  _selectedCategory = selected ? category : 'All Categories';
-                  if (_selectedCategory == 'All Categories') {
-                    _selectedCategory = null;
-                  }
-                });
-              },
-              backgroundColor: Colors.grey.shade100,
-              selectedColor: Colors.green.shade100,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.green.shade800 : Colors.grey.shade700,
+    if (item.quantity <= 0) {
+      statusColor = Colors.red;
+      statusText = 'Out';
+    } else if (item.isLowStock) {
+      statusColor = Colors.orange;
+      statusText = 'Low';
+    } else {
+      statusColor = Colors.green;
+      statusText = 'In Stock';
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0.5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade200, width: 0.5),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => InventoryItemScreen(
+                item: item,
+                inventoryService: widget.inventoryService,
+                userMobile: widget.userMobile,
               ),
             ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildCategoryFilterSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Filter by Category',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey,
+          ).then((deletedItemName) {
+            if (deletedItemName != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('"$deletedItemName" deleted successfully'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          });
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // First Row: Name and Status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.sku,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: statusColor.withOpacity(0.2)),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 8),
+              
+              // Second Row: Category, Quantity and Price
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Category
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.category,
+                          size: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.category,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Quantity and Price
+                  Row(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${item.quantity} ${item.unit}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '₹${item.price.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              
+              // Low Stock Warning
+              if (item.isLowStock && item.quantity > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning, size: 12, color: Colors.orange),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Reorder at ${item.lowStockThreshold}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        _buildCategoryChips(),
-      ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventory'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Header section - Fixed height
+                // Fixed Header Section (Non-scrollable)
                 Container(
-                  height: MediaQuery.of(context).size.height * 0.45, // 45% of screen
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildStatsCard(),
-                        const SizedBox(height: 16),
-                        
-                        // Categories and Add Item buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                icon: const Icon(Icons.category),
-                                label: const Text('Categories'),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => CategoriesScreen(
-                                        userMobile: widget.userMobile,
-                                        inventoryService: widget.inventoryService, // Add this
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add Item'),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => AddEditItemScreen(
-                                        inventoryService: _inventoryService,
-                                        userMobile: widget.userMobile,
-                                      ),
-                                    ),
-                                  ).then((_) => _loadData());
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Search Bar
-                        TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Search items...',
-                            prefixIcon: const Icon(Icons.search),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey.shade100,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () {
-                                      setState(() {
-                                        _searchQuery = '';
-                                        _searchController.clear();
-                                      });
-                                    },
-                                  )
-                                : null,
-                          ),
-                          onChanged: (value) {
-                            setState(() {
-                              _searchQuery = value;
-                            });
-                          },
-                        ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Filter Chips Section
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Filter by Status',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            _buildFilterChips(),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Category Filter Section
-                        _buildCategoryFilterSection(),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Inventory Items Header
-                        Row(
+                  color: Colors.white,
+                  child: Column(
+                    children: [
+                      // Search Bar
+                      _buildSearchSection(),
+                      
+                      // Summary Card
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildStatsCard(),
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Add/Category Row
+                      _buildQuickActions(),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Filter Row
+                      _buildFilterRow(),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Inventory Items Header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'Inventory Items',
                               style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
                               ),
                             ),
-                            if (_selectedCategory != null || _selectedFilter != null)
-                              TextButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    _selectedCategory = null;
-                                    _selectedFilter = null;
-                                  });
-                                },
-                                icon: const Icon(Icons.clear_all, size: 16),
-                                label: const Text('Clear filters'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.grey,
-                                ),
-                              ),
+                            StreamBuilder<List<InventoryItem>>(
+                              stream: _inventoryService.getInventoryItems(),
+                              builder: (context, snapshot) {
+                                int totalItems = snapshot.data?.length ?? 0;
+                                return Text(
+                                  '$totalItems items',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                );
+                              },
+                            ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                      const Divider(height: 20, thickness: 1),
+                    ],
                   ),
                 ),
                 
-                // Divider
-                const Divider(height: 1),
-                
-                // Inventory items list section
+                // Scrollable Items List Only
                 Expanded(
                   child: StreamBuilder<List<InventoryItem>>(
                     stream: _searchQuery.isNotEmpty
@@ -428,13 +554,26 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
 
                       if (snapshot.hasError) {
                         return Center(
-                          child: Text('Error: ${snapshot.error}'),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error, color: Colors.red, size: 40),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Error loading items',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
                         );
                       }
 
                       final items = snapshot.data ?? [];
 
-                      // Apply status filter
+                      // Apply filters
                       List<InventoryItem> filteredItems = items;
                       if (_selectedFilter == 'Low Stock') {
                         filteredItems = items.where((item) => item.isLowStock).toList();
@@ -442,60 +581,56 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                         filteredItems = items.where((item) => item.quantity <= 0).toList();
                       }
 
-                      // Apply category filter
                       if (_selectedCategory != null && _selectedCategory != 'All Categories') {
                         filteredItems = filteredItems.where((item) => item.category == _selectedCategory).toList();
                       }
 
-                      // Show active filters summary
-                      if ((_selectedCategory != null || _selectedFilter != null) && filteredItems.isNotEmpty) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          ScaffoldMessenger.of(context).removeCurrentSnackBar();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Showing ${filteredItems.length} items'
-                                '${_selectedFilter != null ? ' ($_selectedFilter)' : ''}'
-                                '${_selectedCategory != null ? ' in "$_selectedCategory"' : ''}',
-                              ),
-                              duration: const Duration(seconds: 2),
-                              behavior: SnackBarBehavior.floating,
-                              backgroundColor: Colors.blue,
-                            ),
-                          );
-                        });
-                      }
-
                       if (filteredItems.isEmpty) {
                         return SingleChildScrollView(
-                          child: Container(
-                            padding: const EdgeInsets.all(40),
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
                             child: Column(
                               children: [
                                 Icon(
                                   Icons.inventory_2,
-                                  size: 64,
+                                  size: 60,
                                   color: Colors.grey.shade300,
                                 ),
                                 const SizedBox(height: 16),
-                                const Text(
-                                  'No items found',
-                                  style: TextStyle(
-                                    fontSize: 16,
+                                Text(
+                                  _selectedCategory != null || _selectedFilter != null || _searchQuery.isNotEmpty
+                                      ? 'No items match your filters'
+                                      : 'No items found',
+                                  style: const TextStyle(
+                                    fontSize: 14,
                                     color: Colors.grey,
                                   ),
+                                  textAlign: TextAlign.center,
                                 ),
-                                if (_selectedCategory != null || _selectedFilter != null)
+                                if (_selectedCategory != null || _selectedFilter != null || _searchQuery.isNotEmpty)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: TextButton(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    child: ElevatedButton(
                                       onPressed: () {
                                         setState(() {
                                           _selectedCategory = null;
                                           _selectedFilter = null;
+                                          _searchQuery = '';
+                                          _searchController.clear();
                                         });
                                       },
-                                      child: const Text('Clear filters'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Clear all filters',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
                                     ),
                                   ),
                               ],
@@ -504,412 +639,95 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                         );
                       }
 
-                      return Column(
-                        children: [
-                          // Summary info
-                          if (_selectedCategory != null || _selectedFilter != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              margin: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.blue.shade100),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.filter_list,
-                                    size: 16,
-                                    color: Colors.blue.shade700,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '${filteredItems.length} items'
-                                      '${_selectedFilter != null ? ' • $_selectedFilter' : ''}'
-                                      '${_selectedCategory != null ? ' • Category: $_selectedCategory' : ''}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.blue.shade700,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          
-                          // Items list
-                          Expanded(
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              itemCount: filteredItems.length,
-                              itemBuilder: (context, index) {
-                                final item = filteredItems[index];
-                                return _buildInventoryCard(item);
-                              },
-                            ),
-                          ),
-                        ],
+                      return RefreshIndicator(
+                        onRefresh: _loadData,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          itemCount: filteredItems.length,
+                          itemBuilder: (context, index) {
+                            final item = filteredItems[index];
+                            return _buildCompactInventoryCard(item);
+                          },
+                        ),
                       );
                     },
                   ),
                 ),
               ],
             ),
-    
     );
   }
 
-  // Add this method for delete dialog:
-void _showDeleteItemDialog(InventoryItem item) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Delete Item'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Are you sure you want to delete "${item.name}"?'),
-          if (item.quantity > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              '⚠️ Warning: This item has ${item.quantity} units in stock.',
-              style: const TextStyle(color: Colors.orange),
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            Navigator.pop(context);
-            await _deleteItem(item);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Delete'),
-        ),
-      ],
-    ),
-  );
-}
-
-// Add this method for actual deletion:
-Future<void> _deleteItem(InventoryItem item) async {
-  try {
-    // Show loading
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Deleting "${item.name}"...'),
-        backgroundColor: Colors.blue,
-      ),
-    );
-
-    // Use soft delete
-    await widget.inventoryService.deleteInventoryItem(item.id);
-    
-    // Show success - the stream will automatically refresh the list
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('"${item.name}" deleted successfully'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Error deleting item: $e'),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-}
-
-Widget _buildInventoryCard(InventoryItem item) {
-  Color statusColor;
-  String statusText;
-  
-  if (item.quantity <= 0) {
-    statusColor = Colors.red;
-    statusText = 'Out of Stock';
-  } else if (item.isLowStock) {
-    statusColor = Colors.orange;
-    statusText = 'Low Stock';
-  } else {
-    statusColor = Colors.green;
-    statusText = 'In Stock';
-  }
-
-  return Card(
-    margin: const EdgeInsets.only(bottom: 12),
-    elevation: 1,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: () {
-       // When navigating to item detail
-Navigator.push(
-  context,
-  MaterialPageRoute(
-    builder: (context) => InventoryItemScreen(
-      item: item,
-      inventoryService: widget.inventoryService,
-      userMobile: widget.userMobile,
-    ),
-  ),
-).then((deletedItemName) {
-  // This will be called when we return from detail screen
-  if (deletedItemName != null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('"$deletedItemName" deleted successfully'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-});
-      },
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+  void _showDeleteItemDialog(InventoryItem item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Item', style: TextStyle(fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Item Name and Status
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    item.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: statusColor.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor,
-                    ),
-                  ),
-                ),
-              ],
+            Text(
+              'Are you sure you want to delete "${item.name}"?',
+              style: const TextStyle(fontSize: 14),
             ),
-            
-            const SizedBox(height: 8),
-            
-            // SKU and Category
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item.sku,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _selectedCategory == item.category 
-                        ? Colors.green.shade100 
-                        : Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _selectedCategory == item.category 
-                          ? Colors.green.shade300 
-                          : Colors.blue.shade100,
-                      width: _selectedCategory == item.category ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.category,
-                        size: 12,
-                        color: _selectedCategory == item.category 
-                            ? Colors.green.shade800 
-                            : Colors.blue.shade700,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        item.category,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: _selectedCategory == item.category 
-                              ? Colors.green.shade800 
-                              : Colors.blue.shade700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // Stock and Price Info
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Stock Info
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Current Stock',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    Text(
-                      '${item.quantity} ${item.unit}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                
-                // Price Info
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'Selling Price',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    Text(
-                      '₹${item.price.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            
-            // Reorder Level (if applicable)
-            if (item.isLowStock && item.quantity > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.warning,
-                      size: 14,
-                      color: Colors.orange,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Reorder at: ${item.lowStockThreshold}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.orange,
-                      ),
-                    ),
-                  ],
-                ),
+            if (item.quantity > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                '⚠️ Warning: This item has ${item.quantity} units in stock.',
+                style: const TextStyle(fontSize: 12, color: Colors.orange),
               ),
-            
-            // ========== ADD THIS SECTION ==========
-            // Action Buttons (Edit & Delete)
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // Edit Button
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AddEditItemScreen(
-                          inventoryService: _inventoryService,
-                          item: item,
-                          userMobile: widget.userMobile,
-                        ),
-                      ),
-                    ).then((_) => _loadData());
-                  },
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('Edit'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                
-                // Delete Button
-                OutlinedButton.icon(
-                  onPressed: () => _showDeleteItemDialog(item),
-                  icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                  label: const Text('Delete', style: TextStyle(color: Colors.red)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                    side: BorderSide(color: Colors.red.shade300),
-                  ),
-                ),
-              ],
-            ),
-            // ========== END OF NEW SECTION ==========
+            ],
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(fontSize: 13)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteItem(item);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete', style: TextStyle(fontSize: 13)),
+          ),
+        ],
       ),
-    ),
-  );
-}
+    );
+  }
 
+  Future<void> _deleteItem(InventoryItem item) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deleting "${item.name}"...'),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      await widget.inventoryService.deleteInventoryItem(item.id);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${item.name}" deleted successfully'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting item: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
 }

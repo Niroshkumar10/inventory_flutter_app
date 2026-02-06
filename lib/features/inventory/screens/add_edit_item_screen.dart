@@ -2,19 +2,18 @@ import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/inventory_item_model.dart';
 
-
 class AddEditItemScreen extends StatefulWidget {
   final InventoryService inventoryService;
   final InventoryItem? item;
   final String userMobile;
-  final String? initialCategory; // ADD THIS
+  final String? initialCategory;
   
   const AddEditItemScreen({
     Key? key,
     required this.inventoryService,
     this.item,
     required this.userMobile,
-    this.initialCategory, // ADD THIS
+    this.initialCategory,
   }) : super(key: key); 
 
   @override
@@ -39,39 +38,35 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   bool _skuChecking = false;
   String? _skuError;
   List<String> _categories = [];
-  List<String> _suppliers = []; // Add this for suppliers list
-  Map<String, String> _supplierMap = {}; // Map supplier ID to name
+  List<String> _suppliers = [];
+  Map<String, String> _supplierMap = {};
+
+  // Validation error messages
+  String? _nameError;
+  String? _priceError;
+  String? _costError;
+  String? _quantityError;
+  String? _lowStockError;
+  String? _unitError;
+  String? _categoryError;
+  String? _skuValidationError;
 
   @override
   void initState() {
     super.initState();
     final item = widget.item;
-    print('🚀 Edit mode: ${widget.item != null}');
-  if (item != null) {
-    print('📦 Editing item: ${item.name}');
-    print('📦 Item ID: ${item.id}');
-    print('📦 Item SKU: ${item.sku}');
-    print('📦 Item Price: ${item.price}');
-    print('📦 Item Cost: ${item.cost}');
-    print('📦 Item Quantity: ${item.quantity}');
-    print('📦 Item Category: ${item.category}');
-    print('📦 Item Supplier: ${item.supplierId}');
-    print('📦 Item Supplier Name: ${item.supplierName}');
-  }
     
-    // Initialize controllers with item data or defaults
+    // Initialize controllers
     _nameController = TextEditingController(text: item?.name ?? '');
     _descriptionController = TextEditingController(text: item?.description ?? '');
     _skuController = TextEditingController(text: item?.sku ?? '');
     
-    // Use initialCategory if provided, otherwise use item's category or empty
     if (widget.initialCategory != null) {
       _categoryController = TextEditingController(text: widget.initialCategory!);
     } else {
       _categoryController = TextEditingController(text: item?.category ?? '');
     }
     
-    // Initialize price and cost with proper formatting
     _priceController = TextEditingController(text: item?.price.toString() ?? '');
     _costController = TextEditingController(text: item?.cost.toString() ?? '');
     _quantityController = TextEditingController(text: item?.quantity.toString() ?? '0');
@@ -80,17 +75,128 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     _locationController = TextEditingController(text: item?.location ?? '');
     _supplierController = TextEditingController(text: item?.supplierId ?? '');
 
-  print('📝 Controller values:');
-  print('  Name: ${_nameController.text}');
-  print('  Category: ${_categoryController.text}');
-  print('  Supplier: ${_supplierController.text}');
-  print('  Price: ${_priceController.text}');
-  print('  Cost: ${_costController.text}');
-    // Load categories and suppliers for dropdown
+    // Load categories and suppliers
     _loadCategories();
     _loadSuppliers();
   }
 
+  // ============ VALIDATION METHODS ============
+  String? _validateName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Product name is required';
+    }
+    if (value.trim().length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+    if (value.trim().length > 100) {
+      return 'Name must be less than 100 characters';
+    }
+    return null;
+  }
+
+  String? _validateSKU(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'SKU is required';
+    }
+    if (value.trim().length < 3) {
+      return 'SKU must be at least 3 characters';
+    }
+    if (value.trim().length > 50) {
+      return 'SKU must be less than 50 characters';
+    }
+    // Check for valid SKU format (alphanumeric with optional dashes/underscores)
+    if (!RegExp(r'^[a-zA-Z0-9\-_]+$').hasMatch(value.trim())) {
+      return 'SKU can only contain letters, numbers, dashes, and underscores';
+    }
+    return null;
+  }
+
+  String? _validateCategory(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Category is required';
+    }
+    if (value.trim().length < 2) {
+      return 'Category must be at least 2 characters';
+    }
+    return null;
+  }
+
+  String? _validatePrice(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Selling price is required';
+    }
+    final price = double.tryParse(value);
+    if (price == null) {
+      return 'Enter a valid number';
+    }
+    if (price < 0) {
+      return 'Price cannot be negative';
+    }
+    if (price > 10000000) {
+      return 'Price is too high';
+    }
+    return null;
+  }
+
+  String? _validateCost(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // Cost is optional
+    }
+    final cost = double.tryParse(value);
+    if (cost == null) {
+      return 'Enter a valid number';
+    }
+    if (cost < 0) {
+      return 'Cost cannot be negative';
+    }
+    if (cost > 10000000) {
+      return 'Cost is too high';
+    }
+    return null;
+  }
+
+  String? _validateQuantity(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Quantity is required';
+    }
+    final quantity = int.tryParse(value);
+    if (quantity == null) {
+      return 'Enter a valid number';
+    }
+    if (quantity < 0) {
+      return 'Quantity cannot be negative';
+    }
+    if (quantity > 1000000) {
+      return 'Quantity is too high';
+    }
+    return null;
+  }
+
+  String? _validateLowStock(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Reorder level is required';
+    }
+    final lowStock = int.tryParse(value);
+    if (lowStock == null) {
+      return 'Enter a valid number';
+    }
+    if (lowStock < 0) {
+      return 'Cannot be negative';
+    }
+    return null;
+  }
+
+  String? _validateUnit(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Unit is required';
+    }
+    if (value.trim().length > 20) {
+      return 'Unit must be less than 20 characters';
+    }
+    return null;
+  }
+
+  // ============ LOAD METHODS ============
   Future<void> _loadCategories() async {
     try {
       final categories = await widget.inventoryService.getCategories();
@@ -104,13 +210,9 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
 
   Future<void> _loadSuppliers() async {
     try {
-      // Assuming you have a method to get suppliers from your service
-      // If not, you'll need to add it to InventoryService
       final suppliers = await widget.inventoryService.getSuppliers();
       setState(() {
         _suppliers = suppliers;
-        // You might want to create a map of supplier IDs to names
-        // This depends on your data structure
       });
     } catch (e) {
       print('Error loading suppliers: $e');
@@ -127,7 +229,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
 
     try {
       final exists = await widget.inventoryService.skuExists(
-        _skuController.text,
+        _skuController.text.trim(),
         excludeId: widget.item?.id,
       );
       
@@ -151,307 +253,484 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     }
   }
 
-Future<void> _saveItem() async {
-  // Add debug print
-  print('💾 Saving item...');
-  print('  Is edit mode: ${widget.item != null}');
-  if (widget.item != null) {
-    print('  Item ID: ${widget.item!.id}');
-  }
-  
-  setState(() => _isLoading = true);
-  
-  try {
-    // Parse values with defaults for empty fields
-    final name = _nameController.text.trim();
-    final sku = _skuController.text.trim();
-    final category = _categoryController.text.trim();
-    final unit = _unitController.text.trim();
-    final description = _descriptionController.text.trim();
-    final location = _locationController.text.trim();
-    final supplierName = _supplierController.text.trim();
-    
-    // Use 0.0 as default for numeric fields if empty
-    final price = _priceController.text.isNotEmpty 
-        ? double.tryParse(_priceController.text) ?? 0.0 
-        : 0.0;
-    final cost = _costController.text.isNotEmpty 
-        ? double.tryParse(_costController.text) ?? 0.0 
-        : 0.0;
-    final quantity = _quantityController.text.isNotEmpty 
-        ? int.tryParse(_quantityController.text) ?? 0 
-        : 0;
-    final lowStockThreshold = _lowStockController.text.isNotEmpty 
-        ? int.tryParse(_lowStockController.text) ?? 10 
-        : 10;
+  // ============ SAVE METHOD WITH VALIDATION ============
+  Future<void> _saveItem() async {
+    // Clear previous errors
+    setState(() {
+      _nameError = null;
+      _skuValidationError = null;
+      _categoryError = null;
+      _priceError = null;
+      _costError = null;
+      _quantityError = null;
+      _lowStockError = null;
+      _unitError = null;
+    });
 
-    // Debug the parsed values
-    print('📋 Parsed values:');
-    print('  Name: $name');
-    print('  SKU: $sku');
-    print('  Category: $category');
-    print('  Price: $price');
-    print('  Cost: $cost');
-    print('  Quantity: $quantity');
-    print('  Supplier: $supplierName');
+    // Validate all fields
+    final nameValidation = _validateName(_nameController.text);
+    final skuValidation = _validateSKU(_skuController.text);
+    final categoryValidation = _validateCategory(_categoryController.text);
+    final priceValidation = _validatePrice(_priceController.text);
+    final costValidation = _validateCost(_costController.text);
+    final quantityValidation = _validateQuantity(_quantityController.text);
+    final lowStockValidation = _validateLowStock(_lowStockController.text);
+    final unitValidation = _validateUnit(_unitController.text);
+
+    // Check for SKU uniqueness
+    if (_skuError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_skuError!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Set validation errors
+    bool hasErrors = false;
+    if (nameValidation != null) {
+      setState(() => _nameError = nameValidation);
+      hasErrors = true;
+    }
+    if (skuValidation != null) {
+      setState(() => _skuValidationError = skuValidation);
+      hasErrors = true;
+    }
+    if (categoryValidation != null) {
+      setState(() => _categoryError = categoryValidation);
+      hasErrors = true;
+    }
+    if (priceValidation != null) {
+      setState(() => _priceError = priceValidation);
+      hasErrors = true;
+    }
+    if (costValidation != null) {
+      setState(() => _costError = costValidation);
+      hasErrors = true;
+    }
+    if (quantityValidation != null) {
+      setState(() => _quantityError = quantityValidation);
+      hasErrors = true;
+    }
+    if (lowStockValidation != null) {
+      setState(() => _lowStockError = lowStockValidation);
+      hasErrors = true;
+    }
+    if (unitValidation != null) {
+      setState(() => _unitError = unitValidation);
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
+      // Scroll to first error
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fix all errors before saving'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
     
-    // Get supplier ID if supplier name is selected
-    String? supplierId;
-    if (supplierName.isNotEmpty) {
-      try {
-        final supplierDetails = await widget.inventoryService.getSupplierDetails(supplierName);
-        supplierId = supplierDetails?['id'] as String?;
-      } catch (e) {
-        print('⚠️ Could not find supplier ID for name: $supplierName');
+    try {
+      // Parse values
+      final name = _nameController.text.trim();
+      final sku = _skuController.text.trim();
+      final category = _categoryController.text.trim();
+      final unit = _unitController.text.trim();
+      final description = _descriptionController.text.trim();
+      final location = _locationController.text.trim();
+      final supplierName = _supplierController.text.trim();
+      
+      final price = double.parse(_priceController.text);
+      final cost = _costController.text.isNotEmpty ? double.parse(_costController.text) : 0.0;
+      final quantity = int.parse(_quantityController.text);
+      final lowStockThreshold = int.parse(_lowStockController.text);
+
+      // Get supplier ID if supplier name is selected
+      String? supplierId;
+      if (supplierName.isNotEmpty) {
+        try {
+          final supplierDetails = await widget.inventoryService.getSupplierDetails(supplierName);
+          supplierId = supplierDetails?['id'] as String?;
+        } catch (e) {
+          print('⚠️ Could not find supplier ID for name: $supplierName');
+        }
       }
-    }
 
-    final item = InventoryItem(
-      id: widget.item?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name.isNotEmpty ? name : 'New Product',
-      description: description,
-      sku: sku.isNotEmpty ? sku : 'SKU${DateTime.now().millisecondsSinceEpoch}',
-      category: category.isNotEmpty ? category : 'Uncategorized',
-      price: price,
-      cost: cost,
-      quantity: quantity,
-      lowStockThreshold: lowStockThreshold,
-      unit: unit.isNotEmpty ? unit : 'pcs',
-      location: location.isNotEmpty ? location : null,
-      supplierId: supplierId ?? widget.item?.supplierId,
-      supplierName: supplierName.isNotEmpty ? supplierName : null,
-      userMobile: widget.userMobile,
-    );
+      final item = InventoryItem(
+        id: widget.item?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        description: description,
+        sku: sku,
+        category: category,
+        price: price,
+        cost: cost,
+        quantity: quantity,
+        lowStockThreshold: lowStockThreshold,
+        unit: unit,
+        location: location.isNotEmpty ? location : null,
+        supplierId: supplierId ?? widget.item?.supplierId,
+        supplierName: supplierName.isNotEmpty ? supplierName : null,
+        userMobile: widget.userMobile,
+      );
 
-    if (widget.item == null) {
-      // Add new item
-      print('➕ Adding new item...');
-      final id = await widget.inventoryService.addInventoryItem(item);
-      print('✅ Item added with ID: $id');
+      if (widget.item == null) {
+        // Add new item
+        final id = await widget.inventoryService.addInventoryItem(item);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Item added successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // Update existing item
+        await widget.inventoryService.updateInventoryItem(item);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Item updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      Navigator.pop(context, true);
+    } catch (e, stackTrace) {
+      print('❌ Error saving item: $e');
+      print('Stack trace: $stackTrace');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Item added successfully'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         ),
       );
-    } else {
-      // Update existing item
-      print('✏️ Updating existing item with ID: ${widget.item!.id}');
-      await widget.inventoryService.updateInventoryItem(item);
-      print('✅ Item updated successfully');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Item updated successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    } finally {
+      setState(() => _isLoading = false);
     }
-
-    Navigator.pop(context, true); // Pass true to indicate success
-  } catch (e, stackTrace) {
-    print('❌ Error saving item: $e');
-    print('Stack trace: $stackTrace');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Error: $e'),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
-      ),
-    );
-  } finally {
-    setState(() => _isLoading = false);
   }
-}
 
+  // ============ BUILD METHOD ============
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.item == null ? 'Add New Item' : 'Edit Item'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
+        title: Text(
+          widget.item == null ? 'Add New Item' : 'Edit Item',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: const Color.fromARGB(255, 5, 59, 177),
+        foregroundColor: Colors.white,
+        elevation: 2,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, size: 24),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator.adaptive(
+                strokeWidth: 3,
+              ),
+            )
           : Column(
               children: [
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20.0),
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0,
+                      vertical: 24.0,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Product Name
-                        _buildInputSection(
+                        // Product Information Section
+                        _buildSectionHeader(
                           title: 'Product Information',
-                          children: [
-                            _buildInputField(
-                              controller: _nameController,
-                              label: 'Product Name',
-                              icon: Icons.shopping_bag_outlined,
-                              hintText: 'Enter product name',
-                            ),
-                            const SizedBox(height: 16),
-                            _buildInputField(
-                              controller: _descriptionController,
-                              label: 'Description (Optional)',
-                              icon: Icons.description_outlined,
-                              hintText: 'Enter description',
-                              maxLines: 2,
-                            ),
-                          ],
+                          required: true,
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        _buildInputField(
+                          controller: _nameController,
+                          label: 'Product Name',
+                          icon: Icons.shopping_bag_outlined,
+                          hintText: 'Enter product name (e.g., iPhone 14 Pro)',
+                          errorText: _nameError,
+                          onChanged: (value) {
+                            if (_nameError != null) {
+                              setState(() => _nameError = null);
+                            }
+                          },
                         ),
                         
                         const SizedBox(height: 24),
                         
-                        // SKU & Category
-                        _buildInputSection(
+                        _buildInputField(
+                          controller: _descriptionController,
+                          label: 'Description',
+                          icon: Icons.description_outlined,
+                          hintText: 'Enter description (optional)',
+                          maxLines: 3,
+                          optional: true,
+                        ),
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Identification Section
+                        _buildSectionHeader(
                           title: 'Identification',
+                          required: true,
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        Row(
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildInputField(
-                                    controller: _skuController,
-                                    label: 'SKU Code',
-                                    icon: Icons.tag_outlined,
-                                    hintText: 'Enter SKU',
-                                    errorText: _skuError,
-                                    suffixIcon: _skuChecking
-                                        ? const SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          )
-                                        : null,
-                                    onChanged: (value) => _checkSku(),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildCategoryDropdown(),
-                                ),
-                              ],
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _skuController,
+                                label: 'SKU Code',
+                                icon: Icons.tag_outlined,
+                                hintText: 'Enter unique SKU',
+                                errorText: _skuValidationError ?? _skuError,
+                                suffixIcon: _skuChecking
+                                    ? const Padding(
+                                        padding: EdgeInsets.only(right: 12),
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                                onChanged: (value) {
+                                  if (_skuValidationError != null) {
+                                    setState(() => _skuValidationError = null);
+                                  }
+                                  if (_skuError != null) {
+                                    setState(() => _skuError = null);
+                                  }
+                                  _checkSku();
+                                },
+                              ),
+                            ),
+                            
+                            const SizedBox(width: 20),
+                            
+                            Expanded(
+                              child: _buildCategoryDropdown(),
                             ),
                           ],
                         ),
                         
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 40),
                         
-                        // Pricing - CHANGED TO INDIAN RUPEES
-                        _buildInputSection(
+                        // Pricing Section
+                        _buildSectionHeader(
                           title: 'Pricing',
+                          required: true,
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        Row(
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildInputField(
-                                    controller: _priceController,
-                                    label: 'Selling Price',
-                                    icon: Icons.currency_rupee, // Changed to Indian Rupee icon
-                                    hintText: '0.00',
-                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildInputField(
-                                    controller: _costController,
-                                    label: 'Cost Price',
-                                    icon: Icons.currency_rupee, // Changed to Indian Rupee icon
-                                    hintText: '0.00',
-                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                  ),
-                                ),
-                              ],
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _priceController,
+                                label: 'Selling Price',
+                                icon: Icons.currency_rupee,
+                                hintText: '0.00',
+                                errorText: _priceError,
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                prefixText: '₹ ',
+                                onChanged: (value) {
+                                  if (_priceError != null) {
+                                    setState(() => _priceError = null);
+                                  }
+                                },
+                              ),
+                            ),
+                            
+                            const SizedBox(width: 20),
+                            
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _costController,
+                                label: 'Cost Price',
+                                icon: Icons.currency_rupee,
+                                hintText: '0.00',
+                                errorText: _costError,
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                prefixText: '₹ ',
+                                optional: true,
+                                onChanged: (value) {
+                                  if (_costError != null) {
+                                    setState(() => _costError = null);
+                                  }
+                                },
+                              ),
                             ),
                           ],
                         ),
                         
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 40),
                         
-                        // Stock Information
-                        _buildInputSection(
+                        // Stock Information Section
+                        _buildSectionHeader(
                           title: 'Stock Information',
+                          required: true,
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        Row(
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildInputField(
-                                    controller: _quantityController,
-                                    label: 'Current Stock',
-                                    icon: Icons.inventory_outlined,
-                                    hintText: '0',
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildInputField(
-                                    controller: _lowStockController,
-                                    label: 'Reorder Level',
-                                    icon: Icons.warning_outlined,
-                                    hintText: '10',
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                ),
-                              ],
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _quantityController,
+                                label: 'Current Stock',
+                                icon: Icons.inventory_outlined,
+                                hintText: '0',
+                                errorText: _quantityError,
+                                keyboardType: TextInputType.number,
+                                onChanged: (value) {
+                                  if (_quantityError != null) {
+                                    setState(() => _quantityError = null);
+                                  }
+                                },
+                              ),
                             ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildInputField(
-                                    controller: _unitController,
-                                    label: 'Unit',
-                                    icon: Icons.square_foot_outlined,
-                                    hintText: 'pcs, kg, etc.',
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildInputField(
-                                    controller: _locationController,
-                                    label: 'Location (Optional)',
-                                    icon: Icons.location_on_outlined,
-                                    hintText: 'Storage location',
-                                  ),
-                                ),
-                              ],
+                            
+                            const SizedBox(width: 20),
+                            
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _lowStockController,
+                                label: 'Reorder Level',
+                                icon: Icons.warning_outlined,
+                                hintText: '10',
+                                errorText: _lowStockError,
+                                keyboardType: TextInputType.number,
+                                onChanged: (value) {
+                                  if (_lowStockError != null) {
+                                    setState(() => _lowStockError = null);
+                                  }
+                                },
+                              ),
                             ),
                           ],
                         ),
                         
                         const SizedBox(height: 24),
                         
-                        // Supplier Information - CHANGED TO DROPDOWN
-                        _buildInputSection(
-                          title: 'Supplier Information (Optional)',
+                        Row(
                           children: [
-                            _buildSupplierDropdown(),
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _unitController,
+                                label: 'Unit',
+                                icon: Icons.square_foot_outlined,
+                                hintText: 'pcs, kg, ml, etc.',
+                                errorText: _unitError,
+                                onChanged: (value) {
+                                  if (_unitError != null) {
+                                    setState(() => _unitError = null);
+                                  }
+                                },
+                              ),
+                            ),
+                            
+                            const SizedBox(width: 20),
+                            
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _locationController,
+                                label: 'Location',
+                                icon: Icons.location_on_outlined,
+                                hintText: 'Warehouse, Shelf, etc.',
+                                optional: true,
+                              ),
+                            ),
                           ],
                         ),
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Supplier Section
+                        _buildSectionHeader(
+                          title: 'Supplier Information',
+                          required: false,
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        _buildSupplierDropdown(),
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Required Fields Note
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue.shade100),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.blue.shade600,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Fields marked with * are required',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.blue.shade800,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
                 ),
                 
-                // Bottom Buttons
+                // Bottom Action Buttons
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border(
                       top: BorderSide(
                         color: Colors.grey.shade300,
-                        width: 1,
+                        width: 1.5,
                       ),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: [
@@ -459,40 +738,44 @@ Future<void> _saveItem() async {
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: BorderSide(color: Colors.grey.shade400),
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            side: BorderSide(
+                              color: Colors.grey.shade400,
+                              width: 1.5,
+                            ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           child: const Text(
                             'Cancel',
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                               color: Colors.grey,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _saveItem,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
+                            backgroundColor: const Color.fromARGB(255, 5, 59, 177),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 18),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            elevation: 2,
                           ),
                           child: _isLoading
                               ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
+                                  width: 24,
+                                  height: 24,
                                   child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                                    strokeWidth: 3,
                                     color: Colors.white,
                                   ),
                                 )
@@ -500,7 +783,7 @@ Future<void> _saveItem() async {
                                   widget.item == null ? 'Add Item' : 'Save Changes',
                                   style: const TextStyle(
                                     fontSize: 16,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                         ),
@@ -513,121 +796,412 @@ Future<void> _saveItem() async {
     );
   }
 
-Widget _buildCategoryDropdown() {
+  // ============ CUSTOM WIDGETS ============
+  Widget _buildSectionHeader({
+    required String title,
+    required bool required,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Category',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButtonFormField<String>(
-              value: _categoryController.text.isNotEmpty && _categories.contains(_categoryController.text)
-                  ? _categoryController.text
-                  : null,
-              items: [
-                const DropdownMenuItem(
-                  value: null,
-                  child: Text('Select Category', style: TextStyle(color: Colors.grey)),
-                ),
-                ..._categories.map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                const DropdownMenuItem(
-                  value: 'new',
-                  child: Row(
-                    children: [
-                      Icon(Icons.add, size: 16, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text('Add New Category', style: TextStyle(color: Colors.blue)),
-                    ],
+        Row(
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            if (required)
+              const Padding(
+                padding: EdgeInsets.only(left: 4),
+                child: Text(
+                  '*',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
-              onChanged: (value) {
-                if (value == 'new') {
-                  _showAddCategoryDialog();
-                } else if (value != null) {
-                  setState(() {
-                    _categoryController.text = value;
-                  });
-                } else {
-                  setState(() {
-                    _categoryController.text = '';
-                  });
-                }
-              },
-              decoration: const InputDecoration(
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                border: InputBorder.none,
               ),
-              icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
-              isExpanded: true,
-            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 3,
+          width: 40,
+          decoration: BoxDecoration(
+            color: const Color.fromARGB(255, 5, 59, 177),
+            borderRadius: BorderRadius.circular(2),
           ),
         ),
       ],
     );
   }
-  // ADD THIS NEW WIDGET FOR SUPPLIER DROPDOWN
-// In your _buildSupplierDropdown() method, change lines 574-581 to:
 
-Widget _buildSupplierDropdown() {
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? hintText,
+    String? errorText,
+    Widget? suffixIcon,
+    String? prefixText,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+    bool optional = false,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (!optional)
+              const Padding(
+                padding: EdgeInsets.only(left: 2),
+                child: Text(
+                  '*',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(
+              fontSize: 15,
+              color: Colors.grey.shade500,
+            ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 12),
+              child: Icon(
+                icon,
+                color: const Color.fromARGB(255, 5, 59, 177),
+                size: 22,
+              ),
+            ),
+            prefixText: prefixText,
+            prefixStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+            suffixIcon: suffixIcon,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.grey.shade300,
+                width: 1.5,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color.fromARGB(255, 5, 59, 177),
+                width: 2,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.grey.shade300,
+                width: 1.5,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Colors.red,
+                width: 1.5,
+              ),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Colors.red,
+                width: 2,
+              ),
+            ),
+            errorText: errorText,
+            errorStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 18,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+          ),
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          onChanged: onChanged,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+Widget _buildCategoryDropdown() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Row(
+        children: [
+          Text(
+            'Category',
+            style: TextStyle(
+              fontSize: 15,
+              color: Colors.grey,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.only(left: 2),
+            child: Text(
+              '*',
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Container(
+        height: 56, // Fixed height to prevent layout shift
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: _categoryError != null 
+              ? Colors.red 
+              : Colors.grey.shade300,
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+        ),
+        child: MenuAnchor(
+          builder: (BuildContext context, MenuController controller, Widget? child) {
+            return InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                if (controller.isOpen) {
+                  controller.close();
+                } else {
+                  controller.open();
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.category_outlined,
+                      color: const Color.fromARGB(255, 5, 59, 177),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _categoryController.text.isEmpty
+                            ? 'Select Category'
+                            : _categoryController.text,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: _categoryController.text.isEmpty
+                              ? Colors.grey
+                              : Colors.black,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_drop_down,
+                      color: Colors.grey.shade600,
+                      size: 28,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          menuChildren: [
+            // "Add New Category" option first for better visibility
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context, rootNavigator: true).pop();
+                    _showAddCategoryDialog();
+                  },
+                  icon: Icon(
+                    Icons.add_circle_outline,
+                    size: 18,
+                    color: const Color.fromARGB(255, 5, 59, 177),
+                  ),
+                  label: Text(
+                    'Add New Category',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: const Color.fromARGB(255, 5, 59, 177),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const Divider(height: 1, thickness: 1),
+            ..._categories.map((category) {
+              return MenuItemButton(
+                style: MenuItemButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _categoryController.text = category;
+                    _categoryError = null;
+                  });
+                },
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    category,
+                    style: const TextStyle(
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+      if (_categoryError != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 4, left: 4),
+          child: Text(
+            _categoryError!,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.red,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+    ],
+  );
+}
+  Widget _buildSupplierDropdown() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Supplier',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 15,
             color: Colors.grey,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.grey.shade300,
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButtonFormField<String>(
-              value: _supplierController.text.isNotEmpty && _suppliers.contains(_supplierController.text) 
+              value: _supplierController.text.isNotEmpty && 
+                     _suppliers.contains(_supplierController.text) 
                   ? _supplierController.text 
                   : null,
               items: [
                 const DropdownMenuItem(
                   value: null,
-                  child: Text('Select Supplier', style: TextStyle(color: Colors.grey)),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'Select Supplier (Optional)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
                 ),
                 ..._suppliers.map((supplier) {
                   return DropdownMenuItem(
                     value: supplier,
-                    child: Text(supplier),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        supplier,
+                        style: const TextStyle(
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
                   );
                 }).toList(),
-                const DropdownMenuItem(
+                DropdownMenuItem(
                   value: 'new',
-                  child: Row(
-                    children: [
-                      Icon(Icons.add, size: 16, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text('Add New Supplier', style: TextStyle(color: Colors.blue)),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add_circle_outline,
+                          size: 18,
+                          color: const Color.fromARGB(255, 5, 59, 177),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Add New Supplier',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: const Color.fromARGB(255, 5, 59, 177),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -645,21 +1219,43 @@ Widget _buildSupplierDropdown() {
                 }
               },
               decoration: InputDecoration(
-                prefixIcon: Icon(Icons.local_shipping_outlined, color: Colors.blue[400]),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
                 border: InputBorder.none,
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(
+                    Icons.local_shipping_outlined,
+                    color: const Color.fromARGB(255, 5, 59, 177),
+                    size: 22,
+                  ),
+                ),
+                filled: true,
+                fillColor: Colors.white,
               ),
-              icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+              icon: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Icon(
+                  Icons.arrow_drop_down,
+                  color: Colors.grey.shade600,
+                  size: 28,
+                ),
+              ),
               isExpanded: true,
-              validator: (value) {
-                return null; // Optional: Add validation if needed
-              },
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),
       ],
     );
   }
+
+
   void _showAddCategoryDialog() {
     final categoryController = TextEditingController();
     
@@ -667,19 +1263,48 @@ Widget _buildSupplierDropdown() {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Add New Category'),
-          content: TextField(
-            controller: categoryController,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'Enter category name',
-              border: OutlineInputBorder(),
+          title: const Text(
+            'Add New Category',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
             ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: categoryController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Enter category name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This category will be available for all items',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontSize: 16),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -689,11 +1314,12 @@ Widget _buildSupplierDropdown() {
                     setState(() {
                       _categories.add(categoryController.text.trim());
                       _categoryController.text = categoryController.text.trim();
+                      _categoryError = null;
                     });
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Category added successfully'),
+                      SnackBar(
+                        content: Text('"${categoryController.text.trim()}" added successfully'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -707,7 +1333,15 @@ Widget _buildSupplierDropdown() {
                   }
                 }
               },
-              child: const Text('Add'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color.fromARGB(255, 5, 59, 177),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Text(
+                'Add',
+                style: TextStyle(fontSize: 16),
+              ),
             ),
           ],
         );
@@ -715,7 +1349,6 @@ Widget _buildSupplierDropdown() {
     );
   }
 
-  // ADD THIS METHOD FOR ADDING NEW SUPPLIER
   void _showAddSupplierDialog() {
     final supplierController = TextEditingController();
     
@@ -723,26 +1356,53 @@ Widget _buildSupplierDropdown() {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Add New Supplier'),
-          content: TextField(
-            controller: supplierController,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'Enter supplier name',
-              border: OutlineInputBorder(),
+          title: const Text(
+            'Add New Supplier',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
             ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: supplierController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Enter supplier name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You can add contact details later',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontSize: 16),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
                 if (supplierController.text.trim().isNotEmpty) {
                   try {
-                    // Assuming you have a method to add supplier
-                    // You'll need to add this to your InventoryService
                     await widget.inventoryService.addSupplier(supplierController.text.trim());
                     setState(() {
                       _suppliers.add(supplierController.text.trim());
@@ -750,8 +1410,8 @@ Widget _buildSupplierDropdown() {
                     });
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Supplier added successfully'),
+                      SnackBar(
+                        content: Text('"${supplierController.text.trim()}" added successfully'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -765,103 +1425,19 @@ Widget _buildSupplierDropdown() {
                   }
                 }
               },
-              child: const Text('Add'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color.fromARGB(255, 5, 59, 177),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Text(
+                'Add',
+                style: TextStyle(fontSize: 16),
+              ),
             ),
           ],
         );
       },
-    );
-  }
-
-  Widget _buildInputSection({
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey,
-            ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.shade100,
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: children,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInputField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? hintText,
-    String? errorText,
-    Widget? suffixIcon,
-    TextInputType? keyboardType,
-    int maxLines = 1,
-    ValueChanged<String>? onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: hintText,
-            prefixIcon: Icon(icon, color: Colors.blue.shade400),
-            suffixIcon: suffixIcon,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.blue, width: 1.5),
-            ),
-            errorText: errorText,
-            errorStyle: const TextStyle(fontSize: 12),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 16,
-            ),
-          ),
-          keyboardType: keyboardType,
-          maxLines: maxLines,
-          onChanged: onChanged,
-        ),
-      ],
     );
   }
 }

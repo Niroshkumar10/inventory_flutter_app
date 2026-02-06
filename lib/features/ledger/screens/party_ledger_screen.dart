@@ -40,15 +40,10 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.party.name} Ledger'),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color.fromARGB(255, 7, 54, 114),
         foregroundColor: Colors.black,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _addTransaction,
-          ),
-        ],
+       
       ),
       body: Column(
         children: [
@@ -241,19 +236,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
     );
   }
 
-  void _addTransaction() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AddLedgerEntryScreen(
-        userMobile: widget.userMobile,
-        initialPartyType: widget.partyType,
-      ),
-    ).then((_) {
-      _loadCurrentBalance(); // Refresh balance
-    });
-  }
+ 
 
   void _showEntryDetails(LedgerEntry entry) {
     showDialog(

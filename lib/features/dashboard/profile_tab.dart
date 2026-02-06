@@ -172,7 +172,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final name = data['name']?.toString() ?? 'User';
         final location = data['location']?.toString() ?? 'Not specified';
-        final email = data['email']?.toString() ?? 'Not provided';
         final createdAt = data['createdAt'] as Timestamp?;
         final businessName = data['businessName']?.toString() ?? 'My Business';
 
@@ -260,20 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: () => setState(() => _isEditing = true),
                     tooltip: 'Edit Profile',
                   ),
-                IconButton(
-                  icon: _isLoggingOut
-                      ? SizedBox(
-                          width: isSmallScreen ? 18 : 20,
-                          height: isSmallScreen ? 18 : 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Icon(Icons.logout, color: Colors.white, size: isSmallScreen ? 20 : 24),
-                  onPressed: _isLoggingOut ? null : _logout,
-                  tooltip: 'Logout',
-                ),
+               
               ],
             ),
 
@@ -338,7 +324,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           : [
                               _infoRow('Full Name', name, isSmallScreen),
                               _infoRow('Mobile Number', mobile, isSmallScreen),
-                              if (email.isNotEmpty) _infoRow('Email', email, isSmallScreen),
                             ],
                     ),
 
