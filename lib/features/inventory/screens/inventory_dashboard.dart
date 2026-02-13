@@ -129,94 +129,149 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     );
   }
 
-  Widget _buildFilterRow() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          // Status Filter Dropdown
-          Expanded(
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedFilter ?? 'All Items',
-                  icon: const Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey),
-                  isExpanded: true,
-                  style: const TextStyle(fontSize: 13, color: Colors.black),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedFilter = newValue == 'All Items' ? null : newValue;
-                    });
-                  },
-                  items: _filters.map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(
-                        value,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    );
-                  }).toList(),
+
+Widget _buildFilterRow() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    child: Row(
+      children: [
+
+        /// 🔹 STATUS DROPDOWN
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Status',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-          ),
-          
-          const SizedBox(width: 8),
-          
-          // Category Filter Dropdown
-          Expanded(
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedCategory ?? 'All Categories',
-                  icon: const Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey),
-                  isExpanded: true,
-                  style: const TextStyle(fontSize: 13, color: Colors.black),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedCategory = newValue == 'All Categories' ? null : newValue;
-                    });
-                  },
-                  items: _categories.map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(
-                        value,
-                        style: const TextStyle(fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 8),
+
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.grey.shade300,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedFilter ?? 'All Items',
+                    isExpanded: true,
+                    icon: Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.grey.shade600,
+                        size: 26,
                       ),
-                    );
-                  }).toList(),
+                    ),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    items: _filters.map((filter) {
+                      return DropdownMenuItem<String>(
+                        value: filter,
+                        child: Text(
+                          filter,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedFilter =
+                            value == 'All Items' ? null : value;
+                      });
+                    },
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
 
-  Widget _buildSearchSection() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-   
-    );
-  }
+        const SizedBox(width: 12),
 
+        /// 🔹 CATEGORY DROPDOWN
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Category',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.grey.shade300,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedCategory ?? 'All Categories',
+                    isExpanded: true,
+                    icon: Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.grey.shade600,
+                        size: 26,
+                      ),
+                    ),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    items: _categories.map((category) {
+                      return DropdownMenuItem<String>(
+                        value: category,
+                        child: Text(
+                          category,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCategory =
+                            value == 'All Categories' ? null : value;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+  
   Widget _buildQuickActions() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -486,7 +541,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                   child: Column(
                     children: [
                       // Search Bar
-                      _buildSearchSection(),
+                      // _buildSearchSection(),
                       
                       // Summary Card
                       Padding(
