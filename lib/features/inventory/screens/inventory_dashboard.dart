@@ -129,149 +129,146 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     );
   }
 
-
-Widget _buildFilterRow() {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    child: Row(
-      children: [
-
-        /// 🔹 STATUS DROPDOWN
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Status',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.grey.shade300,
-                    width: 1.5,
+  Widget _buildFilterRow() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          /// 🔹 STATUS DROPDOWN
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Status',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.white,
                 ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedFilter ?? 'All Items',
-                    isExpanded: true,
-                    icon: Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Colors.grey.shade600,
-                        size: 26,
-                      ),
+                const SizedBox(height: 8),
+
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.grey.shade300,
+                      width: 1.5,
                     ),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    items: _filters.map((filter) {
-                      return DropdownMenuItem<String>(
-                        value: filter,
-                        child: Text(
-                          filter,
-                          style: const TextStyle(fontSize: 16),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedFilter ?? 'All Items',
+                      isExpanded: true,
+                      icon: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Colors.grey.shade600,
+                          size: 26,
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedFilter =
-                            value == 'All Items' ? null : value;
-                      });
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(width: 12),
-
-        /// 🔹 CATEGORY DROPDOWN
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Category',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.grey.shade300,
-                    width: 1.5,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.white,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedCategory ?? 'All Categories',
-                    isExpanded: true,
-                    icon: Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Colors.grey.shade600,
-                        size: 26,
                       ),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      items: _filters.map((filter) {
+                        return DropdownMenuItem<String>(
+                          value: filter,
+                          child: Text(
+                            filter,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedFilter =
+                              value == 'All Items' ? null : value;
+                        });
+                      },
                     ),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    items: _categories.map((category) {
-                      return DropdownMenuItem<String>(
-                        value: category,
-                        child: Text(
-                          category,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCategory =
-                            value == 'All Categories' ? null : value;
-                      });
-                    },
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
 
-  
+          const SizedBox(width: 12),
+
+          /// 🔹 CATEGORY DROPDOWN
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Category',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.grey.shade300,
+                      width: 1.5,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedCategory ?? 'All Categories',
+                      isExpanded: true,
+                      icon: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Colors.grey.shade600,
+                          size: 26,
+                        ),
+                      ),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      items: _categories.map((category) {
+                        return DropdownMenuItem<String>(
+                          value: category,
+                          child: Text(
+                            category,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCategory =
+                              value == 'All Categories' ? null : value;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickActions() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -531,6 +528,39 @@ Widget _buildFilterRow() {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Inventory Management',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              // Show search dialog or navigate to search screen
+              showSearch(
+                context: context,
+                delegate: _InventorySearchDelegate(
+                  inventoryService: _inventoryService,
+                  userMobile: widget.userMobile,
+                ),
+              );
+            },
+          ),
+        ],
+       
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -540,21 +570,18 @@ Widget _buildFilterRow() {
                   color: Colors.white,
                   child: Column(
                     children: [
-                      // Search Bar
-                      // _buildSearchSection(),
-                      
                       // Summary Card
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         child: _buildStatsCard(),
                       ),
                       
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       
                       // Add/Category Row
                       _buildQuickActions(),
                       
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       
                       // Filter Row
                       _buildFilterRow(),
@@ -591,7 +618,7 @@ Widget _buildFilterRow() {
                           ],
                         ),
                       ),
-                      const Divider(height: 20, thickness: 1),
+                      const Divider(height: 16, thickness: 1),
                     ],
                   ),
                 ),
@@ -784,5 +811,130 @@ Widget _buildFilterRow() {
         ),
       );
     }
+  }
+}
+
+// Search Delegate for Inventory
+class _InventorySearchDelegate extends SearchDelegate {
+  final InventoryService inventoryService;
+  final String userMobile;
+
+  _InventorySearchDelegate({
+    required this.inventoryService,
+    required this.userMobile,
+  });
+
+  @override
+  List<Widget> buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () {
+          query = '';
+        },
+      ),
+    ];
+  }
+
+  @override
+  Widget buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () {
+        close(context, null);
+      },
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return _buildSearchResults();
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return _buildSearchResults();
+  }
+
+  Widget _buildSearchResults() {
+    return StreamBuilder<List<InventoryItem>>(
+      stream: inventoryService.searchInventoryItems(query),
+      builder: (context, snapshot) {
+        if (query.isEmpty) {
+          return const Center(
+            child: Text('Start typing to search items'),
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final items = snapshot.data ?? [];
+
+        if (items.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.search_off, size: 48, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  'No items found for "$query"',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.inventory_2,
+                  color: Colors.blue.shade700,
+                  size: 20,
+                ),
+              ),
+              title: Text(
+                item.name,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                '${item.sku} • ${item.quantity} ${item.unit}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              trailing: Text(
+                '₹${item.price.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              onTap: () {
+                close(context, null);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => InventoryItemScreen(
+                      item: item,
+                      inventoryService: inventoryService,
+                      userMobile: userMobile,
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 }

@@ -14,7 +14,9 @@ class CustomerListScreen extends StatefulWidget {
 
 class _CustomerListScreenState extends State<CustomerListScreen> {
   late final CustomerService _customerService;
+  final TextEditingController _searchController = TextEditingController();
   String _search = '';
+  bool _isGridView = false;
 
   @override
   void initState() {
@@ -23,40 +25,116 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffF5F6FA),
-      // appBar: AppBar(
-      //   title: const Text('Customers'),
-      //   backgroundColor: Colors.white,
-      //   foregroundColor: Colors.black,
-      //   elevation: 0,
-      // ),
-      floatingActionButton: FloatingActionButton(
+      appBar: AppBar(
+        title: const Text(
+          'Customers',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+     
+        elevation: 0.5,
+       
+        actions: [
+          // Toggle view mode only - filter removed
+          IconButton(
+            icon: Icon(_isGridView ? Icons.list : Icons.grid_view),
+            onPressed: () {
+              setState(() {
+                _isGridView = !_isGridView;
+              });
+            },
+          ),
+        ],
+      ),
+      
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.orange,
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
+          'Add Customer',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         onPressed: () => _openCustomerModal(),
       ),
+
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search customer name or mobile',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+          // Search Bar with Stats
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              children: [
+                // Stats Row - Only Total Customers
+                StreamBuilder<List<Customer>>(
+                  stream: _customerService.getCustomers(),
+                  builder: (context, snapshot) {
+                    final totalCustomers = snapshot.data?.length ?? 0;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          _buildStatCard(
+                            'Total Customers',
+                            totalCustomers.toString(),
+                            Icons.people,
+                            Colors.blue,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              ),
-              onChanged: (value) {
-                setState(() => _search = value.toLowerCase());
-              },
+                
+                // Search Field
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, mobile, or address',
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    suffixIcon: _search.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: Colors.grey),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _search = '');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.orange.shade300, width: 1.5),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() => _search = value.toLowerCase());
+                  },
+                ),
+              ],
             ),
           ),
+
+          // Customers List/Grid
           Expanded(
             child: StreamBuilder<List<Customer>>(
               stream: _customerService.getCustomers(),
@@ -64,23 +142,50 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
+                
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Error loading customers',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return _emptyState();
                 }
+
+                // Filter customers by search only
                 final customers = snapshot.data!
                     .where((c) =>
                         c.name.toLowerCase().contains(_search) ||
-                        c.mobile.contains(_search))
+                        c.mobile.contains(_search) ||
+                        c.address.toLowerCase().contains(_search))
                     .toList();
+
                 if (customers.isEmpty) {
                   return _emptyState(search: _search);
                 }
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: customers.length,
-                  itemBuilder: (context, index) {
-                    return _customerCard(customers[index]);
+
+                // Sort customers by name
+                customers.sort((a, b) => a.name.compareTo(b.name));
+
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    setState(() {});
                   },
+                  color: Colors.blue,
+                  child: _isGridView
+                      ? _buildGridView(customers)
+                      : _buildListView(customers),
                 );
               },
             ),
@@ -90,43 +195,272 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     );
   }
 
+  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.2), width: 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: color,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListView(List<Customer> customers) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: customers.length,
+      itemBuilder: (context, index) {
+        return _customerCard(customers[index]);
+      },
+    );
+  }
+
+  Widget _buildGridView(List<Customer> customers) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.9,
+      ),
+      itemCount: customers.length,
+      itemBuilder: (context, index) {
+        return _customerGridCard(customers[index]);
+      },
+    );
+  }
+
   Widget _customerCard(Customer customer) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.blue.shade100,
-          child: const Icon(Icons.person, color: Colors.blue),
-        ),
-        title: Text(
-          customer.name,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text('📞 ${customer.mobile}'),
-            if (customer.address.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text('📍 ${customer.address}'),
+      elevation: 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _openCustomerModal(customer: customer),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Avatar with initial
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue.shade400, Colors.blue.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    customer.name[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
-          ],
+              const SizedBox(width: 12),
+              
+              // Customer Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      customer.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.phone, size: 12, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Text(
+                          customer.mobile,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (customer.address.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(Icons.location_on, size: 12, color: Colors.grey.shade600),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              customer.address,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              
+              // Action Buttons
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                    onPressed: () => _openCustomerModal(customer: customer),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    onPressed: () => _confirmDelete(customer),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blue),
-              onPressed: () => _openCustomerModal(customer: customer),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _confirmDelete(customer),
-            ),
-          ],
+      ),
+    );
+  }
+
+  Widget _customerGridCard(Customer customer) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _openCustomerModal(customer: customer),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Avatar with initial
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue.shade400, Colors.blue.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    customer.name[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                customer.name,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                customer.mobile,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.edit, color: Colors.blue, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.delete, color: Colors.red, size: 16),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -141,7 +475,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         userMobile: widget.userMobile,
         customer: customer,
       ),
-    );
+    ).then((_) {
+      setState(() {});
+    });
   }
 
   void _confirmDelete(Customer customer) {
@@ -149,23 +485,53 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete Customer'),
-        content: Text('Are you sure you want to delete ${customer.name}?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to delete "${customer.name}"?'),
+            const SizedBox(height: 8),
+            Text(
+              'This action cannot be undone.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              _customerService.deleteCustomer(customer.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('"${customer.name}" deleted'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              try {
+                await _customerService.deleteCustomer(customer.id);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${customer.name} deleted successfully'),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             child: const Text('Delete'),
           ),
@@ -176,23 +542,76 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
   Widget _emptyState({String search = ''}) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.person_outline, size: 80, color: Colors.grey),
-          SizedBox(height: 12),
-          Text(
-            search.isEmpty
-                ? 'No customers yet'
-                : 'No customers found for "$search"',
-            style: TextStyle(color: Colors.grey, fontSize: 16),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Tap + to add your first customer',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
-          ),
-        ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                search.isEmpty ? Icons.person_add : Icons.search_off,
+                size: 64,
+                color: Colors.blue.shade300,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              search.isEmpty
+                  ? 'No Customers Yet'
+                  : 'No Results Found',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              search.isEmpty
+                  ? 'Start by adding your first customer'
+                  : 'No customers match "$search"',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (search.isEmpty) ...[
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => _openCustomerModal(),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Customer'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _search = '');
+                },
+                icon: const Icon(Icons.clear),
+                label: const Text('Clear Search'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.blue,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

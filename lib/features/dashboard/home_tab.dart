@@ -13,6 +13,8 @@ import '../party/screens/customer_list_screen.dart';
 import '../party/screens/supplier_list_screen.dart';
 import '../ledger/screens/ledger_home_screen.dart';
 import '../inventory/screens/inventory_dashboard.dart';
+import '../bill/screens/bill_home_screen.dart';
+import '../bill/screens/view_bill_screen.dart';
 
 // ============ TIME FILTER ENUM (TOP LEVEL) ============
 enum TimeFilter { day, week, month, year }
@@ -61,7 +63,7 @@ class _HomeTabState extends State<HomeTab> {
                 onPressed: _goBack,
               ),
       ),
-      body: _currentScreen,
+      body: _currentScreen, // Just show the current screen without sidebar
     );
   }
 
@@ -145,11 +147,29 @@ class _DashboardContentState extends State<DashboardContent> {
   @override 
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// ===== SUMMARY CARDS ===== (Mobile Optimized)
+          /// Welcome Header
+          Text(
+            'Welcome back!',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Here\'s what\'s happening with your business today.',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 14,
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+
+          /// ===== SUMMARY CARDS =====
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
@@ -203,328 +223,213 @@ class _DashboardContentState extends State<DashboardContent> {
           ),
           const SizedBox(height: 12),
 
-StreamBuilder<List<Bill>>(
-  stream: Provider.of<BillService>(context, listen: false).getBills(),
-  builder: (context, snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return _buildLoadingGraph();
-    }
-    
-    if (snapshot.hasError) {
-      return _buildErrorGraph();
-    }
-    
-    if (!snapshot.hasData) {
-      return _buildEmptyGraph();
-    }
-    
-    final bills = snapshot.data!;
-    final salesBills = bills.where((bill) => bill.type == 'sales').toList();
-    
-    if (salesBills.isEmpty) {
-      // Show welcoming message for new users
-      return Card(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        elevation: 4,
-        child: Padding(
-          padding: const EdgeInsets.all(30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.analytics_outlined,
-                size: 80,
-                color: Colors.grey.shade300,
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Welcome to Your Sales Dashboard!',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
+          StreamBuilder<List<Bill>>(
+            stream: Provider.of<BillService>(context, listen: false).getBills(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return _buildLoadingGraph();
+              }
+              
+              if (snapshot.hasError) {
+                return _buildErrorGraph();
+              }
+              
+              if (!snapshot.hasData) {
+                return _buildEmptyGraph();
+              }
+              
+              final bills = snapshot.data!;
+              final salesBills = bills.where((bill) => bill.type == 'sales').toList();
+              
+              if (salesBills.isEmpty) {
+                return _buildWelcomeGraph();
+              }
+              
+              // Get filtered data
+              final filteredData = _getFilteredData(salesBills, _selectedFilter);
+              final totalAmount = filteredData.total;
+              final chartData = filteredData.data;
+              final maxValue = chartData.isNotEmpty 
+                  ? chartData.reduce((a, b) => a > b ? a : b) 
+                  : 0.0;
+              
+              return Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'No sales data available yet.\n'
-                'Start by creating your first sale to see insights here.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Navigate to create sale screen
-                  Navigator.pushNamed(context, '/create-sale');
-                },
-                icon: const Icon(Icons.add_shopping_cart),
-                label: const Text('Create First Sale'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    // Get filtered data
-    final filteredData = _getFilteredData(salesBills, _selectedFilter);
-    final totalAmount = filteredData.total;
-    final chartData = filteredData.data;
-    final maxValue = chartData.isNotEmpty 
-        ? chartData.reduce((a, b) => a > b ? a : b) 
-        : 0.0;
-    
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Graph Header with Total
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _filterTitles[_selectedFilter]!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  'Total: ₹${totalAmount.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // Bar Graph
-            SizedBox(
-              height: 180,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  maxY: maxValue > 0 ? maxValue * 1.2 : 100,
-                  barTouchData: BarTouchData(
-                    enabled: true,
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                        return BarTooltipItem(
-                          '₹${rod.toY.toStringAsFixed(0)}',
-                          const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          if (value == meta.min || value == meta.max) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Text(
-                              '₹${value.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          );
-                        },
-                        reservedSize: 40,
-                      ),
-                    ),
-                    rightTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    topTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          final labels = _getBottomLabels(_selectedFilter);
-                          if (value >= 0 && value < labels.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                labels[value.toInt()],
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            );
-                          }
-                          return const Text('');
-                        },
-                      ),
-                    ),
-                  ),
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    horizontalInterval: maxValue > 0 ? maxValue / 4 : 25,
-                    getDrawingHorizontalLine: (value) {
-                      return FlLine(
-                        color: Colors.grey[200]!,
-                        strokeWidth: 1,
-                        dashArray: const [4, 4],
-                      );
-                    },
-                  ),
-                  borderData: FlBorderData(
-                    show: true,
-                    border: Border.all(
-                      color: Colors.grey[300]!,
-                      width: 1,
-                    ),
-                  ),
-                  barGroups: List.generate(chartData.length, (index) {
-                    final sales = chartData[index];
-                    final colors = sales > 0
-                        ? [
-                            Colors.blue.shade400,
-                            Colors.blue.shade200,
-                          ]
-                        : [
-                            Colors.grey.shade300,
-                            Colors.grey.shade200,
-                          ];
-                    
-                    return BarChartGroupData(
-                      x: index,
-                      barRods: [
-                        BarChartRodData(
-                          toY: sales,
-                          width: _getBarWidth(_selectedFilter),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(6),
-                            topRight: Radius.circular(6),
-                          ),
-                          gradient: LinearGradient(
-                            colors: colors,
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                          ),
-                          backDrawRodData: BackgroundBarChartRodData(
-                            show: true,
-                            toY: maxValue > 0 ? maxValue * 1.2 : 100,
-                            color: Colors.grey[50],
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                ),
-              ),
-            ),
-            
-            // Today's Sales Indicator (for day filter)
-            if (_selectedFilter == TimeFilter.day)
-              const SizedBox(height: 16),
-            if (_selectedFilter == TimeFilter.day)
-              StreamBuilder<List<Bill>>(
-                stream: Provider.of<BillService>(context, listen: false).getBills(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const SizedBox();
-                  
-                  final todaySales = snapshot.data!
-                      .where((bill) => bill.type == 'sales' && 
-                          _isToday(bill.date))
-                      .fold<double>(0, (sum, bill) => sum + bill.totalAmount);
-                  
-                  if (todaySales == 0) return const SizedBox();
-                  
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.green.shade100,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Today: ₹${todaySales.toStringAsFixed(0)}',
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Graph Header with Total
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _filterTitles[_selectedFilter]!,
                             style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.green.shade800,
+                              fontSize: 14,
+                              color: Colors.grey[600],
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.green.shade100,
+                              ),
+                            ),
+                            child: Text(
+                              'Total: ₹${totalAmount.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Bar Graph
+                      SizedBox(
+                        height: 200,
+                        child: BarChart(
+                          BarChartData(
+                            alignment: BarChartAlignment.spaceAround,
+                            maxY: maxValue > 0 ? maxValue * 1.2 : 100,
+                            barTouchData: BarTouchData(
+                              enabled: true,
+                              touchTooltipData: BarTouchTooltipData(
+                                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                                  return BarTooltipItem(
+                                    '₹${rod.toY.toStringAsFixed(0)}',
+                                    const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            titlesData: FlTitlesData(
+                              show: true,
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  getTitlesWidget: (value, meta) {
+                                    if (value == meta.min || value == meta.max) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: Text(
+                                        '₹${value.toStringAsFixed(0)}',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  reservedSize: 40,
+                                ),
+                              ),
+                              rightTitles: AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              topTitles: AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  getTitlesWidget: (value, meta) {
+                                    final labels = _getBottomLabels(_selectedFilter);
+                                    if (value >= 0 && value < labels.length) {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: Text(
+                                          labels[value.toInt()],
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return const Text('');
+                                  },
+                                ),
+                              ),
+                            ),
+                            gridData: FlGridData(
+                              show: true,
+                              drawVerticalLine: false,
+                              horizontalInterval: maxValue > 0 ? maxValue / 4 : 25,
+                              getDrawingHorizontalLine: (value) {
+                                return FlLine(
+                                  color: Colors.grey[200]!,
+                                  strokeWidth: 1,
+                                );
+                              },
+                            ),
+                            borderData: FlBorderData(
+                              show: true,
+                              border: Border.all(
+                                color: Colors.grey[300]!,
+                                width: 1,
+                              ),
+                            ),
+                            barGroups: List.generate(chartData.length, (index) {
+                              final sales = chartData[index];
+                              
+                              return BarChartGroupData(
+                                x: index,
+                                barRods: [
+                                  BarChartRodData(
+                                    toY: sales,
+                                    width: _getBarWidth(_selectedFilter),
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(6),
+                                      topRight: Radius.circular(6),
+                                    ),
+                                    color: Colors.blue,
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.blue.shade400,
+                                        Colors.blue.shade200,
+                                      ],
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }),
+                          ),
                         ),
-                        const Icon(
-                          Icons.trending_up,
-                          color: Colors.green,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  },
-),
-
+                      ),
+                      
+                      // Today's Sales Indicator
+                      if (_selectedFilter == TimeFilter.day)
+                        _buildTodayIndicator(),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
 
           const SizedBox(height: 24),
 
@@ -538,21 +443,8 @@ StreamBuilder<List<Bill>>(
           StreamBuilder<List<Bill>>(
             stream: Provider.of<BillService>(context, listen: false).getBills(),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: SizedBox(
-                      height: 100,
-                      child: Center(
-                        child: Text('No comparison data'),
-                      ),
-                    ),
-                  ),
-                );
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return _buildEmptyComparison();
               }
               
               final bills = snapshot.data!;
@@ -572,6 +464,7 @@ StreamBuilder<List<Bill>>(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
+                elevation: 2,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -580,10 +473,10 @@ StreamBuilder<List<Bill>>(
                       Stack(
                         children: [
                           Container(
-                            height: 12,
+                            height: 16,
                             decoration: BoxDecoration(
                               color: Colors.grey.shade200,
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                           Row(
@@ -591,7 +484,7 @@ StreamBuilder<List<Bill>>(
                               Expanded(
                                 flex: salesPercentage.toInt(),
                                 child: Container(
-                                  height: 12,
+                                  height: 16,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
@@ -600,8 +493,8 @@ StreamBuilder<List<Bill>>(
                                       ],
                                     ),
                                     borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(6),
-                                      bottomLeft: Radius.circular(6),
+                                      topLeft: Radius.circular(8),
+                                      bottomLeft: Radius.circular(8),
                                     ),
                                   ),
                                 ),
@@ -609,7 +502,7 @@ StreamBuilder<List<Bill>>(
                               Expanded(
                                 flex: purchasePercentage.toInt(),
                                 child: Container(
-                                  height: 12,
+                                  height: 16,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
@@ -618,8 +511,8 @@ StreamBuilder<List<Bill>>(
                                       ],
                                     ),
                                     borderRadius: const BorderRadius.only(
-                                      topRight: Radius.circular(6),
-                                      bottomRight: Radius.circular(6),
+                                      topRight: Radius.circular(8),
+                                      bottomRight: Radius.circular(8),
                                     ),
                                   ),
                                 ),
@@ -628,7 +521,7 @@ StreamBuilder<List<Bill>>(
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       
                       // Legend
                       Row(
@@ -639,6 +532,11 @@ StreamBuilder<List<Bill>>(
                             label: 'Sales',
                             value: '₹${totalSales.toStringAsFixed(0)}',
                             percentage: '${salesPercentage.toStringAsFixed(1)}%',
+                          ),
+                          Container(
+                            height: 30,
+                            width: 1,
+                            color: Colors.grey.shade300,
                           ),
                           _legendItem(
                             color: Colors.orange,
@@ -657,62 +555,323 @@ StreamBuilder<List<Bill>>(
 
           const SizedBox(height: 24),
 
-          /// ===== QUICK ACTIONS =====
+          /// ===== RECENT TRANSACTIONS =====
           const Text(
-            'Quick Actions',
+            'Recent Transactions',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
 
-          GridView(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.3,
-            ),
-            children: [
-              _actionCard(
-                title: 'Customers',
-                icon: Icons.person,
-                onTap: () => widget.onNavigate(
-                  CustomerListScreen(userMobile: widget.userMobile),
-                  'Customers',
-                ),
-              ),
-              _actionCard(
-                title: 'Suppliers',
-                icon: Icons.people,
-                onTap: () => widget.onNavigate(
-                  SupplierListScreen(userMobile: widget.userMobile),
-                  'Suppliers',
-                ),
-              ),
-              _actionCard(
-                title: 'Inventory',
-                icon: Icons.inventory_2,
-                onTap: () => widget.onNavigate(
-                  InventoryDashboard(
-                    inventoryService: widget.inventoryService,
-                    userMobile: widget.userMobile,
-                  ),
-                  'Inventory',
-                ),
-              ),
-              _actionCard(
-                title: 'Ledger',
-                icon: Icons.menu_book,
-                onTap: () => widget.onNavigate(
-                  LedgerHomeScreen(userMobile: widget.userMobile),
-                  'Ledger',
-                ),
-              ),
+          StreamBuilder<List<Bill>>(
+            stream: Provider.of<BillService>(context, listen: false).getBills(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return _buildEmptyActivity();
+              }
               
+              final recentBills = snapshot.data!
+                  .where((bill) => bill.type == 'sales' || bill.type == 'purchase')
+                  .toList()
+                ..sort((a, b) => b.date.compareTo(a.date));
+              
+              final recent = recentBills.take(5).toList();
+              
+              return Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 2,
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: recent.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final bill = recent[index];
+                    final isSales = bill.type == 'sales';
+                    
+                    return ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (isSales ? Colors.green : Colors.orange).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          isSales ? Icons.shopping_cart : Icons.shopping_bag,
+                          color: isSales ? Colors.green : Colors.orange,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        bill.partyName ?? 'Unknown',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${bill.invoiceNumber} • ${_formatDate(bill.date)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '₹${bill.totalAmount.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: isSales ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                          Text(
+                            isSales ? 'Sales' : 'Purchase',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        // Navigate to view bill screen
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ViewBillScreen(
+                              billId: bill.id,
+                              userMobile: widget.userMobile,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 24),
+
+          /// ===== QUICK ACTIONS =====
+      
+        ],
+      ),
+    );
+  }
+
+  // ============ HELPER WIDGETS ============
+
+  Widget _actionCard({
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 28, color: Colors.blue),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTodayIndicator() {
+    return StreamBuilder<List<Bill>>(
+      stream: Provider.of<BillService>(context, listen: false).getBills(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox();
+        
+        final todaySales = snapshot.data!
+            .where((bill) => bill.type == 'sales' && _isToday(bill.date))
+            .fold<double>(0, (sum, bill) => sum + bill.totalAmount);
+        
+        if (todaySales == 0) return const SizedBox();
+        
+        return Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.green.shade100,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Today\'s Sales',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Text(
+                        '₹${todaySales.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.trending_up,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildWelcomeGraph() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          children: [
+            Icon(
+              Icons.analytics_outlined,
+              size: 80,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Welcome to Your Dashboard!',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create your first sale to see insights here.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyComparison() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.pie_chart_outline,
+                size: 48,
+                color: Colors.grey.shade300,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No comparison data yet',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyActivity() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.history,
+                size: 48,
+                color: Colors.grey.shade300,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No recent transactions',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -735,11 +894,11 @@ StreamBuilder<List<Bill>>(
           return Card(
             margin: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
-            elevation: 1,
+            elevation: 2,
             child: Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -747,26 +906,25 @@ StreamBuilder<List<Bill>>(
                   Icon(
                     icon,
                     color: color,
-                    size: 22,
+                    size: 24,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
                       '$count',
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        height: 1.1,
                       ),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey,
+                      color: Colors.grey.shade600,
                       fontWeight: FontWeight.w500,
                     ),
                     textAlign: TextAlign.center,
@@ -793,12 +951,12 @@ StreamBuilder<List<Bill>>(
           return Card(
             margin: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
-            elevation: 1,
+            elevation: 2,
             color: Colors.deepPurple.shade50,
             child: Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -806,18 +964,17 @@ StreamBuilder<List<Bill>>(
                   Icon(
                     Icons.account_balance_wallet,
                     color: Colors.deepPurple,
-                    size: 22,
+                    size: 24,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
                       _formatBalance(balance),
-                      style: const TextStyle(
-                        fontSize: 15,
+                      style: TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
-                        height: 1.1,
+                        color: Colors.deepPurple.shade700,
                       ),
                     ),
                   ),
@@ -865,9 +1022,8 @@ StreamBuilder<List<Bill>>(
     }
   }
 
-  // ============ EXISTING METHODS (KEEP AS IS) ============
+  // ============ FILTER METHODS ============
 
-  /// ===== FILTER CHIPS =====
   Widget _buildFilterChips() {
     return Container(
       decoration: BoxDecoration(
@@ -911,7 +1067,8 @@ StreamBuilder<List<Bill>>(
     );
   }
 
-  /// ===== GET FILTERED DATA =====
+  // ============ DATA FILTERING METHODS ============
+
   ({List<double> data, double total}) _getFilteredData(List<Bill> salesBills, TimeFilter filter) {
     switch (filter) {
       case TimeFilter.day:
@@ -1006,7 +1163,8 @@ StreamBuilder<List<Bill>>(
     return (data: monthlyData, total: total);
   }
 
-  /// ===== GET BOTTOM LABELS =====
+  // ============ HELPER METHODS ============
+
   List<String> _getBottomLabels(TimeFilter filter) {
     switch (filter) {
       case TimeFilter.day:
@@ -1021,7 +1179,6 @@ StreamBuilder<List<Bill>>(
     }
   }
 
-  /// ===== GET BAR WIDTH =====
   double _getBarWidth(TimeFilter filter) {
     switch (filter) {
       case TimeFilter.day:
@@ -1035,44 +1192,6 @@ StreamBuilder<List<Bill>>(
     }
   }
 
-  /// ===== BALANCE CARD ===== (Old version - you can remove if using mobile version)
-  Widget _balanceCard(BuildContext context) {
-    return Expanded(
-      child: StreamBuilder<List<Bill>>(
-        stream: Provider.of<BillService>(context, listen: false).getBills(),
-        builder: (context, billSnap) {
-          final balance = _calculateBalanceFromBills(billSnap.data);
-          
-          return _summaryCard(
-            'Balance',
-            '₹ ${balance.toStringAsFixed(2)}',
-            Icons.account_balance_wallet,
-            const Color.fromARGB(255, 207, 194, 126),
-          );
-        },
-      ),
-    );
-  }
-
-  /// ===== STREAM SUMMARY CARD ===== (Old version)
-  Widget _summaryStreamCard<T>({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required Stream<List<T>> stream,
-  }) {
-    return Expanded(
-      child: StreamBuilder<List<T>>(
-        stream: stream,
-        builder: (context, snapshot) {
-          final count = snapshot.hasData ? snapshot.data!.length : 0;
-          return _summaryCard(title, '$count', icon, color);
-        },
-      ),
-    );
-  }
-
-  /// ===== BALANCE CALCULATION =====
   double _calculateBalanceFromBills(List<Bill>? bills) {
     if (bills == null || bills.isEmpty) return 0.0;
     
@@ -1090,56 +1209,17 @@ StreamBuilder<List<Bill>>(
     return totalSales - totalPurchases;
   }
 
-  /// ===== SUMMARY CARD UI ===== (Old version)
-  Widget _summaryCard(
-      String title, String value, IconData icon, Color color) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 8),
-            Text(value,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text(title, style: const TextStyle(color: Colors.grey)),
-          ],
-        ),
-      ),
-    );
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year &&
+           date.month == now.month &&
+           date.day == now.day;
   }
 
-  /// ===== UPDATED ACTION CARD =====
-  Widget _actionCard({
-    required String title,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 32, color: Colors.blue),
-              const SizedBox(height: 10),
-              Text(title,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-      ),
-    );
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 
-  /// ===== LEGEND ITEM FOR COMPARISON CHART =====
   Widget _legendItem({
     required Color color,
     required String label,
@@ -1173,113 +1253,40 @@ StreamBuilder<List<Bill>>(
         Text(
           value,
           style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
           ),
         ),
         Text(
           percentage,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             color: Colors.grey[500],
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
     );
   }
 
-  /// ===== HELPER METHODS =====
-  bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-           date.month == now.month &&
-           date.day == now.day;
-  }
-
-// ... your existing code continues ...
-
-  Widget _buildEmptyGraph() {
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Sales Overview',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                _buildFilterChips(),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 180,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.bar_chart,
-                      size: 48,
-                      color: Colors.grey[300],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No sales data available',
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ============ ADD THESE THREE NEW METHODS HERE ============
+  // ============ GRAPH STATE WIDGETS ============
 
   Widget _buildLoadingGraph() {
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      elevation: 4,
+      elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(30),
+        padding: const EdgeInsets.all(40),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 40,
-              height: 40,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                color: Colors.blue.shade400,
-              ),
-            ),
+            const CircularProgressIndicator(),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Loading sales data...',
               style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
               ),
             ),
           ],
@@ -1293,31 +1300,48 @@ StreamBuilder<List<Bill>>(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      elevation: 4,
+      elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(30),
+        padding: const EdgeInsets.all(40),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.error_outline,
-              size: 60,
+              size: 48,
               color: Colors.red.shade300,
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Failed to load sales data',
+            const SizedBox(height: 12),
+            Text(
+              'Failed to load data',
               style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
               ),
             ),
-            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyGraph() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          children: [
+            Icon(
+              Icons.bar_chart,
+              size: 48,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 12),
             Text(
-              'Please check your connection',
+              'No sales data',
               style: TextStyle(
-                fontSize: 14,
                 color: Colors.grey.shade500,
               ),
             ),
@@ -1326,51 +1350,4 @@ StreamBuilder<List<Bill>>(
       ),
     );
   }
-
-  // ============ OR REPLACE THE EXISTING _buildEmptyGraph() ============
-  // If you want the new version, rename or replace the existing one
-
-  Widget _buildEmptyGraphForNewUsers() {
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.analytics_outlined,
-              size: 80,
-              color: Colors.grey.shade300,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'No Sales Data Available',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Create sales transactions to see analytics here',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-} 
-
-// <-- This is the closing brace of _DashboardContentState class
-
+}
