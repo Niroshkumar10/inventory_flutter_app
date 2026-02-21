@@ -8,7 +8,7 @@ import '../core/providers/app_providers.dart'; // Add this import
 import '../features/inventory/services/inventory_repo_service.dart';
 
 class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({Key? key}) : super(key: key);
+  const AuthWrapper({super.key});
 
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();

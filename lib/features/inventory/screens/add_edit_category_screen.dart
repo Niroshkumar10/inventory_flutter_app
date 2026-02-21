@@ -8,10 +8,10 @@ class AddEditCategoryScreen extends StatefulWidget {
   final Category? category;
 
   const AddEditCategoryScreen({
-    Key? key,
+    super.key,
     required this.inventoryService,
     this.category,
-  }) : super(key: key);
+  });
 
   @override
   State<AddEditCategoryScreen> createState() => _AddEditCategoryScreenState();

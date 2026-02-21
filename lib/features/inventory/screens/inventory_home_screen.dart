@@ -10,10 +10,10 @@ class InventoryHomeScreen extends StatefulWidget {
 
   
   const InventoryHomeScreen({
-    Key? key,
+    super.key,
     required this.userMobile,
     required this.inventoryService,
-  }) : super(key: key);
+  });
 
   @override
   State<InventoryHomeScreen> createState() => _InventoryHomeScreenState();
@@ -73,7 +73,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
                   ),
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
-                    value: _selectedCategory,
+                    initialValue: _selectedCategory,
                     decoration: const InputDecoration(
                       labelText: 'Category',
                       border: OutlineInputBorder(),
@@ -88,7 +88,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
                           value: category,
                           child: Text(category),
                         );
-                      }).toList(),
+                      }),
                     ],
                     onChanged: (value) {
                       setState(() => _selectedCategory = value);

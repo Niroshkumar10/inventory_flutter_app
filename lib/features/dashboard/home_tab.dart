@@ -24,9 +24,9 @@ class HomeTab extends StatefulWidget {
   final String userMobile;
 
   const HomeTab({
-    Key? key,
+    super.key,
     required this.userMobile,
-  }) : super(key: key);
+  });
 
   @override
   State<HomeTab> createState() => _HomeTabState();
@@ -54,15 +54,7 @@ class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentTitle),
-        leading: _isOnDashboard
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _goBack,
-              ),
-      ),
+     
       body: _currentScreen, // Just show the current screen without sidebar
     );
   }
@@ -123,13 +115,13 @@ class DashboardContent extends StatefulWidget {
   final Function(Widget, String) onNavigate;
 
   const DashboardContent({
-    Key? key,
+    super.key,
     required this.userMobile,
     required this.inventoryService,
     required this.customerService,
     required this.supplierService,
     required this.onNavigate,
-  }) : super(key: key);
+  });
 
   @override
   State<DashboardContent> createState() => _DashboardContentState();
@@ -144,8 +136,11 @@ class _DashboardContentState extends State<DashboardContent> {
     TimeFilter.year: 'This Year',
   };
 
-  @override 
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -154,15 +149,16 @@ class _DashboardContentState extends State<DashboardContent> {
           /// Welcome Header
           Text(
             'Welcome back!',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Here\'s what\'s happening with your business today.',
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: colorScheme.onSurface.withOpacity(0.6),
               fontSize: 14,
             ),
           ),
@@ -178,7 +174,7 @@ class _DashboardContentState extends State<DashboardContent> {
                   child: _summaryCardMobile(
                     title: 'Customers',
                     icon: Icons.person,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: colorScheme.primary,
                     stream: widget.customerService.getCustomers(),
                   ),
                 ),
@@ -187,7 +183,7 @@ class _DashboardContentState extends State<DashboardContent> {
                   child: _summaryCardMobile(
                     title: 'Suppliers',
                     icon: Icons.people,
-                    color: Theme.of(context).colorScheme.secondary,
+                    color: colorScheme.secondary,
                     stream: widget.supplierService.getSuppliers(),
                   ),
                 ),
@@ -196,7 +192,7 @@ class _DashboardContentState extends State<DashboardContent> {
                   child: _summaryCardMobile(
                     title: 'Inventory',
                     icon: Icons.inventory_2,
-                    color: Theme.of(context).colorScheme.tertiary,
+                    color: colorScheme.tertiary,
                     stream: widget.inventoryService.getInventoryItems(),
                   ),
                 ),
@@ -214,9 +210,13 @@ class _DashboardContentState extends State<DashboardContent> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Sales Overview',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 16, 
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
               ),
               _buildFilterChips(),
             ],
@@ -254,10 +254,6 @@ class _DashboardContentState extends State<DashboardContent> {
                   : 0.0;
               
               return Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 2,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -271,7 +267,7 @@ class _DashboardContentState extends State<DashboardContent> {
                             _filterTitles[_selectedFilter]!,
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey[600],
+                              color: colorScheme.onSurface.withOpacity(0.6),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -281,18 +277,18 @@ class _DashboardContentState extends State<DashboardContent> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.green.shade50,
+                              color: colorScheme.secondary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Colors.green.shade100,
+                                color: colorScheme.secondary.withOpacity(0.3),
                               ),
                             ),
                             child: Text(
                               'Total: ₹${totalAmount.toStringAsFixed(0)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.green,
+                                color: colorScheme.secondary,
                               ),
                             ),
                           ),
@@ -313,8 +309,8 @@ class _DashboardContentState extends State<DashboardContent> {
                                 getTooltipItem: (group, groupIndex, rod, rodIndex) {
                                   return BarTooltipItem(
                                     '₹${rod.toY.toStringAsFixed(0)}',
-                                    const TextStyle(
-                                      color: Colors.white,
+                                    TextStyle(
+                                      color: colorScheme.onPrimary,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   );
@@ -334,9 +330,9 @@ class _DashboardContentState extends State<DashboardContent> {
                                       padding: const EdgeInsets.only(right: 8),
                                       child: Text(
                                         '₹${value.toStringAsFixed(0)}',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 10,
-                                          color: Colors.grey,
+                                          color: colorScheme.onSurface.withOpacity(0.5),
                                         ),
                                       ),
                                     );
@@ -360,9 +356,9 @@ class _DashboardContentState extends State<DashboardContent> {
                                         padding: const EdgeInsets.only(top: 8),
                                         child: Text(
                                           labels[value.toInt()],
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 11,
-                                            color: Colors.grey,
+                                            color: colorScheme.onSurface.withOpacity(0.5),
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -379,7 +375,7 @@ class _DashboardContentState extends State<DashboardContent> {
                               horizontalInterval: maxValue > 0 ? maxValue / 4 : 25,
                               getDrawingHorizontalLine: (value) {
                                 return FlLine(
-                                  color: Colors.grey[200]!,
+                                  color: colorScheme.onSurface.withOpacity(0.1),
                                   strokeWidth: 1,
                                 );
                               },
@@ -387,7 +383,7 @@ class _DashboardContentState extends State<DashboardContent> {
                             borderData: FlBorderData(
                               show: true,
                               border: Border.all(
-                                color: Colors.grey[300]!,
+                                color: colorScheme.onSurface.withOpacity(0.1),
                                 width: 1,
                               ),
                             ),
@@ -404,11 +400,11 @@ class _DashboardContentState extends State<DashboardContent> {
                                       topLeft: Radius.circular(6),
                                       topRight: Radius.circular(6),
                                     ),
-                                    color: Colors.blue,
+                                    color: colorScheme.primary,
                                     gradient: LinearGradient(
                                       colors: [
-                                        Colors.blue.shade400,
-                                        Colors.blue.shade200,
+                                        colorScheme.primary,
+                                        colorScheme.primary.withOpacity(0.5),
                                       ],
                                       begin: Alignment.bottomCenter,
                                       end: Alignment.topCenter,
@@ -434,9 +430,13 @@ class _DashboardContentState extends State<DashboardContent> {
           const SizedBox(height: 24),
 
           /// ===== SALES VS PURCHASE COMPARISON =====
-          const Text(
+          Text(
             'Sales vs Purchase',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 16, 
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -461,10 +461,6 @@ class _DashboardContentState extends State<DashboardContent> {
               final purchasePercentage = total > 0 ? (totalPurchases / total * 100) : 0;
               
               return Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 2,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -475,7 +471,7 @@ class _DashboardContentState extends State<DashboardContent> {
                           Container(
                             height: 16,
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
+                              color: colorScheme.onSurface.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
@@ -488,8 +484,8 @@ class _DashboardContentState extends State<DashboardContent> {
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        Colors.green.shade400,
-                                        Colors.green.shade300,
+                                        colorScheme.secondary,
+                                        colorScheme.secondary.withOpacity(0.7),
                                       ],
                                     ),
                                     borderRadius: const BorderRadius.only(
@@ -506,8 +502,8 @@ class _DashboardContentState extends State<DashboardContent> {
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        Colors.orange.shade400,
-                                        Colors.orange.shade300,
+                                        colorScheme.tertiary,
+                                        colorScheme.tertiary.withOpacity(0.7),
                                       ],
                                     ),
                                     borderRadius: const BorderRadius.only(
@@ -528,7 +524,7 @@ class _DashboardContentState extends State<DashboardContent> {
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           _legendItem(
-                            color: Colors.green,
+                            color: colorScheme.secondary,
                             label: 'Sales',
                             value: '₹${totalSales.toStringAsFixed(0)}',
                             percentage: '${salesPercentage.toStringAsFixed(1)}%',
@@ -536,10 +532,10 @@ class _DashboardContentState extends State<DashboardContent> {
                           Container(
                             height: 30,
                             width: 1,
-                            color: Colors.grey.shade300,
+                            color: colorScheme.onSurface.withOpacity(0.2),
                           ),
                           _legendItem(
-                            color: Colors.orange,
+                            color: colorScheme.tertiary,
                             label: 'Purchase',
                             value: '₹${totalPurchases.toStringAsFixed(0)}',
                             percentage: '${purchasePercentage.toStringAsFixed(1)}%',
@@ -556,9 +552,13 @@ class _DashboardContentState extends State<DashboardContent> {
           const SizedBox(height: 24),
 
           /// ===== RECENT TRANSACTIONS =====
-          const Text(
+          Text(
             'Recent Transactions',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 16, 
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -577,15 +577,14 @@ class _DashboardContentState extends State<DashboardContent> {
               final recent = recentBills.take(5).toList();
               
               return Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 2,
                 child: ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: recent.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: colorScheme.onSurface.withOpacity(0.1),
+                  ),
                   itemBuilder: (context, index) {
                     final bill = recent[index];
                     final isSales = bill.type == 'sales';
@@ -594,26 +593,27 @@ class _DashboardContentState extends State<DashboardContent> {
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: (isSales ? Colors.green : Colors.orange).withOpacity(0.1),
+                          color: (isSales ? colorScheme.secondary : colorScheme.tertiary).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
                           isSales ? Icons.shopping_cart : Icons.shopping_bag,
-                          color: isSales ? Colors.green : Colors.orange,
+                          color: isSales ? colorScheme.secondary : colorScheme.tertiary,
                           size: 20,
                         ),
                       ),
                       title: Text(
                         bill.partyName ?? 'Unknown',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       subtitle: Text(
                         '${bill.invoiceNumber} • ${_formatDate(bill.date)}',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                       trailing: Column(
@@ -624,20 +624,19 @@ class _DashboardContentState extends State<DashboardContent> {
                             '₹${bill.totalAmount.toStringAsFixed(0)}',
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
-                              color: isSales ? Colors.green : Colors.orange,
+                              color: isSales ? colorScheme.secondary : colorScheme.tertiary,
                             ),
                           ),
                           Text(
                             isSales ? 'Sales' : 'Purchase',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey.shade500,
+                              color: colorScheme.onSurface.withOpacity(0.5),
                             ),
                           ),
                         ],
                       ),
                       onTap: () {
-                        // Navigate to view bill screen
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -655,10 +654,7 @@ class _DashboardContentState extends State<DashboardContent> {
             },
           ),
 
-          const SizedBox(height: 24),
-
-          /// ===== QUICK ACTIONS =====
-      
+          const SizedBox(height: 24),     
         ],
       ),
     );
@@ -699,7 +695,10 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
-  Widget _buildTodayIndicator() {
+ Widget _buildTodayIndicator() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return StreamBuilder<List<Bill>>(
       stream: Provider.of<BillService>(context, listen: false).getBills(),
       builder: (context, snapshot) {
@@ -719,10 +718,10 @@ class _DashboardContentState extends State<DashboardContent> {
               vertical: 12,
             ),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: colorScheme.secondary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.green.shade100,
+                color: colorScheme.secondary.withOpacity(0.3),
               ),
             ),
             child: Row(
@@ -730,8 +729,8 @@ class _DashboardContentState extends State<DashboardContent> {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.green,
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondary,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -740,11 +739,11 @@ class _DashboardContentState extends State<DashboardContent> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Today\'s Sales',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey,
+                          color: colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                       Text(
@@ -752,7 +751,7 @@ class _DashboardContentState extends State<DashboardContent> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700,
+                          color: colorScheme.secondary,
                         ),
                       ),
                     ],
@@ -761,12 +760,12 @@ class _DashboardContentState extends State<DashboardContent> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade100,
+                    color: colorScheme.secondary.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.trending_up,
-                    color: Colors.green,
+                    color: colorScheme.secondary,
                     size: 20,
                   ),
                 ),
@@ -779,11 +778,10 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   Widget _buildWelcomeGraph() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(30),
         child: Column(
@@ -791,14 +789,15 @@ class _DashboardContentState extends State<DashboardContent> {
             Icon(
               Icons.analytics_outlined,
               size: 80,
-              color: Colors.grey.shade300,
+              color: colorScheme.onSurface.withOpacity(0.2),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Welcome to Your Dashboard!',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
@@ -806,7 +805,7 @@ class _DashboardContentState extends State<DashboardContent> {
               'Create your first sale to see insights here.',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
@@ -817,11 +816,10 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   Widget _buildEmptyComparison() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(30),
         child: Center(
@@ -830,13 +828,13 @@ class _DashboardContentState extends State<DashboardContent> {
               Icon(
                 Icons.pie_chart_outline,
                 size: 48,
-                color: Colors.grey.shade300,
+                color: colorScheme.onSurface.withOpacity(0.2),
               ),
               const SizedBox(height: 12),
               Text(
                 'No comparison data yet',
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: colorScheme.onSurface.withOpacity(0.5),
                 ),
               ),
             ],
@@ -847,11 +845,10 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   Widget _buildEmptyActivity() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(30),
         child: Center(
@@ -860,13 +857,13 @@ class _DashboardContentState extends State<DashboardContent> {
               Icon(
                 Icons.history,
                 size: 48,
-                color: Colors.grey.shade300,
+                color: colorScheme.onSurface.withOpacity(0.2),
               ),
               const SizedBox(height: 12),
               Text(
                 'No recent transactions',
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: colorScheme.onSurface.withOpacity(0.5),
                 ),
               ),
             ],
@@ -878,12 +875,15 @@ class _DashboardContentState extends State<DashboardContent> {
 
   // ============ MOBILE OPTIMIZED SUMMARY CARD METHODS ============
   
-  Widget _summaryCardMobile({
+ Widget _summaryCardMobile({
     required String title,
     required IconData icon,
     required Color color,
     required Stream stream,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Container(
       constraints: const BoxConstraints(minWidth: 70),
       child: StreamBuilder(
@@ -893,10 +893,6 @@ class _DashboardContentState extends State<DashboardContent> {
           
           return Card(
             margin: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 2,
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
@@ -913,9 +909,10 @@ class _DashboardContentState extends State<DashboardContent> {
                     fit: BoxFit.scaleDown,
                     child: Text(
                       '$count',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                   ),
@@ -924,7 +921,7 @@ class _DashboardContentState extends State<DashboardContent> {
                     title,
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey.shade600,
+                      color: colorScheme.onSurface.withOpacity(0.6),
                       fontWeight: FontWeight.w500,
                     ),
                     textAlign: TextAlign.center,
@@ -940,7 +937,10 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
-  Widget _balanceCardMobile(BuildContext context) {
+ Widget _balanceCardMobile(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Container(
       constraints: const BoxConstraints(minWidth: 70),
       child: StreamBuilder<List<Bill>>(
@@ -950,11 +950,7 @@ class _DashboardContentState extends State<DashboardContent> {
           
           return Card(
             margin: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 2,
-            color: Colors.deepPurple.shade50,
+            color: colorScheme.primary.withOpacity(0.1),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
@@ -963,7 +959,7 @@ class _DashboardContentState extends State<DashboardContent> {
                 children: [
                   Icon(
                     Icons.account_balance_wallet,
-                    color: Colors.deepPurple,
+                    color: colorScheme.primary,
                     size: 24,
                   ),
                   const SizedBox(height: 8),
@@ -974,16 +970,16 @@ class _DashboardContentState extends State<DashboardContent> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple.shade700,
+                        color: colorScheme.primary,
                       ),
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'Balance',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey,
+                      color: colorScheme.onSurface.withOpacity(0.6),
                       fontWeight: FontWeight.w500,
                     ),
                     textAlign: TextAlign.center,
@@ -996,6 +992,60 @@ class _DashboardContentState extends State<DashboardContent> {
           );
         },
       )
+    );
+  }
+
+  Widget _buildFilterChips() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.onSurface.withOpacity(0.1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _filterChip('Week', TimeFilter.week),
+          _filterChip('Month', TimeFilter.month),
+          _filterChip('Year', TimeFilter.year),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, TimeFilter filter) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isSelected = _selectedFilter == filter;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = filter;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? colorScheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isSelected 
+                ? colorScheme.onPrimary 
+                : colorScheme.onSurface.withOpacity(0.6),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1024,48 +1074,6 @@ class _DashboardContentState extends State<DashboardContent> {
 
   // ============ FILTER METHODS ============
 
-  Widget _buildFilterChips() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _filterChip('Week', TimeFilter.week),
-          _filterChip('Month', TimeFilter.month),
-          _filterChip('Year', TimeFilter.year),
-        ],
-      ),
-    );
-  }
-
-  Widget _filterChip(String label, TimeFilter filter) {
-    final isSelected = _selectedFilter == filter;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedFilter = filter;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: isSelected ? Colors.white : Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
 
   // ============ DATA FILTERING METHODS ============
 
@@ -1220,12 +1228,16 @@ class _DashboardContentState extends State<DashboardContent> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
+ 
   Widget _legendItem({
     required Color color,
     required String label,
     required String value,
     required String percentage,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Column(
       children: [
         Row(
@@ -1243,7 +1255,7 @@ class _DashboardContentState extends State<DashboardContent> {
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey[600],
+                color: colorScheme.onSurface.withOpacity(0.6),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1252,31 +1264,30 @@ class _DashboardContentState extends State<DashboardContent> {
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
           ),
         ),
         Text(
           percentage,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey[500],
+            color: colorScheme.onSurface.withOpacity(0.5),
             fontWeight: FontWeight.w500,
           ),
         ),
       ],
     );
   }
-
   // ============ GRAPH STATE WIDGETS ============
 
   Widget _buildLoadingGraph() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
@@ -1286,7 +1297,7 @@ class _DashboardContentState extends State<DashboardContent> {
             Text(
               'Loading sales data...',
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
           ],
@@ -1296,11 +1307,10 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   Widget _buildErrorGraph() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
@@ -1308,13 +1318,13 @@ class _DashboardContentState extends State<DashboardContent> {
             Icon(
               Icons.error_outline,
               size: 48,
-              color: Colors.red.shade300,
+              color: colorScheme.error,
             ),
             const SizedBox(height: 12),
             Text(
               'Failed to load data',
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
           ],
@@ -1324,11 +1334,10 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   Widget _buildEmptyGraph() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
@@ -1336,13 +1345,13 @@ class _DashboardContentState extends State<DashboardContent> {
             Icon(
               Icons.bar_chart,
               size: 48,
-              color: Colors.grey.shade300,
+              color: colorScheme.onSurface.withOpacity(0.2),
             ),
             const SizedBox(height: 12),
             Text(
               'No sales data',
               style: TextStyle(
-                color: Colors.grey.shade500,
+                color: colorScheme.onSurface.withOpacity(0.5),
               ),
             ),
           ],
@@ -1350,4 +1359,6 @@ class _DashboardContentState extends State<DashboardContent> {
       ),
     );
   }
+
+  
 }

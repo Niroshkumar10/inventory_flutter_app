@@ -19,12 +19,12 @@ class SidebarMenu extends StatefulWidget {
   final InventoryService? inventoryService;
 
   const SidebarMenu({
-    Key? key,
+    super.key,
     required this.userMobile,
     required this.selectedIndex,
     required this.onItemSelected,
     this.inventoryService,
-  }) : super(key: key);
+  });
 
   @override
   State<SidebarMenu> createState() => _SidebarMenuState();
@@ -35,15 +35,23 @@ class _SidebarMenuState extends State<SidebarMenu> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
     final invService = widget.inventoryService ??
         Provider.of<InventoryService>(context, listen: false);
 
     return Drawer(
       elevation: 0,
-      child: Container(
-        color: Colors.white,
-        child: SafeArea(
-          bottom: false,
+      backgroundColor: colorScheme.surface, // Use theme surface color
+      child: SafeArea(
+        top: true,
+        bottom: false,
+        left: false,
+        right: false,
+        child: Container(
+          color: colorScheme.surface, // Use theme surface color
           child: Column(
             children: [
               _buildHeader(context),
@@ -170,7 +178,9 @@ class _SidebarMenuState extends State<SidebarMenu> {
                       },
                     ),
                     
-                    const Divider(),
+                    Divider(
+                      color: colorScheme.onSurface.withOpacity(0.1), // Theme-aware divider
+                    ),
                     
                     // Profile Menu Item
                     _buildMenuItem(
@@ -210,7 +220,9 @@ class _SidebarMenuState extends State<SidebarMenu> {
                       },
                     ),
                     
-                    const Divider(),
+                    Divider(
+                      color: colorScheme.onSurface.withOpacity(0.1), // Theme-aware divider
+                    ),
                     
                     // Logout Menu Item
                     _buildMenuItem(
@@ -234,12 +246,19 @@ class _SidebarMenuState extends State<SidebarMenu> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Theme.of(context).primaryColor, Colors.blue.shade700],
+          colors: [
+            colorScheme.primary, // Use theme primary color
+            isDark ? colorScheme.primary.withOpacity(0.7) : colorScheme.primary.withOpacity(0.8),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -249,7 +268,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.3),
+            color: colorScheme.shadow.withOpacity(isDark ? 0.5 : 0.3),
             spreadRadius: 1,
             blurRadius: 5,
             offset: const Offset(0, 3),
@@ -263,10 +282,14 @@ class _SidebarMenuState extends State<SidebarMenu> {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 2),
             ),
-            child: const CircleAvatar(
+            child: CircleAvatar(
               radius: 28,
               backgroundColor: Colors.white,
-              child: Icon(Icons.store, size: 30, color: Colors.blue),
+              child: Icon(
+                Icons.store, 
+                size: 30, 
+                color: colorScheme.primary, // Use theme primary color
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -274,10 +297,10 @@ class _SidebarMenuState extends State<SidebarMenu> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Inventory Manager',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.white, // Always white for contrast on gradient
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -285,8 +308,8 @@ class _SidebarMenuState extends State<SidebarMenu> {
                 const SizedBox(height: 4),
                 Text(
                   widget.userMobile,
-                  style: const TextStyle(
-                    color: Colors.white70,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9), // Slightly transparent white
                     fontSize: 13,
                   ),
                 ),
@@ -305,27 +328,32 @@ class _SidebarMenuState extends State<SidebarMenu> {
     required bool isSelected,
     VoidCallback? onTap,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return ListTile(
       leading: Icon(
         icon,
-        color: isSelected ? Colors.blue : Colors.grey[700],
+        color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.7),
         size: 22,
       ),
       title: Text(
         title,
         style: TextStyle(
-          color: isSelected ? Colors.blue : Colors.black87,
+          color: isSelected ? colorScheme.primary : colorScheme.onSurface,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           fontSize: 15,
         ),
       ),
       selected: isSelected,
-      selectedTileColor: Colors.blue.withOpacity(0.1),
+      selectedTileColor: colorScheme.primary.withOpacity(0.1), // Theme-aware selection color
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       onTap: onTap,
+      hoverColor: colorScheme.primary.withOpacity(0.05), // Add hover effect
+      splashColor: colorScheme.primary.withOpacity(0.1),
     );
   }
 
@@ -334,23 +362,38 @@ class _SidebarMenuState extends State<SidebarMenu> {
     required String title,
     required List<Widget> children,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      data: theme.copyWith(
+        dividerColor: Colors.transparent,
+        expansionTileTheme: ExpansionTileThemeData(
+          iconColor: colorScheme.onSurface.withOpacity(0.7),
+          collapsedIconColor: colorScheme.onSurface.withOpacity(0.7),
+          textColor: colorScheme.onSurface,
+          collapsedTextColor: colorScheme.onSurface,
+          backgroundColor: Colors.transparent,
+          collapsedBackgroundColor: Colors.transparent,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          childrenPadding: const EdgeInsets.only(left: 40),
+        ),
+      ),
       child: ExpansionTile(
-        leading: Icon(icon, color: Colors.grey[700], size: 22),
+        leading: Icon(
+          icon, 
+          color: colorScheme.onSurface.withOpacity(0.7),
+          size: 22,
+        ),
         title: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w500,
             fontSize: 15,
+            color: colorScheme.onSurface,
           ),
         ),
         children: children,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-        childrenPadding: const EdgeInsets.only(left: 40),
-        shape: const Border(),
-        iconColor: Colors.grey[700],
-        collapsedIconColor: Colors.grey[700],
       ),
     );
   }
@@ -360,15 +403,27 @@ class _SidebarMenuState extends State<SidebarMenu> {
     required String title,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return ListTile(
-      leading: Icon(icon, size: 18, color: Colors.grey[600]),
+      leading: Icon(
+        icon, 
+        size: 18, 
+        color: colorScheme.onSurface.withOpacity(0.6),
+      ),
       title: Text(
         title,
-        style: const TextStyle(fontSize: 14),
+        style: TextStyle(
+          fontSize: 14,
+          color: colorScheme.onSurface.withOpacity(0.9),
+        ),
       ),
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       onTap: onTap,
+      hoverColor: colorScheme.primary.withOpacity(0.05),
+      splashColor: colorScheme.primary.withOpacity(0.1),
     );
   }
 
@@ -395,7 +450,10 @@ class _SidebarMenuState extends State<SidebarMenu> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(rootContext, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error, // Theme-aware error color
+                foregroundColor: Colors.white,
+              ),
               child: const Text('LOGOUT'),
             ),
           ],
@@ -404,18 +462,23 @@ class _SidebarMenuState extends State<SidebarMenu> {
 
       if (shouldLogout == true) {
         await SessionServiceNew.logout();
-        Navigator.of(rootContext).pushNamedAndRemoveUntil(
-          '/',
-          (route) => false,
-        );
+        if (mounted) {
+          Navigator.of(rootContext).pushNamedAndRemoveUntil(
+            '/',
+            (route) => false,
+          );
+        }
       } else {
         if (mounted) setState(() => _isLoggingOut = false);
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(rootContext).pushNamedAndRemoveUntil(
-          '/',
-          (route) => false,
+        setState(() => _isLoggingOut = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error during logout: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     }

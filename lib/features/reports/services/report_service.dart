@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../models/report_model.dart';
 import '../../bill/models/bill_model.dart';
 import '../../inventory/models/inventory_item_model.dart';
-import '../../party/models/customer_model.dart';
 import '../../party/models/supplier_model.dart';
 
 // Add this helper class inside the ReportService class (at the top, after FirebaseFirestore declaration):

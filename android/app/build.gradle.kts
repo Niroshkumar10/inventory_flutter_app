@@ -1,3 +1,5 @@
+//android\app\build.gradle.kts
+
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services") // no version here
@@ -7,7 +9,8 @@ plugins {
 
 android {
     namespace = "com.example.inventory_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
+
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -22,7 +25,8 @@ android {
     defaultConfig {
         applicationId = "com.example.inventory_app"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+    targetSdk = 36
+
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

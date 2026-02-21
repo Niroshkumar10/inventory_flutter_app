@@ -10,10 +10,10 @@ class InventoryDashboard extends StatefulWidget {
   final String userMobile;
 
   const InventoryDashboard({
-    Key? key,
+    super.key,
     required this.inventoryService,
     required this.userMobile,
-  }) : super(key: key);
+  });
 
   @override
   State<InventoryDashboard> createState() => _InventoryDashboardState();
@@ -63,8 +63,13 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   }
 
   Widget _buildStatsCard() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
-      elevation: 1,
+      elevation: isDark ? 4 : 1,
+      color: colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -73,12 +78,12 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Inventory Summary',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
             const SizedBox(height: 8),
@@ -92,10 +97,10 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
               mainAxisSpacing: 8,
               childAspectRatio: 0.75,
               children: [
-                _statItem('Total', _stats['totalItems']?.toString() ?? '0', Colors.blue),
-                _statItem('In Stock', _stats['inStockItems']?.toString() ?? '0', Colors.green),
-                _statItem('Low', _stats['lowStockItems']?.toString() ?? '0', Colors.orange),
-                _statItem('Out', _stats['outOfStockItems']?.toString() ?? '0', Colors.red),
+                _statItem('Total', _stats['totalItems']?.toString() ?? '0', colorScheme.primary),
+                _statItem('In Stock', _stats['inStockItems']?.toString() ?? '0', colorScheme.secondary),
+                _statItem('Low', _stats['lowStockItems']?.toString() ?? '0', colorScheme.tertiary),
+                _statItem('Out', _stats['outOfStockItems']?.toString() ?? '0', colorScheme.error),
               ],
             ),
           ],
@@ -105,6 +110,9 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   }
 
   Widget _statItem(String title, String value, Color color) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -119,9 +127,9 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
         const SizedBox(height: 4),
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 10,
-            color: Colors.grey,
+            color: colorScheme.onSurface.withOpacity(0.5),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -130,67 +138,126 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   }
 
   Widget _buildFilterRow() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      color: colorScheme.surface,
       child: Row(
         children: [
-          /// 🔹 STATUS DROPDOWN
+          /// 🔹 STATUS DROPDOWN - Mobile Optimized
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Status',
                   style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey,
+                    fontSize: 13,
+                    color: colorScheme.onSurface.withOpacity(0.6),
                     fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
 
+                // Enhanced dropdown container
                 Container(
+                  height: 48,
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: Colors.grey.shade300,
-                      width: 1.5,
+                      color: colorScheme.outline,
+                      width: 1,
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    color: colorScheme.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDark ? Colors.black12 : colorScheme.shadow.withOpacity(0.05),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _selectedFilter ?? 'All Items',
                       isExpanded: true,
                       icon: Padding(
-                        padding: const EdgeInsets.only(right: 12),
+                        padding: const EdgeInsets.only(right: 10),
                         child: Icon(
                           Icons.keyboard_arrow_down_rounded,
-                          color: Colors.grey.shade600,
-                          size: 26,
+                          color: _selectedFilter != null 
+                              ? colorScheme.primary
+                              : colorScheme.onSurface.withOpacity(0.5),
+                          size: 22,
                         ),
                       ),
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: TextStyle(
+                        fontSize: 15,
                         fontWeight: FontWeight.w500,
-                        color: Colors.black,
+                        color: colorScheme.onSurface,
+                      ),
+                      hint: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'Select Status',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: colorScheme.onSurface.withOpacity(0.4),
+                          ),
+                        ),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       items: _filters.map((filter) {
                         return DropdownMenuItem<String>(
                           value: filter,
-                          child: Text(
-                            filter,
-                            style: const TextStyle(fontSize: 16),
+                          child: Row(
+                            children: [
+                              if (filter == 'All Items')
+                                Icon(
+                                  Icons.list_rounded,
+                                  size: 18,
+                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                )
+                              else if (filter == 'Low Stock')
+                                Icon(
+                                  Icons.warning_rounded,
+                                  size: 18,
+                                  color: colorScheme.tertiary,
+                                )
+                              else if (filter == 'Out of Stock')
+                                Icon(
+                                  Icons.block_rounded,
+                                  size: 18,
+                                  color: colorScheme.error,
+                                ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  filter,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       }).toList(),
                       onChanged: (value) {
                         setState(() {
-                          _selectedFilter =
-                              value == 'All Items' ? null : value;
+                          _selectedFilter = value == 'All Items' ? null : value;
                         });
                       },
+                      dropdownColor: colorScheme.surface,
+                      elevation: isDark ? 8 : 4,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -198,66 +265,126 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
             ),
           ),
 
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
 
-          /// 🔹 CATEGORY DROPDOWN
+          /// 🔹 CATEGORY DROPDOWN - Mobile Optimized
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Category',
                   style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey,
+                    fontSize: 13,
+                    color: colorScheme.onSurface.withOpacity(0.6),
                     fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
 
+                // Enhanced dropdown container
                 Container(
+                  height: 48,
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: Colors.grey.shade300,
-                      width: 1.5,
+                      color: colorScheme.outline,
+                      width: 1,
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    color: colorScheme.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDark ? Colors.black12 : colorScheme.shadow.withOpacity(0.05),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _selectedCategory ?? 'All Categories',
                       isExpanded: true,
                       icon: Padding(
-                        padding: const EdgeInsets.only(right: 12),
+                        padding: const EdgeInsets.only(right: 10),
                         child: Icon(
                           Icons.keyboard_arrow_down_rounded,
-                          color: Colors.grey.shade600,
-                          size: 26,
+                          color: _selectedCategory != null 
+                              ? colorScheme.primary
+                              : colorScheme.onSurface.withOpacity(0.5),
+                          size: 22,
                         ),
                       ),
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: TextStyle(
+                        fontSize: 15,
                         fontWeight: FontWeight.w500,
-                        color: Colors.black,
+                        color: colorScheme.onSurface,
+                      ),
+                      hint: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'Select Category',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: colorScheme.onSurface.withOpacity(0.4),
+                          ),
+                        ),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       items: _categories.map((category) {
+                        bool isSelected = _selectedCategory == category;
                         return DropdownMenuItem<String>(
                           value: category,
-                          child: Text(
-                            category,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
+                          child: Row(
+                            children: [
+                              Icon(
+                                category == 'All Categories'
+                                    ? Icons.category_rounded
+                                    : Icons.folder_open_rounded,
+                                size: 18,
+                                color: isSelected 
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  category,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: isSelected 
+                                        ? FontWeight.w600 
+                                        : FontWeight.w500,
+                                    color: isSelected 
+                                        ? colorScheme.primary
+                                        : colorScheme.onSurface,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                              if (isSelected)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Icon(
+                                    Icons.check_rounded,
+                                    size: 18,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                            ],
                           ),
                         );
                       }).toList(),
                       onChanged: (value) {
                         setState(() {
-                          _selectedCategory =
-                              value == 'All Categories' ? null : value;
+                          _selectedCategory = value == 'All Categories' ? null : value;
                         });
                       },
+                      dropdownColor: colorScheme.surface,
+                      elevation: isDark ? 8 : 4,
+                      borderRadius: BorderRadius.circular(12),
+                      menuMaxHeight: 300,
                     ),
                   ),
                 ),
@@ -270,6 +397,10 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   }
 
   Widget _buildQuickActions() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -278,13 +409,17 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
             child: SizedBox(
               height: 40,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.category, size: 18),
-                label: const Text('Categories', style: TextStyle(fontSize: 13)),
+                icon: Icon(Icons.category, size: 18, color: colorScheme.primary),
+                label: Text(
+                  'Categories', 
+                  style: TextStyle(fontSize: 13, color: colorScheme.primary)
+                ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  side: BorderSide(color: colorScheme.primary),
                 ),
                 onPressed: () {
                   Navigator.push(
@@ -305,13 +440,16 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
             child: SizedBox(
               height: 40,
               child: ElevatedButton.icon(
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add Item', style: TextStyle(fontSize: 13)),
+                icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                label: const Text('Add Item', style: TextStyle(fontSize: 13, color: Colors.white)),
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  elevation: isDark ? 4 : 2,
                 ),
                 onPressed: () {
                   Navigator.push(
@@ -333,26 +471,31 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   }
 
   Widget _buildCompactInventoryCard(InventoryItem item) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     Color statusColor;
     String statusText;
     
     if (item.quantity <= 0) {
-      statusColor = Colors.red;
+      statusColor = colorScheme.error;
       statusText = 'Out';
     } else if (item.isLowStock) {
-      statusColor = Colors.orange;
+      statusColor = colorScheme.tertiary;
       statusText = 'Low';
     } else {
-      statusColor = Colors.green;
+      statusColor = colorScheme.secondary;
       statusText = 'In Stock';
     }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0.5,
+      elevation: isDark ? 4 : 0.5,
+      color: colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.grey.shade200, width: 0.5),
+        side: BorderSide(color: colorScheme.outline, width: 0.5),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -371,7 +514,11 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('"$deletedItemName" deleted successfully'),
-                  backgroundColor: Colors.green,
+                  backgroundColor: colorScheme.secondary,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               );
             }
@@ -393,9 +540,10 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                       children: [
                         Text(
                           item.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -405,7 +553,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                           item.sku,
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: colorScheme.onSurface.withOpacity(0.6),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -449,7 +597,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Row(
@@ -457,14 +605,14 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                         Icon(
                           Icons.category,
                           size: 12,
-                          color: Colors.grey.shade600,
+                          color: colorScheme.onSurface.withOpacity(0.5),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           item.category,
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade700,
+                            color: colorScheme.onSurface.withOpacity(0.7),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -474,26 +622,23 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                   ),
                   
                   // Quantity and Price
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '${item.quantity} ${item.unit}',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            '₹${item.price.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        '${item.quantity} ${item.unit}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        '₹${item.price.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.onSurface.withOpacity(0.6),
+                        ),
                       ),
                     ],
                   ),
@@ -506,13 +651,13 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                   padding: const EdgeInsets.only(top: 6),
                   child: Row(
                     children: [
-                      Icon(Icons.warning, size: 12, color: Colors.orange),
+                      Icon(Icons.warning, size: 12, color: colorScheme.tertiary),
                       const SizedBox(width: 4),
                       Text(
                         'Reorder at ${item.lowStockThreshold}',
                         style: TextStyle(
                           fontSize: 10,
-                          color: Colors.orange.shade700,
+                          color: colorScheme.tertiary,
                         ),
                       ),
                     ],
@@ -527,28 +672,36 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Inventory Management',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
           ),
         ),
+        backgroundColor: colorScheme.surface,
+        elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, color: colorScheme.onSurface),
             onPressed: _loadData,
           ),
           IconButton(
-            icon: const Icon(Icons.search),
+            icon: Icon(Icons.search, color: colorScheme.onSurface),
             onPressed: () {
-              // Show search dialog or navigate to search screen
               showSearch(
                 context: context,
                 delegate: _InventorySearchDelegate(
@@ -559,15 +712,14 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
             },
           ),
         ],
-       
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
           : Column(
               children: [
                 // Fixed Header Section (Non-scrollable)
                 Container(
-                  color: Colors.white,
+                  color: colorScheme.surface,
                   child: Column(
                     children: [
                       // Summary Card
@@ -599,7 +751,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
+                                color: colorScheme.onSurface,
                               ),
                             ),
                             StreamBuilder<List<InventoryItem>>(
@@ -610,7 +762,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                                   '$totalItems items',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.grey.shade600,
+                                    color: colorScheme.onSurface.withOpacity(0.6),
                                   ),
                                 );
                               },
@@ -618,7 +770,11 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                           ],
                         ),
                       ),
-                      const Divider(height: 16, thickness: 1),
+                      Divider(
+                        height: 16, 
+                        thickness: 1,
+                        color: colorScheme.outline,
+                      ),
                     ],
                   ),
                 ),
@@ -631,7 +787,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                         : _inventoryService.getInventoryItems(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                        return Center(child: CircularProgressIndicator(color: colorScheme.primary));
                       }
 
                       if (snapshot.hasError) {
@@ -639,13 +795,13 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.error, color: Colors.red, size: 40),
+                              Icon(Icons.error, color: colorScheme.error, size: 40),
                               const SizedBox(height: 8),
                               Text(
                                 'Error loading items',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade600,
+                                  color: colorScheme.onSurface.withOpacity(0.6),
                                 ),
                               ),
                             ],
@@ -676,16 +832,16 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                                 Icon(
                                   Icons.inventory_2,
                                   size: 60,
-                                  color: Colors.grey.shade300,
+                                  color: colorScheme.onSurface.withOpacity(0.2),
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
                                   _selectedCategory != null || _selectedFilter != null || _searchQuery.isNotEmpty
                                       ? 'No items match your filters'
                                       : 'No items found',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.grey,
+                                    color: colorScheme.onSurface.withOpacity(0.5),
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -702,12 +858,13 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                                         });
                                       },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blue,
+                                        backgroundColor: colorScheme.primary,
                                         foregroundColor: Colors.white,
                                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(8),
                                         ),
+                                        elevation: isDark ? 4 : 2,
                                       ),
                                       child: const Text(
                                         'Clear all filters',
@@ -723,6 +880,8 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
 
                       return RefreshIndicator(
                         onRefresh: _loadData,
+                        color: colorScheme.primary,
+                        backgroundColor: colorScheme.surface,
                         child: ListView.builder(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                           itemCount: filteredItems.length,
@@ -741,23 +900,30 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   }
 
   void _showDeleteItemDialog(InventoryItem item) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Item', style: TextStyle(fontSize: 16)),
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Delete Item', 
+          style: TextStyle(fontSize: 16, color: colorScheme.onSurface)
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Are you sure you want to delete "${item.name}"?',
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
             ),
             if (item.quantity > 0) ...[
               const SizedBox(height: 8),
               Text(
                 '⚠️ Warning: This item has ${item.quantity} units in stock.',
-                style: const TextStyle(fontSize: 12, color: Colors.orange),
+                style: TextStyle(fontSize: 12, color: colorScheme.tertiary),
               ),
             ],
           ],
@@ -765,7 +931,10 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(fontSize: 13)),
+            child: Text(
+              'Cancel', 
+              style: TextStyle(fontSize: 13, color: colorScheme.primary)
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -773,7 +942,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
               await _deleteItem(item);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: colorScheme.error,
               foregroundColor: Colors.white,
             ),
             child: const Text('Delete', style: TextStyle(fontSize: 13)),
@@ -784,36 +953,48 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   }
 
   Future<void> _deleteItem(InventoryItem item) async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Deleting "${item.name}"...'),
-          backgroundColor: Colors.blue,
+          backgroundColor: colorScheme.primary,
+          behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
         ),
       );
 
       await widget.inventoryService.deleteInventoryItem(item.id);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('"${item.name}" deleted successfully'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('"${item.name}" deleted successfully'),
+            backgroundColor: colorScheme.secondary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error deleting item: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting item: $e'),
+            backgroundColor: colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 }
-
 // Search Delegate for Inventory
 class _InventorySearchDelegate extends SearchDelegate {
   final InventoryService inventoryService;
@@ -825,10 +1006,27 @@ class _InventorySearchDelegate extends SearchDelegate {
   });
 
   @override
+  ThemeData appBarTheme(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.copyWith(
+      appBarTheme: theme.appBarTheme.copyWith(
+        backgroundColor: theme.colorScheme.surface,
+        foregroundColor: theme.colorScheme.onSurface,
+        iconTheme: IconThemeData(color: theme.colorScheme.onSurface),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5)),
+        border: InputBorder.none,
+      ),
+    );
+  }
+
+  @override
   List<Widget> buildActions(BuildContext context) {
+    final theme = Theme.of(context);
     return [
       IconButton(
-        icon: const Icon(Icons.clear),
+        icon: Icon(Icons.clear, color: theme.colorScheme.onSurface),
         onPressed: () {
           query = '';
         },
@@ -838,8 +1036,9 @@ class _InventorySearchDelegate extends SearchDelegate {
 
   @override
   Widget buildLeading(BuildContext context) {
+    final theme = Theme.of(context);
     return IconButton(
-      icon: const Icon(Icons.arrow_back),
+      icon: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface),
       onPressed: () {
         close(context, null);
       },
@@ -848,26 +1047,32 @@ class _InventorySearchDelegate extends SearchDelegate {
 
   @override
   Widget buildResults(BuildContext context) {
-    return _buildSearchResults();
+    return _buildSearchResults(context);
   }
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    return _buildSearchResults();
+    return _buildSearchResults(context);
   }
 
-  Widget _buildSearchResults() {
+  Widget _buildSearchResults(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return StreamBuilder<List<InventoryItem>>(
       stream: inventoryService.searchInventoryItems(query),
       builder: (context, snapshot) {
         if (query.isEmpty) {
-          return const Center(
-            child: Text('Start typing to search items'),
+          return Center(
+            child: Text(
+              'Start typing to search items',
+              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+            ),
           );
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator(color: colorScheme.primary));
         }
 
         final items = snapshot.data ?? [];
@@ -877,62 +1082,74 @@ class _InventorySearchDelegate extends SearchDelegate {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.search_off, size: 48, color: Colors.grey.shade400),
+                Icon(Icons.search_off, size: 48, color: colorScheme.onSurface.withOpacity(0.2)),
                 const SizedBox(height: 16),
                 Text(
                   'No items found for "$query"',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  style: TextStyle(fontSize: 14, color: colorScheme.onSurface.withOpacity(0.5)),
                 ),
               ],
             ),
           );
         }
 
-        return ListView.builder(
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return ListTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.inventory_2,
-                  color: Colors.blue.shade700,
-                  size: 20,
-                ),
-              ),
-              title: Text(
-                item.name,
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              subtitle: Text(
-                '${item.sku} • ${item.quantity} ${item.unit}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-              trailing: Text(
-                '₹${item.price.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              onTap: () {
-                close(context, null);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => InventoryItemScreen(
-                      item: item,
-                      inventoryService: inventoryService,
-                      userMobile: userMobile,
-                    ),
+        return Container(
+          color: colorScheme.background,
+          child: ListView.builder(
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                );
-              },
-            );
-          },
+                  child: Icon(
+                    Icons.inventory_2,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
+                ),
+                title: Text(
+                  item.name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                subtitle: Text(
+                  '${item.sku} • ${item.quantity} ${item.unit}',
+                  style: TextStyle(
+                    fontSize: 12, 
+                    color: colorScheme.onSurface.withOpacity(0.6)
+                  ),
+                ),
+                trailing: Text(
+                  '₹${item.price.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                onTap: () {
+                  close(context, null);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => InventoryItemScreen(
+                        item: item,
+                        inventoryService: inventoryService,
+                        userMobile: userMobile,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         );
       },
     );

@@ -6,7 +6,7 @@ import 'add_edit_customer_screen.dart';
 class CustomerListScreen extends StatefulWidget {
   final String userMobile;
   
-  const CustomerListScreen({Key? key, required this.userMobile}) : super(key: key);
+  const CustomerListScreen({super.key, required this.userMobile});
 
   @override
   State<CustomerListScreen> createState() => _CustomerListScreenState();
@@ -32,19 +32,24 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xffF5F6FA),
+      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Customers',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
           ),
         ),
-     
+        backgroundColor: colorScheme.surface,
         elevation: 0.5,
-       
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
         actions: [
           // Toggle view mode only - filter removed
           IconButton(
@@ -59,7 +64,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       ),
       
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.orange,
+        backgroundColor: colorScheme.primary,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text(
           'Add Customer',
@@ -75,7 +80,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         children: [
           // Search Bar with Stats
           Container(
-            color: Colors.white,
+            color: colorScheme.surface,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Column(
               children: [
@@ -92,7 +97,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             'Total Customers',
                             totalCustomers.toString(),
                             Icons.people,
-                            Colors.blue,
+                            colorScheme.secondary,
                           ),
                         ],
                       ),
@@ -103,12 +108,14 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 // Search Field
                 TextField(
                   controller: _searchController,
+                  style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     hintText: 'Search by name, mobile, or address',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                    prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.5)),
                     suffixIcon: _search.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear, color: Colors.grey),
+                            icon: Icon(Icons.clear, color: colorScheme.onSurface.withOpacity(0.5)),
                             onPressed: () {
                               _searchController.clear();
                               setState(() => _search = '');
@@ -116,14 +123,14 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           )
                         : null,
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.orange.shade300, width: 1.5),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
                     ),
                   ),
                   onChanged: (value) {
@@ -140,7 +147,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               stream: _customerService.getCustomers(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(child: CircularProgressIndicator(color: colorScheme.primary));
                 }
                 
                 if (snapshot.hasError) {
@@ -148,11 +155,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+                        Icon(Icons.error_outline, size: 48, color: colorScheme.error),
                         const SizedBox(height: 12),
                         Text(
                           'Error loading customers',
-                          style: TextStyle(color: Colors.grey.shade600),
+                          style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                         ),
                       ],
                     ),
@@ -182,7 +189,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   onRefresh: () async {
                     setState(() {});
                   },
-                  color: Colors.blue,
+                  color: colorScheme.primary,
+                  backgroundColor: colorScheme.surface,
                   child: _isGridView
                       ? _buildGridView(customers)
                       : _buildListView(customers),
@@ -196,20 +204,24 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withOpacity(isDark ? 0.15 : 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2), width: 1),
+          border: Border.all(color: color.withOpacity(isDark ? 0.3 : 0.2), width: 1),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? colorScheme.surface : Colors.white,
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 18),
@@ -272,10 +284,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   Widget _customerCard(Customer customer) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      elevation: isDark ? 4 : 2,
+      color: colorScheme.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => _openCustomerModal(customer: customer),
@@ -289,7 +306,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 height: 50,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.blue.shade400, Colors.blue.shade600],
+                    colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -315,21 +332,22 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   children: [
                     Text(
                       customer.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.phone, size: 12, color: Colors.grey.shade600),
+                        Icon(Icons.phone, size: 12, color: colorScheme.onSurface.withOpacity(0.5)),
                         const SizedBox(width: 4),
                         Text(
                           customer.mobile,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade600,
+                            color: colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                       ],
@@ -338,14 +356,14 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(Icons.location_on, size: 12, color: Colors.grey.shade600),
+                          Icon(Icons.location_on, size: 12, color: colorScheme.onSurface.withOpacity(0.5)),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               customer.address,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.grey.shade600,
+                                color: colorScheme.onSurface.withOpacity(0.6),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -363,13 +381,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                    icon: Icon(Icons.edit, color: colorScheme.primary, size: 20),
                     onPressed: () => _openCustomerModal(customer: customer),
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.all(4),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    icon: Icon(Icons.delete, color: colorScheme.error, size: 20),
                     onPressed: () => _confirmDelete(customer),
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.all(4),
@@ -384,9 +402,14 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   Widget _customerGridCard(Customer customer) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      elevation: isDark ? 4 : 2,
+      color: colorScheme.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => _openCustomerModal(customer: customer),
@@ -401,7 +424,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 height: 60,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.blue.shade400, Colors.blue.shade600],
+                    colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -421,9 +444,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               const SizedBox(height: 8),
               Text(
                 customer.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -433,7 +457,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 customer.mobile,
                 style: TextStyle(
                   fontSize: 11,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
               const SizedBox(height: 8),
@@ -443,19 +467,19 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: colorScheme.primary.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.edit, color: Colors.blue, size: 16),
+                    child: Icon(Icons.edit, color: colorScheme.primary, size: 16),
                   ),
                   const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: colorScheme.error.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.delete, color: Colors.red, size: 16),
+                    child: Icon(Icons.delete, color: colorScheme.error, size: 16),
                   ),
                 ],
               ),
@@ -467,13 +491,21 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   void _openCustomerModal({Customer? customer}) {
+    final theme = Theme.of(context);
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => AddEditCustomerScreen(
-        userMobile: widget.userMobile,
-        customer: customer,
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: AddEditCustomerScreen(
+          userMobile: widget.userMobile,
+          customer: customer,
+        ),
       ),
     ).then((_) {
       setState(() {});
@@ -481,30 +513,46 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   void _confirmDelete(Customer customer) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete Customer'),
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Delete Customer',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Are you sure you want to delete "${customer.name}"?'),
+            Text(
+              'Are you sure you want to delete "${customer.name}"?',
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
             const SizedBox(height: 8),
             Text(
               'This action cannot be undone.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(
+                fontSize: 12, 
+                color: colorScheme.onSurface.withOpacity(0.6),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: colorScheme.error,
               foregroundColor: Colors.white,
             ),
             onPressed: () async {
@@ -515,7 +563,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('${customer.name} deleted successfully'),
-                      backgroundColor: Colors.green,
+                      backgroundColor: colorScheme.secondary,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -528,7 +576,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Error: $e'),
-                    backgroundColor: Colors.red,
+                    backgroundColor: colorScheme.error,
+                    behavior: SnackBarBehavior.floating,
                   ),
                 );
               }
@@ -541,6 +590,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   Widget _emptyState({String search = ''}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -550,13 +603,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: colorScheme.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 search.isEmpty ? Icons.person_add : Icons.search_off,
                 size: 64,
-                color: Colors.blue.shade300,
+                color: colorScheme.primary.withOpacity(0.5),
               ),
             ),
             const SizedBox(height: 24),
@@ -564,10 +617,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               search.isEmpty
                   ? 'No Customers Yet'
                   : 'No Results Found',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
@@ -577,7 +630,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   : 'No customers match "$search"',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
@@ -588,7 +641,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 icon: const Icon(Icons.add),
                 label: const Text('Add Customer'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: colorScheme.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -603,10 +656,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   _searchController.clear();
                   setState(() => _search = '');
                 },
-                icon: const Icon(Icons.clear),
-                label: const Text('Clear Search'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.blue,
+                icon: Icon(Icons.clear, color: colorScheme.primary),
+                label: Text(
+                  'Clear Search',
+                  style: TextStyle(color: colorScheme.primary),
                 ),
               ),
             ],

@@ -6,7 +6,7 @@ import 'supplier_form_modal.dart';
 class SupplierListScreen extends StatefulWidget {
   final String userMobile;
   
-  const SupplierListScreen({Key? key, required this.userMobile}) : super(key: key);
+  const SupplierListScreen({super.key, required this.userMobile});
 
   @override
   State<SupplierListScreen> createState() => _SupplierListScreenState();
@@ -16,7 +16,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
   late final SupplierService _supplierService;
   final TextEditingController _searchController = TextEditingController();
   String _search = '';
-  String _selectedFilter = 'all'; // all, active, inactive
+  final String _selectedFilter = 'all'; // all, active, inactive
   bool _isGridView = false;
 
   @override
@@ -34,24 +34,29 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xffF5F6FA),
+      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Suppliers',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
           ),
         ),
-       
+        backgroundColor: colorScheme.surface,
+        elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
         actions: [
-          // Filter popup menu
-       
           // Toggle view mode
           IconButton(
             icon: Icon(_isGridView ? Icons.list : Icons.grid_view),
@@ -65,7 +70,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
       ),
       
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.orange,
+        backgroundColor: colorScheme.tertiary,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text(
           'Add Supplier',
@@ -81,7 +86,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
         children: [
           // Search Bar with Stats
           Container(
-            color: Colors.white,
+            color: colorScheme.surface,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Column(
               children: [
@@ -95,12 +100,11 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                       child: Row(
                         children: [
                           _buildStatCard(
-                            'Total',
+                            'Total Supplier',
                             totalSuppliers.toString(),
                             Icons.store,
-                            Colors.orange,
+                            colorScheme.secondary,
                           ),
-                          
                         ],
                       ),
                     );
@@ -110,12 +114,14 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                 // Search Field
                 TextField(
                   controller: _searchController,
+                  style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     hintText: 'Search by name, phone, email or address',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                    prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.5)),
                     suffixIcon: _search.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear, color: Colors.grey),
+                            icon: Icon(Icons.clear, color: colorScheme.onSurface.withOpacity(0.5)),
                             onPressed: () {
                               _searchController.clear();
                               setState(() => _search = '');
@@ -123,14 +129,14 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                           )
                         : null,
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.orange.shade300, width: 1.5),
+                      borderSide: BorderSide(color: colorScheme.tertiary, width: 1.5),
                     ),
                   ),
                   onChanged: (value) {
@@ -147,7 +153,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
               stream: _supplierService.getSuppliers(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(child: CircularProgressIndicator(color: colorScheme.tertiary));
                 }
 
                 if (snapshot.hasError) {
@@ -155,17 +161,17 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+                        Icon(Icons.error_outline, size: 48, color: colorScheme.error),
                         const SizedBox(height: 12),
                         Text(
                           'Error loading suppliers',
-                          style: TextStyle(color: Colors.grey.shade600),
+                          style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                         ),
                         const SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: () => setState(() {}),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
+                            backgroundColor: colorScheme.tertiary,
                             foregroundColor: Colors.white,
                           ),
                           child: const Text('Retry'),
@@ -199,7 +205,8 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                   onRefresh: () async {
                     setState(() {});
                   },
-                  color: Colors.orange,
+                  color: colorScheme.tertiary,
+                  backgroundColor: colorScheme.surface,
                   child: _isGridView
                       ? _buildGridView(suppliers)
                       : _buildListView(suppliers),
@@ -213,20 +220,24 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
   }
 
   Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withOpacity(isDark ? 0.15 : 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2), width: 1),
+          border: Border.all(color: color.withOpacity(isDark ? 0.3 : 0.2), width: 1),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? colorScheme.surface : Colors.white,
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 16),
@@ -290,10 +301,15 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
 
   /// 🧾 SUPPLIER CARD - List View
   Widget _supplierCard(Supplier supplier) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      elevation: isDark ? 4 : 2,
+      color: colorScheme.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => _openSupplierModal(supplier: supplier),
@@ -307,7 +323,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                 height: 50,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.orange.shade400, Colors.orange.shade600],
+                    colors: [colorScheme.tertiary, colorScheme.tertiary.withOpacity(0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -333,21 +349,22 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                   children: [
                     Text(
                       supplier.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.phone, size: 12, color: Colors.grey.shade600),
+                        Icon(Icons.phone, size: 12, color: colorScheme.onSurface.withOpacity(0.5)),
                         const SizedBox(width: 4),
                         Text(
                           supplier.phone,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade600,
+                            color: colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                       ],
@@ -356,14 +373,14 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(Icons.email, size: 12, color: Colors.grey.shade600),
+                          Icon(Icons.email, size: 12, color: colorScheme.onSurface.withOpacity(0.5)),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               supplier.email,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.grey.shade600,
+                                color: colorScheme.onSurface.withOpacity(0.6),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -376,14 +393,14 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(Icons.location_on, size: 12, color: Colors.grey.shade600),
+                          Icon(Icons.location_on, size: 12, color: colorScheme.onSurface.withOpacity(0.5)),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               supplier.address,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.grey.shade600,
+                                color: colorScheme.onSurface.withOpacity(0.6),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -401,13 +418,13 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                    icon: Icon(Icons.edit, color: colorScheme.primary, size: 20),
                     onPressed: () => _openSupplierModal(supplier: supplier),
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.all(4),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    icon: Icon(Icons.delete, color: colorScheme.error, size: 20),
                     onPressed: () => _confirmDelete(supplier),
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.all(4),
@@ -423,9 +440,14 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
 
   /// 🧾 SUPPLIER CARD - Grid View
   Widget _supplierGridCard(Supplier supplier) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      elevation: isDark ? 4 : 2,
+      color: colorScheme.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => _openSupplierModal(supplier: supplier),
@@ -440,7 +462,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                 height: 60,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.orange.shade400, Colors.orange.shade600],
+                    colors: [colorScheme.tertiary, colorScheme.tertiary.withOpacity(0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -460,9 +482,10 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
               const SizedBox(height: 8),
               Text(
                 supplier.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -472,7 +495,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                 supplier.phone,
                 style: TextStyle(
                   fontSize: 11,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
               const SizedBox(height: 8),
@@ -482,19 +505,19 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: colorScheme.primary.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.edit, color: Colors.blue, size: 16),
+                    child: Icon(Icons.edit, color: colorScheme.primary, size: 16),
                   ),
                   const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: colorScheme.error.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.delete, color: Colors.red, size: 16),
+                    child: Icon(Icons.delete, color: colorScheme.error, size: 16),
                   ),
                 ],
               ),
@@ -507,13 +530,21 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
 
   /// ➕ / ✏️ OPEN ADD–EDIT MODAL
   void _openSupplierModal({Supplier? supplier}) {
+    final theme = Theme.of(context);
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => SupplierFormModal(
-        userMobile: widget.userMobile,
-        supplier: supplier,
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SupplierFormModal(
+          userMobile: widget.userMobile,
+          supplier: supplier,
+        ),
       ),
     ).then((_) {
       // Refresh if needed
@@ -523,30 +554,46 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
 
   /// 🗑 DELETE CONFIRMATION
   void _confirmDelete(Supplier supplier) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete Supplier'),
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Delete Supplier',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Are you sure you want to delete "${supplier.name}"?'),
+            Text(
+              'Are you sure you want to delete "${supplier.name}"?',
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
             const SizedBox(height: 8),
             Text(
               'This action cannot be undone.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(
+                fontSize: 12, 
+                color: colorScheme.onSurface.withOpacity(0.6),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: colorScheme.error,
               foregroundColor: Colors.white,
             ),
             onPressed: () async {
@@ -557,7 +604,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('${supplier.name} deleted successfully'),
-                      backgroundColor: Colors.green,
+                      backgroundColor: colorScheme.secondary,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -570,7 +617,8 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Error: $e'),
-                    backgroundColor: Colors.red,
+                    backgroundColor: colorScheme.error,
+                    behavior: SnackBarBehavior.floating,
                   ),
                 );
               }
@@ -584,6 +632,10 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
 
   /// 📭 EMPTY STATE
   Widget _emptyState({String search = ''}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -593,13 +645,13 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: colorScheme.tertiary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 search.isEmpty ? Icons.store : Icons.search_off,
                 size: 64,
-                color: Colors.orange.shade300,
+                color: colorScheme.tertiary.withOpacity(0.5),
               ),
             ),
             const SizedBox(height: 24),
@@ -607,10 +659,10 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
               search.isEmpty
                   ? 'No Suppliers Yet'
                   : 'No Results Found',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
@@ -620,7 +672,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                   : 'No suppliers match "$search"',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
@@ -631,7 +683,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                 icon: const Icon(Icons.add),
                 label: const Text('Add Supplier'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: colorScheme.tertiary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -646,10 +698,10 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                   _searchController.clear();
                   setState(() => _search = '');
                 },
-                icon: const Icon(Icons.clear),
-                label: const Text('Clear Search'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.orange,
+                icon: Icon(Icons.clear, color: colorScheme.tertiary),
+                label: Text(
+                  'Clear Search',
+                  style: TextStyle(color: colorScheme.tertiary),
                 ),
               ),
             ],

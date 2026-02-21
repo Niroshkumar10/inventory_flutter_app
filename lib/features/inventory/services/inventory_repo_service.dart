@@ -207,7 +207,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
               .where((item) =>
                   item.name.toLowerCase().contains(query.toLowerCase()) ||
                   item.sku.toLowerCase().contains(query.toLowerCase()) ||
-                  (item.description?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
+                  (item.description.toLowerCase().contains(query.toLowerCase()) ?? false) ||
                   item.category.toLowerCase().contains(query.toLowerCase()))
               .toList()
               ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));

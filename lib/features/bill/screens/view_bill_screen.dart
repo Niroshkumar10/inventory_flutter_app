@@ -19,21 +19,34 @@ class ViewBillScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     final billService = BillService(userMobile);
     
     return StreamBuilder<Bill>(
       stream: billService.getBillById(billId).asStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: colorScheme.primary),
+            ),
           );
         }
         
         if (snapshot.hasError || !snapshot.hasData) {
           return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: Text('Bill not found')),
+            appBar: AppBar(
+              backgroundColor: colorScheme.surface,
+              foregroundColor: colorScheme.onSurface,
+            ),
+            body: Center(
+              child: Text(
+                'Bill not found',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ),
           );
         }
         
@@ -47,55 +60,64 @@ class ViewBillScreen extends StatelessWidget {
 class _BillDetailScreen extends StatefulWidget {
   final Bill bill;
 
-  _BillDetailScreen({required this.bill});
+  const _BillDetailScreen({required this.bill});
 
   @override
   State<_BillDetailScreen> createState() => __BillDetailScreenState();
 }
 
 class __BillDetailScreenState extends State<_BillDetailScreen> {
-  // ADD THIS: Declare billService
   late BillService billService;
   
   @override
   void initState() {
     super.initState();
-    // Initialize billService
     billService = BillService(widget.bill.userMobile);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final isSales = widget.bill.type == 'sales';
+
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: Text(widget.bill.invoiceNumber),
+        title: Text(
+          widget.bill.invoiceNumber,
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        backgroundColor: colorScheme.surface,
+        elevation: 0.5,
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
         actions: [
           IconButton(
-  icon: const Icon(Icons.edit),
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AppProviders( // ✅ ADD THIS WRAPPER
-          userMobile: widget.bill.userMobile,
-          child: AddEditBillScreen(
-            type: widget.bill.type,
-            userMobile: widget.bill.userMobile,
-            billToEdit: widget.bill,
-            billService: billService,
+            icon: Icon(Icons.edit, color: colorScheme.onSurface),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AppProviders(
+                    userMobile: widget.bill.userMobile,
+                    child: AddEditBillScreen(
+                      type: widget.bill.type,
+                      userMobile: widget.bill.userMobile,
+                      billToEdit: widget.bill,
+                      billService: billService,
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
-        ),
-      ),
-    );
-  },
-),
-         
           IconButton(
-            icon: const Icon(Icons.payment),
+            icon: Icon(Icons.payment, color: colorScheme.onSurface),
             onPressed: () => _showAddPaymentDialog(context),
           ),
           IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
+            icon: Icon(Icons.delete, color: colorScheme.error),
             onPressed: _confirmDelete,
           ),
         ],
@@ -106,7 +128,11 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
           children: [
             // Bill Header
             Card(
-              elevation: 3,
+              elevation: isDark ? 4 : 3,
+              color: colorScheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
@@ -119,43 +145,43 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                           children: [
                             Text(
                               widget.bill.isGST ? 'TAX INVOICE' : 'BILL',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.blue,
+                                color: colorScheme.primary,
                               ),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Invoice #: ${widget.bill.invoiceNumber}',
-                              style: TextStyle(color: Colors.grey.shade600),
+                              style: TextStyle(
+                                color: colorScheme.onSurface.withOpacity(0.6),
+                              ),
                             ),
                             Text(
                               'Date: ${_formatDate(widget.bill.date)}',
-                              style: TextStyle(color: Colors.grey.shade600),
+                              style: TextStyle(
+                                color: colorScheme.onSurface.withOpacity(0.6),
+                              ),
                             ),
                             Text(
                               'Type: ${widget.bill.type.toUpperCase()}',
-                              style: TextStyle(color: Colors.grey.shade600),
+                              style: TextStyle(
+                                color: colorScheme.onSurface.withOpacity(0.6),
+                              ),
                             ),
                           ],
                         ),
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: widget.bill.type == 'sales' 
-                              ? Colors.green.shade100 
-                              : Colors.orange.shade100,
+                            color: (isSales ? colorScheme.secondary : colorScheme.tertiary).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
-                            widget.bill.type == 'sales' 
-                              ? Icons.shopping_cart 
-                              : Icons.inventory,
+                            isSales ? Icons.shopping_cart : Icons.inventory,
                             size: 40,
-                            color: widget.bill.type == 'sales' 
-                              ? Colors.green 
-                              : Colors.orange,
+                            color: isSales ? colorScheme.secondary : colorScheme.tertiary,
                           ),
                         ),
                       ],
@@ -169,44 +195,51 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                       children: [
                         Expanded(
                           child: Card(
-                            color: widget.bill.type == 'sales' 
-                              ? Colors.green.shade50 
-                              : Colors.orange.shade50,
+                            color: (isSales ? colorScheme.secondary : colorScheme.tertiary).withOpacity(0.1),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             child: Padding(
                               padding: const EdgeInsets.all(12.0),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    widget.bill.type == 'sales' ? 'CUSTOMER:' : 'SUPPLIER:',
+                                    isSales ? 'CUSTOMER:' : 'SUPPLIER:',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
-                                      color: widget.bill.type == 'sales' 
-                                        ? Colors.green 
-                                        : Colors.orange,
+                                      color: isSales ? colorScheme.secondary : colorScheme.tertiary,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     widget.bill.partyName,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface,
                                     ),
                                   ),
                                   if (widget.bill.partyPhone.isNotEmpty) ...[
                                     const SizedBox(height: 4),
                                     Text(
                                       'Phone: ${widget.bill.partyPhone}',
-                                      style: const TextStyle(fontSize: 14),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: colorScheme.onSurface.withOpacity(0.7),
+                                      ),
                                     ),
                                   ],
                                   if (widget.bill.partyAddress.isNotEmpty) ...[
                                     const SizedBox(height: 4),
                                     Text(
                                       widget.bill.partyAddress,
-                                      style: const TextStyle(fontSize: 14),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: colorScheme.onSurface.withOpacity(0.7),
+                                      ),
                                     ),
                                   ],
                                 ],
@@ -225,10 +258,17 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
             
             // Items Table
             Card(
+              color: colorScheme.surface,
+              elevation: isDark ? 4 : 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Table(
-                  border: TableBorder.all(color: Colors.grey.shade300),
+                  border: TableBorder.all(
+                    color: colorScheme.outline,
+                  ),
                   columnWidths: const {
                     0: FlexColumnWidth(4),
                     1: FlexColumnWidth(1),
@@ -238,45 +278,49 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                   children: [
                     TableRow(
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
+                        color: colorScheme.primary.withOpacity(0.1),
                       ),
-                      children: const [
+                      children: [
                         Padding(
-                          padding: EdgeInsets.all(12.0),
+                          padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'Description',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                         ),
                         Padding(
-                          padding: EdgeInsets.all(12.0),
+                          padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'Qty',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                         ),
                         Padding(
-                          padding: EdgeInsets.all(12.0),
+                          padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'Rate',
                             textAlign: TextAlign.right,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                         ),
                         Padding(
-                          padding: EdgeInsets.all(12.0),
+                          padding: const EdgeInsets.all(12.0),
                           child: Text(
                             'Amount',
                             textAlign: TextAlign.right,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -287,13 +331,17 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.all(12.0),
-                            child: Text(item.description),
+                            child: Text(
+                              item.description,
+                              style: TextStyle(color: colorScheme.onSurface),
+                            ),
                           ),
                           Padding(
                             padding: const EdgeInsets.all(12.0),
                             child: Text(
                               item.quantity.toString(),
                               textAlign: TextAlign.center,
+                              style: TextStyle(color: colorScheme.onSurface),
                             ),
                           ),
                           Padding(
@@ -301,6 +349,7 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                             child: Text(
                               '₹${item.price.toStringAsFixed(2)}',
                               textAlign: TextAlign.right,
+                              style: TextStyle(color: colorScheme.onSurface),
                             ),
                           ),
                           Padding(
@@ -308,12 +357,15 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                             child: Text(
                               '₹${item.total.toStringAsFixed(2)}',
                               textAlign: TextAlign.right,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
+                              ),
                             ),
                           ),
                         ],
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
               ),
@@ -327,7 +379,11 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
               child: SizedBox(
                 width: 300,
                 child: Card(
-                  color: Colors.blue.shade50,
+                  color: colorScheme.primary.withOpacity(0.1),
+                  elevation: isDark ? 4 : 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
@@ -335,7 +391,7 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                         _buildTotalRow('Subtotal:', widget.bill.subtotal),
                         if (widget.bill.isGST)
                           _buildTotalRow('GST (${widget.bill.gstRate}%):', widget.bill.gstAmount),
-                        const Divider(),
+                        Divider(color: colorScheme.outline),
                         _buildTotalRow('Total Amount:', widget.bill.totalAmount, isTotal: true),
                         if (widget.bill.amountPaid > 0)
                           _buildTotalRow('Amount Paid:', widget.bill.amountPaid),
@@ -355,16 +411,22 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
             
             // Payment Status
             Card(
+              color: colorScheme.surface,
+              elevation: isDark ? 4 : 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Payment Status:',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     Container(
@@ -392,20 +454,29 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
             if (widget.bill.notes.isNotEmpty) ...[
               const SizedBox(height: 20),
               Card(
+                color: colorScheme.surface,
+                elevation: isDark ? 4 : 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Notes:',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(widget.bill.notes),
+                      Text(
+                        widget.bill.notes,
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
                     ],
                   ),
                 ),
@@ -420,6 +491,9 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
   }
 
   Widget _buildTotalRow(String label, double amount, {bool isTotal = false, bool isDue = false}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -430,7 +504,7 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
             style: TextStyle(
               fontSize: isTotal ? 16 : 14,
               fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-              color: isDue ? Colors.red : Colors.black,
+              color: isDue ? colorScheme.error : colorScheme.onSurface,
             ),
           ),
           Text(
@@ -438,7 +512,7 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
             style: TextStyle(
               fontSize: isTotal ? 18 : 14,
               fontWeight: FontWeight.bold,
-              color: isDue ? Colors.red : isTotal ? Colors.blue : Colors.black,
+              color: isDue ? colorScheme.error : isTotal ? colorScheme.primary : colorScheme.onSurface,
             ),
           ),
         ],
@@ -447,15 +521,17 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
   }
 
   Color _getStatusColor(String status) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     switch (status.toLowerCase()) {
       case 'paid':
-        return Colors.green;
+        return colorScheme.secondary;
       case 'partial':
-        return Colors.orange;
+        return colorScheme.tertiary;
       case 'due':
-        return Colors.red;
+        return colorScheme.error;
       default:
-        return Colors.grey;
+        return colorScheme.onSurface.withOpacity(0.5);
     }
   }
 
@@ -464,16 +540,30 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
   }
 
   void _shareBill() {
-    // Simple share functionality - you can implement actual sharing later
+    final theme = Theme.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Share functionality coming soon')),
+      SnackBar(
+        content: const Text('Share functionality coming soon'),
+        backgroundColor: theme.colorScheme.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
     );
   }
 
   void _showAddPaymentDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (widget.bill.amountDue <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No amount due')),
+        SnackBar(
+          content: const Text('No amount due'),
+          backgroundColor: colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       return;
     }
@@ -486,44 +576,64 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Add Payment'),
+          backgroundColor: colorScheme.surface,
+          title: Text(
+            'Add Payment',
+            style: TextStyle(color: colorScheme.onSurface),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Remaining Due'),
+              Text(
+                'Remaining Due',
+                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+              ),
               Text(
                 '₹${widget.bill.amountDue.toStringAsFixed(2)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.red,
+                  color: colorScheme.error,
                 ),
               ),
               const SizedBox(height: 20),
-              TextFormField(
+              TextField(
                 controller: amountController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Payment Amount',
+                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                   prefixText: '₹ ',
-                  border: OutlineInputBorder(),
+                  prefixStyle: TextStyle(color: colorScheme.onSurface),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: theme.brightness == Brightness.dark 
+                      ? colorScheme.surfaceContainerHighest 
+                      : Colors.white,
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                validator: (value) {
-                  final amount = double.tryParse(value ?? '0') ?? 0;
-                  if (amount <= 0) return 'Amount must be greater than 0';
-                  if (amount > widget.bill.amountDue) {
-                    return 'Amount cannot exceed due amount';
-                  }
-                  return null;
-                },
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.primary),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -532,18 +642,39 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
 
                 try {
                   await billService.addPayment(widget.bill.id, amount);
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Payment recorded successfully')),
-                  );
-                  // Refresh the screen
-                  setState(() {});
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Payment recorded successfully'),
+                        backgroundColor: colorScheme.secondary,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    );
+                    setState(() {});
+                  }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: colorScheme.error,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
               child: const Text('Record Payment'),
             ),
           ],
@@ -553,35 +684,67 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
   }
 
   void _confirmDelete() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Delete Transaction'),
-          content: const Text('Are you sure you want to delete this transaction?'),
+          backgroundColor: colorScheme.surface,
+          title: Text(
+            'Delete Transaction',
+            style: TextStyle(color: colorScheme.onSurface),
+          ),
+          content: Text(
+            'Are you sure you want to delete this transaction?',
+            style: TextStyle(color: colorScheme.onSurface),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.primary),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
                 try {
                   await billService.deleteBill(widget.bill.id);
-                  Navigator.pop(context); // Close dialog
-                  Navigator.pop(context); // Go back to bills list
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Transaction deleted')),
-                  );
+                  if (context.mounted) {
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context); // Go back to bills list
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Transaction deleted'),
+                        backgroundColor: colorScheme.secondary,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    );
+                  }
                 } catch (e) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: colorScheme.error,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: colorScheme.error,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: const Text('Delete'),
             ),

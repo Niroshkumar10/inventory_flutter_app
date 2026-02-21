@@ -2,73 +2,125 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:provider/provider.dart';
-import '../session/session_service_new.dart';
-import '../../core/theme/app_theme.dart';
-import '../inventory/services/inventory_repo_service.dart';
+import '../../core/providers/theme_provider.dart';
+import '../settings/settings_service.dart';
+import '../settings/auto_sync_service.dart';
+import '../reports/services/export_service.dart';
+import 'dart:async';
 class SettingsScreen extends StatefulWidget {
   final String userMobile;
-  
+
   const SettingsScreen({
-    Key? key,
+    super.key,
     required this.userMobile,
-  }) : super(key: key);
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notificationsEnabled = true;
+  final SettingsService _settingsService = SettingsService();
+  final ExportService _exportService = ExportService();
+  final AutoSyncService _autoSyncService = AutoSyncService();
+  
   bool _darkModeEnabled = false;
   bool _autoSyncEnabled = true;
-  bool _biometricEnabled = false;
   String _selectedLanguage = 'English';
   String _currencySymbol = '₹ (INR)';
   String _dateFormat = 'DD/MM/YYYY';
   
-  final List<String> _languages = ['English', 'Hindi', 'Gujarati', 'Marathi', 'Tamil'];
-  final List<String> _currencies = ['₹ (INR)', '\$ (USD)', '€ (EUR)', '£ (GBP)'];
-  final List<String> _dateFormats = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'];
-  
+  String _lastSyncTime = 'Never';
+  bool _isSyncing = false;
+
   bool _isLoading = false;
   bool _isSaving = false;
+
+  // Debounce timer for auto-save
+  Timer? _saveDebounceTimer;
 
   @override
   void initState() {
     super.initState();
     _loadUserSettings();
+    _setupSyncListener();
+    _loadLastSyncTime();
+  }
+
+  @override
+  void dispose() {
+    _autoSyncService.dispose();
+    _saveDebounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _setupSyncListener() {
+    _autoSyncService.syncStatusStream.listen((status) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isSyncing = status.isStarted;
+      });
+      
+      if (status.isCompleted) {
+        setState(() {
+          _lastSyncTime = status.message ?? 'Synced';
+        });
+        _showSuccessSnackBar(status.message ?? 'Sync completed');
+      } else if (status.isFailed) {
+        _showErrorSnackBar(status.message ?? 'Sync failed');
+      }
+    });
+  }
+
+  Future<void> _loadLastSyncTime() async {
+    final lastTime = await _autoSyncService.loadLastSyncTime();
+    if (lastTime != null && mounted) {
+      setState(() {
+        _lastSyncTime = _formatTimeAgo(lastTime);
+      });
+    }
+  }
+
+  String _formatTimeAgo(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+    
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes} min ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours} hours ago';
+    } else {
+      return '${difference.inDays} days ago';
+    }
   }
 
   Future<void> _loadUserSettings() async {
     if (widget.userMobile.isEmpty) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.userMobile)
-          .collection('settings')
-          .doc('preferences')
-          .get();
+      final settings = await _settingsService.loadSettings(widget.userMobile);
+
+      setState(() {
+        _darkModeEnabled = settings['darkMode'] ?? false;
+        _autoSyncEnabled = settings['autoSync'] ?? true;
+        _selectedLanguage = settings['language'] ?? 'English';
+        _currencySymbol = settings['currency'] ?? '₹ (INR)';
+        _dateFormat = settings['dateFormat'] ?? 'DD/MM/YYYY';
+      });
+
+      // Apply theme after loading
+      _applyTheme();
       
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        setState(() {
-          _notificationsEnabled = data['notifications'] ?? true;
-          _darkModeEnabled = data['darkMode'] ?? false;
-          _autoSyncEnabled = data['autoSync'] ?? true;
-          _biometricEnabled = data['biometric'] ?? false;
-          _selectedLanguage = data['language'] ?? 'English';
-          _currencySymbol = data['currency'] ?? '₹ (INR)';
-          _dateFormat = data['dateFormat'] ?? 'DD/MM/YYYY';
-        });
-      }
+      // Start or stop auto sync based on settings
+      _configureAutoSync();
+      
     } catch (e) {
-      print('Error loading settings: $e');
+      _showErrorSnackBar('Error loading settings: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -76,76 +128,127 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _saveSettings() async {
-    if (widget.userMobile.isEmpty) return;
-    
-    setState(() => _isSaving = true);
-    
+  void _configureAutoSync() {
+    if (_autoSyncEnabled && widget.userMobile.isNotEmpty) {
+      _autoSyncService.startAutoSync(widget.userMobile);
+    } else {
+      _autoSyncService.stopAutoSync();
+    }
+  }
+
+  void _applyTheme() {
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.userMobile)
-          .collection('settings')
-          .doc('preferences')
-          .set({
-            'notifications': _notificationsEnabled,
-            'darkMode': _darkModeEnabled,
-            'autoSync': _autoSyncEnabled,
-            'biometric': _biometricEnabled,
-            'language': _selectedLanguage,
-            'currency': _currencySymbol,
-            'dateFormat': _dateFormat,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Settings saved successfully'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+        themeProvider.toggleTheme(_darkModeEnabled);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving settings: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      debugPrint('ThemeProvider not available: $e');
+    }
+  }
+
+  // Auto-save function with debounce
+  Future<void> _autoSaveSettings() async {
+    if (widget.userMobile.isEmpty) return;
+
+    // Cancel previous timer
+    _saveDebounceTimer?.cancel();
+    
+    // Set new timer
+    _saveDebounceTimer = Timer(const Duration(milliseconds: 500), () async {
+      if (!mounted) return;
+      
+      setState(() => _isSaving = true);
+
+      try {
+        final settings = {
+          'darkMode': _darkModeEnabled,
+          'autoSync': _autoSyncEnabled,
+          'language': _selectedLanguage,
+          'currency': _currencySymbol,
+          'dateFormat': _dateFormat,
+        };
+
+        await _settingsService.saveSettings(widget.userMobile, settings);
+
+        // Apply theme after saving
+        _applyTheme();
+        
+        // Configure auto sync based on new setting
+        _configureAutoSync();
+
+        if (mounted) {
+          // Optional: Show a subtle indicator that settings were saved
+          // You can uncomment this if you want visual feedback
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(
+          //     content: const Text('Settings saved'),
+          //     backgroundColor: Theme.of(context).colorScheme.secondary,
+          //     duration: const Duration(seconds: 1),
+          //     behavior: SnackBarBehavior.floating,
+          //   ),
+          // );
+        }
+      } catch (e) {
+        if (mounted) {
+          _showErrorSnackBar('Error saving settings: $e');
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isSaving = false);
+        }
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+    });
+  }
+
+  Future<void> _syncNow() async {
+    if (widget.userMobile.isEmpty) return;
+    
+    setState(() => _isSyncing = true);
+    
+    try {
+      _autoSyncService.startAutoSync(widget.userMobile);
+    } catch (e) {
+      _showErrorSnackBar('Manual sync failed: $e');
+      setState(() => _isSyncing = false);
     }
   }
 
   Future<void> _clearCache() async {
-    // Show confirmation dialog
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear Cache'),
-        content: const Text('Are you sure you want to clear all cached data? This will not delete your saved data.'),
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Clear Cache',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        content: Text(
+          'Are you sure you want to clear all cached data? This will not delete your saved data.',
+          style: TextStyle(color: colorScheme.onSurface.withOpacity(0.8)),
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
+              backgroundColor: colorScheme.tertiary,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('CLEAR'),
           ),
@@ -154,85 +257,163 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirm == true) {
-      // Simulate cache clearing
       setState(() => _isLoading = true);
-      await Future.delayed(const Duration(seconds: 1));
-      setState(() => _isLoading = false);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cache cleared successfully'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+
+      try {
+        await _settingsService.clearLocalCache();
+        _showSuccessSnackBar('Cache cleared successfully');
+      } catch (e) {
+        _showErrorSnackBar('Error clearing cache: $e');
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }
 
-  Future<void> _exportData() async {
+  Future<void> _backupData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final backupData = await _fetchBackupData();
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userMobile)
+          .collection('backups')
+          .doc(DateTime.now().millisecondsSinceEpoch.toString())
+          .set({
+        'timestamp': FieldValue.serverTimestamp(),
+        'data': backupData,
+      });
+
+      _showSuccessSnackBar('Backup created successfully');
+    } catch (e) {
+      _showErrorSnackBar('Error creating backup: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchBackupData() async {
+    try {
+      final inventorySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userMobile)
+          .collection('inventory')
+          .get();
+
+      final transactionsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userMobile)
+          .collection('transactions')
+          .get();
+
+      final settingsDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userMobile)
+          .collection('settings')
+          .doc('preferences')
+          .get();
+
+      return {
+        'inventory': inventorySnapshot.docs.map((doc) => doc.data()).toList(),
+        'transactions':
+            transactionsSnapshot.docs.map((doc) => doc.data()).toList(),
+        'settings': settingsDoc.data() ?? {},
+        'backupDate': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      print('Error fetching backup data: $e');
+      return {'error': 'Failed to fetch data for backup'};
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Preparing your data for export...'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
-    
-    // Simulate export
-    await Future.delayed(const Duration(seconds: 1));
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Data exported successfully'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
-      );
-    }
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.background : const Color(0xFFF5F6FA),
       appBar: AppBar(
-        title: const Text('Settings'),
-        elevation: 0,
+        title: Text(
+          'Settings',
+          style: TextStyle(
+            fontSize: 20, 
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        backgroundColor: colorScheme.surface,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
+          onPressed: () => Navigator.pop(context),
+        ),
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        // REMOVED: Save button from actions - now auto-save
         actions: [
-          if (!_isLoading)
-            TextButton.icon(
-              onPressed: _isSaving ? null : _saveSettings,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.save, size: 20),
-              label: Text(_isSaving ? 'Saving...' : 'Save'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
+          // Optional: Show saving indicator
+          if (_isSaving)
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colorScheme.primary,
+                ),
               ),
             ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildSettingsContent(isSmallScreen, isDarkMode),
+          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
+          : _buildSettingsContent(isSmallScreen),
     );
   }
 
-  Widget _buildSettingsContent(bool isSmallScreen, bool isDarkMode) {
+  Widget _buildSettingsContent(bool isSmallScreen) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (widget.userMobile.isEmpty) {
       return _buildLoginPrompt(isSmallScreen);
     }
@@ -242,75 +423,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
       child: Column(
         children: [
-          // App Preferences Section - FIXED ICON
+          // App Preferences Section
           _buildSettingsSection(
-            icon: Icons.settings_applications, // Changed from app_settings
+            icon: Icons.settings,
             title: 'App Preferences',
             children: [
+              _buildDivider(isSmallScreen),
               _buildSwitchTile(
-                icon: Icons.notifications,
-                title: 'Push Notifications',
-                subtitle: 'Receive alerts for bills and inventory',
-                value: _notificationsEnabled,
-                onChanged: (value) => setState(() => _notificationsEnabled = value),
-              ),
-              _buildDivider(),
-              _buildSwitchTile(
-                icon: Icons.dark_mode,
+                icon: Icons.dark_mode_outlined,
                 title: 'Dark Mode',
                 subtitle: 'Switch to dark theme',
                 value: _darkModeEnabled,
-                onChanged: (value) => setState(() => _darkModeEnabled = value),
+                onChanged: (value) {
+                  setState(() => _darkModeEnabled = value);
+                  _applyTheme(); // Apply immediately
+                  _autoSaveSettings(); // Auto-save
+                },
               ),
-              _buildDivider(),
+              _buildDivider(isSmallScreen),
               _buildSwitchTile(
-                icon: Icons.sync,
+                icon: Icons.sync_outlined,
                 title: 'Auto Sync',
                 subtitle: 'Automatically sync data with cloud',
                 value: _autoSyncEnabled,
-                onChanged: (value) => setState(() => _autoSyncEnabled = value),
+                onChanged: (value) {
+                  setState(() => _autoSyncEnabled = value);
+                  _autoSaveSettings(); // Auto-save
+                },
               ),
-              _buildDivider(),
-              _buildSwitchTile(
-                icon: Icons.fingerprint,
-                title: 'Biometric Login',
-                subtitle: 'Use fingerprint/face to unlock',
-                value: _biometricEnabled,
-                onChanged: (value) => setState(() => _biometricEnabled = value),
-              ),
-            ],
-          ),
-
-          SizedBox(height: isSmallScreen ? 16 : 20),
-
-          // Regional Settings Section
-          _buildSettingsSection(
-            icon: Icons.public, // Changed from language to public
-            title: 'Regional Settings',
-            children: [
-              _buildDropdownTile(
-                icon: Icons.language,
-                title: 'Language',
-                value: _selectedLanguage,
-                items: _languages,
-                onChanged: (value) => setState(() => _selectedLanguage = value!),
-              ),
-              _buildDivider(),
-              _buildDropdownTile(
-                icon: Icons.attach_money, // Changed from currency_rupee
-                title: 'Currency',
-                value: _currencySymbol,
-                items: _currencies,
-                onChanged: (value) => setState(() => _currencySymbol = value!),
-              ),
-              _buildDivider(),
-              _buildDropdownTile(
-                icon: Icons.calendar_today,
-                title: 'Date Format',
-                value: _dateFormat,
-                items: _dateFormats,
-                onChanged: (value) => setState(() => _dateFormat = value!),
-              ),
+              if (_autoSyncEnabled) ...[
+                _buildDivider(isSmallScreen),
+                _buildSyncStatusTile(isSmallScreen),
+              ],
+              
             ],
           ),
 
@@ -318,39 +463,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Data Management Section
           _buildSettingsSection(
-            icon: Icons.storage, // Changed from data_usage
+            icon: Icons.storage_outlined,
             title: 'Data Management',
             children: [
               _buildActionTile(
-                icon: Icons.delete_sweep,
-                iconColor: Colors.orange,
+                icon: Icons.delete_sweep_outlined,
+                iconColor: colorScheme.tertiary,
                 title: 'Clear Cache',
                 subtitle: 'Free up storage space',
                 onTap: _clearCache,
               ),
-              _buildDivider(),
+              _buildDivider(isSmallScreen),
               _buildActionTile(
-                icon: Icons.download,
-                iconColor: Colors.blue,
-                title: 'Export Data',
-                subtitle: 'Download your data as CSV',
-                onTap: _exportData,
-              ),
-              _buildDivider(),
-              _buildActionTile(
-                icon: Icons.backup,
-                iconColor: Colors.green,
+                icon: Icons.backup_outlined,
+                iconColor: colorScheme.secondary,
                 title: 'Backup Data',
                 subtitle: 'Create a backup of your data',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Backup feature coming soon!'),
-                      duration: Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                onTap: _backupData,
               ),
             ],
           ),
@@ -367,41 +496,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Version',
                 subtitle: '1.0.0+1',
               ),
-              _buildDivider(),
+              _buildDivider(isSmallScreen),
               _buildActionTile(
-                icon: Icons.privacy_tip,
+                icon: Icons.privacy_tip_outlined,
                 iconColor: Colors.purple,
                 title: 'Privacy Policy',
                 subtitle: 'Read our privacy policy',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Privacy policy coming soon!'),
-                      duration: Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                onTap: () => _showComingSoon('Privacy Policy'),
               ),
-              _buildDivider(),
+              _buildDivider(isSmallScreen),
               _buildActionTile(
-                icon: Icons.description,
+                icon: Icons.description_outlined,
                 iconColor: Colors.teal,
                 title: 'Terms of Service',
                 subtitle: 'Read our terms of service',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Terms of service coming soon!'),
-                      duration: Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                onTap: () => _showComingSoon('Terms of Service'),
               ),
-              _buildDivider(),
+              _buildDivider(isSmallScreen),
               _buildInfoTile(
-                icon: Icons.copyright,
+                icon: Icons.copyright_outlined,
                 title: 'Copyright',
                 subtitle: '© 2024 Inventory Manager',
               ),
@@ -415,7 +528,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Inventory Manager v1.0.0',
             style: TextStyle(
               fontSize: isSmallScreen ? 12 : 13,
-              color: Colors.grey[500],
+              color: colorScheme.onSurface.withOpacity(0.5),
             ),
           ),
           const SizedBox(height: 4),
@@ -423,11 +536,166 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Made with ❤️ in India',
             style: TextStyle(
               fontSize: isSmallScreen ? 11 : 12,
-              color: Colors.grey[400],
+              color: colorScheme.onSurface.withOpacity(0.4),
             ),
           ),
           SizedBox(height: isSmallScreen ? 16 : 20),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSyncStatusTile(bool isSmallScreen) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: isSmallScreen ? 16 : 20,
+        vertical: 8,
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: _isSyncing 
+                  ? colorScheme.tertiary.withOpacity(0.1)
+                  : colorScheme.secondary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              _isSyncing ? Icons.sync : Icons.sync_problem_outlined,
+              color: _isSyncing ? colorScheme.tertiary : colorScheme.secondary,
+              size: isSmallScreen ? 20 : 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isSyncing ? 'Syncing...' : 'Sync Status',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 14 : 15,
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _isSyncing ? 'Please wait...' : 'Last sync: $_lastSyncTime',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 11 : 12,
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!_isSyncing)
+            ElevatedButton(
+              onPressed: _syncNow,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+              child: const Text('SYNC NOW'),
+            ),
+          if (_isSyncing)
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colorScheme.primary,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownTile({
+    required IconData icon,
+    required String title,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final isSmallScreen = MediaQuery.of(context).size.width < 360;
+
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          color: colorScheme.primary,
+          size: isSmallScreen ? 20 : 22,
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: isSmallScreen ? 14 : 15,
+          fontWeight: FontWeight.w500,
+          color: colorScheme.onSurface,
+        ),
+      ),
+      subtitle: Text(
+        value,
+        style: TextStyle(
+          fontSize: isSmallScreen ? 12 : 13,
+          color: colorScheme.onSurface.withOpacity(0.6),
+        ),
+      ),
+      trailing: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isSmallScreen ? 8 : 12,
+          vertical: isSmallScreen ? 4 : 6,
+        ),
+        decoration: BoxDecoration(
+          color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: DropdownButton<String>(
+          value: value,
+          items: items.map((String item) {
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(
+                item,
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 13 : 14,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
+          underline: const SizedBox(),
+          icon: Icon(
+            Icons.arrow_drop_down,
+            color: colorScheme.primary,
+            size: isSmallScreen ? 22 : 24,
+          ),
+          dropdownColor: isDark ? colorScheme.surface : Colors.white,
+        ),
+      ),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: isSmallScreen ? 16 : 20,
       ),
     );
   }
@@ -437,12 +705,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required List<Widget> children,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
-    
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,18 +735,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             child: Row(
               children: [
-                Icon(
-                  icon,
-                  color: Theme.of(context).primaryColor,
-                  size: isSmallScreen ? 22 : 24,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: colorScheme.primary,
+                    size: isSmallScreen ? 20 : 22,
+                  ),
                 ),
                 SizedBox(width: isSmallScreen ? 10 : 12),
                 Text(
                   title,
                   style: TextStyle(
                     fontSize: isSmallScreen ? 16 : 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -486,97 +772,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
-    
+
     return SwitchListTile(
-      secondary: Icon(
-        icon,
-        color: Theme.of(context).primaryColor,
-        size: isSmallScreen ? 22 : 24,
+      secondary: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          color: colorScheme.primary,
+          size: isSmallScreen ? 20 : 22,
+        ),
       ),
       title: Text(
         title,
         style: TextStyle(
-          fontSize: isSmallScreen ? 14 : 16,
+          fontSize: isSmallScreen ? 14 : 15,
           fontWeight: FontWeight.w500,
+          color: colorScheme.onSurface,
         ),
       ),
       subtitle: Text(
         subtitle,
         style: TextStyle(
           fontSize: isSmallScreen ? 12 : 13,
-          color: Colors.grey[600],
+          color: colorScheme.onSurface.withOpacity(0.6),
         ),
       ),
       value: value,
       onChanged: onChanged,
-      activeColor: Theme.of(context).primaryColor,
-      contentPadding: EdgeInsets.symmetric(
-        horizontal: isSmallScreen ? 16 : 20,
-      ),
-    );
-  }
-
-  Widget _buildDropdownTile({
-    required IconData icon,
-    required String title,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    final isSmallScreen = MediaQuery.of(context).size.width < 360;
-    
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: Theme.of(context).primaryColor,
-        size: isSmallScreen ? 22 : 24,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: isSmallScreen ? 14 : 16,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      subtitle: Text(
-        value,
-        style: TextStyle(
-          fontSize: isSmallScreen ? 12 : 13,
-          color: Colors.grey[600],
-        ),
-      ),
-      trailing: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isSmallScreen ? 8 : 12,
-          vertical: isSmallScreen ? 4 : 6,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: DropdownButton<String>(
-          value: value,
-          items: items.map((String item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(
-                item,
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 13 : 14,
-                ),
-              ),
-            );
-          }).toList(),
-          onChanged: onChanged,
-          underline: const SizedBox(),
-          icon: Icon(
-            Icons.arrow_drop_down,
-            color: Theme.of(context).primaryColor,
-            size: isSmallScreen ? 22 : 24,
-          ),
-        ),
-      ),
+      activeColor: colorScheme.primary,
       contentPadding: EdgeInsets.symmetric(
         horizontal: isSmallScreen ? 16 : 20,
       ),
@@ -590,8 +820,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
-    
+
     return ListTile(
       leading: Container(
         padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
@@ -608,21 +840,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: Text(
         title,
         style: TextStyle(
-          fontSize: isSmallScreen ? 14 : 16,
+          fontSize: isSmallScreen ? 14 : 15,
           fontWeight: FontWeight.w500,
+          color: colorScheme.onSurface,
         ),
       ),
       subtitle: Text(
         subtitle,
         style: TextStyle(
           fontSize: isSmallScreen ? 12 : 13,
-          color: Colors.grey[600],
+          color: colorScheme.onSurface.withOpacity(0.6),
         ),
       ),
       trailing: Icon(
         Icons.arrow_forward_ios,
         size: isSmallScreen ? 14 : 16,
-        color: Colors.grey[400],
+        color: colorScheme.onSurface.withOpacity(0.4),
       ),
       onTap: onTap,
       contentPadding: EdgeInsets.symmetric(
@@ -636,26 +869,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required String subtitle,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
-    
+
     return ListTile(
-      leading: Icon(
-        icon,
-        color: Theme.of(context).primaryColor,
-        size: isSmallScreen ? 22 : 24,
+      leading: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          color: colorScheme.primary,
+          size: isSmallScreen ? 20 : 22,
+        ),
       ),
       title: Text(
         title,
         style: TextStyle(
-          fontSize: isSmallScreen ? 14 : 16,
+          fontSize: isSmallScreen ? 14 : 15,
           fontWeight: FontWeight.w500,
+          color: colorScheme.onSurface,
         ),
       ),
       subtitle: Text(
         subtitle,
         style: TextStyle(
           fontSize: isSmallScreen ? 12 : 13,
-          color: Colors.grey[600],
+          color: colorScheme.onSurface.withOpacity(0.6),
         ),
       ),
       contentPadding: EdgeInsets.symmetric(
@@ -664,65 +907,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildDivider() {
-    final isSmallScreen = MediaQuery.of(context).size.width < 360;
-    
+  Widget _buildDivider(bool isSmallScreen) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: isSmallScreen ? 16 : 20,
       ),
-      child: const Divider(height: 1),
+      child: Divider(
+        height: 1,
+        color: colorScheme.outline,
+      ),
     );
   }
 
   Widget _buildLoginPrompt(bool isSmallScreen) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
       child: SingleChildScrollView(
         padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.settings,
-              size: isSmallScreen ? 70 : 80,
-              color: Colors.grey[400],
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.settings,
+                size: isSmallScreen ? 60 : 70,
+                color: colorScheme.primary.withOpacity(0.5),
+              ),
             ),
             SizedBox(height: isSmallScreen ? 16 : 20),
             Text(
               'Please Login',
               style: TextStyle(
-                fontSize: isSmallScreen ? 22 : 24,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
+                color: colorScheme.onSurface,
               ),
-              textAlign: TextAlign.center,
             ),
             SizedBox(height: isSmallScreen ? 8 : 10),
             Text(
               'You need to login to access settings',
               style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 16,
-                color: Colors.grey[500],
+                fontSize: isSmallScreen ? 14 : 15,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: isSmallScreen ? 24 : 30),
             ElevatedButton.icon(
               onPressed: () {
-                Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                Navigator.pushNamedAndRemoveUntil(
+                    context, '/login', (route) => false);
               },
-              icon: const Icon(Icons.login),
-              label: const Text('Go to Login'),
+              icon: const Icon(Icons.login, color: Colors.white),
+              label: const Text(
+                'Go to Login',
+                style: TextStyle(color: Colors.white),
+              ),
               style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
                 padding: EdgeInsets.symmetric(
                   horizontal: isSmallScreen ? 24 : 30,
                   vertical: isSmallScreen ? 12 : 15,
                 ),
-                minimumSize: Size(isSmallScreen ? 180 : 200, isSmallScreen ? 45 : 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showComingSoon(String feature) {
+    final theme = Theme.of(context);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature coming soon!'),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        backgroundColor: theme.colorScheme.primary,
       ),
     );
   }

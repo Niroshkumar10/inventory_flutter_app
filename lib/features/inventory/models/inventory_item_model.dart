@@ -184,7 +184,7 @@ class InventoryItem {
       supplierName: supplierName ?? this.supplierName,
       imageUrl: imageUrl ?? this.imageUrl,
       userMobile: userMobile ?? this.userMobile,
-      createdAt: this.createdAt,
+      createdAt: createdAt,
       updatedAt: DateTime.now(),
       isActive: isActive ?? this.isActive,
     );

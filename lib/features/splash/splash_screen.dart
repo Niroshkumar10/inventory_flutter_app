@@ -4,7 +4,7 @@ import '../../auth_wrapper.dart'; // Import AuthWrapper
 import '../onboarding/onboarding_screen.dart'; // Import Onboarding
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();

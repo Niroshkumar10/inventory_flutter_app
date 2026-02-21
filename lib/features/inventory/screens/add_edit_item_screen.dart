@@ -9,12 +9,12 @@ class AddEditItemScreen extends StatefulWidget {
   final String? initialCategory;
   
   const AddEditItemScreen({
-    Key? key,
+    super.key,
     required this.inventoryService,
     this.item,
     required this.userMobile,
     this.initialCategory,
-  }) : super(key: key); 
+  }); 
 
   @override
   State<AddEditItemScreen> createState() => _AddEditItemScreenState();
@@ -39,7 +39,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   String? _skuError;
   List<String> _categories = [];
   List<String> _suppliers = [];
-  Map<String, String> _supplierMap = {};
+  final Map<String, String> _supplierMap = {};
 
   // Validation error messages
   String? _nameError;
@@ -282,7 +282,8 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_skuError!),
-          backgroundColor: Colors.red,
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -326,9 +327,10 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     if (hasErrors) {
       // Scroll to first error
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fix all errors before saving'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('Please fix all errors before saving'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -382,52 +384,76 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
       if (widget.item == null) {
         // Add new item
         final id = await widget.inventoryService.addInventoryItem(item);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Item added successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Item added successfully'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
       } else {
         // Update existing item
         await widget.inventoryService.updateInventoryItem(item);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Item updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Item updated successfully'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
       }
 
-      Navigator.pop(context, true);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
     } catch (e, stackTrace) {
       print('❌ Error saving item: $e');
       print('Stack trace: $stackTrace');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   // ============ BUILD METHOD ============
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
           widget.item == null ? 'Add New Item' : 'Edit Item',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
+            color: Colors.white,
           ),
         ),
-        backgroundColor: const Color.fromARGB(255, 5, 59, 177),
+        backgroundColor: colorScheme.primary,
         foregroundColor: Colors.white,
         elevation: 2,
         leading: IconButton(
@@ -436,9 +462,9 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator.adaptive(
-                strokeWidth: 3,
+          ? Center(
+              child: CircularProgressIndicator(
+                color: colorScheme.primary,
               ),
             )
           : Column(
@@ -503,13 +529,14 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                                 hintText: 'Enter unique SKU',
                                 errorText: _skuValidationError ?? _skuError,
                                 suffixIcon: _skuChecking
-                                    ? const Padding(
-                                        padding: EdgeInsets.only(right: 12),
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(right: 12),
                                         child: SizedBox(
                                           width: 20,
                                           height: 20,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2,
+                                            color: colorScheme.primary,
                                           ),
                                         ),
                                       )
@@ -681,15 +708,15 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: colorScheme.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue.shade100),
+                            border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
                           ),
                           child: Row(
                             children: [
                               Icon(
                                 Icons.info_outline,
-                                color: Colors.blue.shade600,
+                                color: colorScheme.primary,
                                 size: 20,
                               ),
                               const SizedBox(width: 12),
@@ -698,7 +725,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                                   'Fields marked with * are required',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.blue.shade800,
+                                    color: colorScheme.primary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -717,16 +744,16 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: colorScheme.surface,
                     border: Border(
                       top: BorderSide(
-                        color: Colors.grey.shade300,
+                        color: colorScheme.outline,
                         width: 1.5,
                       ),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
+                        color: colorScheme.shadow.withOpacity(0.1),
                         blurRadius: 8,
                         offset: const Offset(0, -2),
                       ),
@@ -740,19 +767,19 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 18),
                             side: BorderSide(
-                              color: Colors.grey.shade400,
+                              color: colorScheme.outline,
                               width: 1.5,
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Cancel',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey,
+                              color: colorScheme.onSurface.withOpacity(0.6),
                             ),
                           ),
                         ),
@@ -762,16 +789,16 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _saveItem,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color.fromARGB(255, 5, 59, 177),
+                            backgroundColor: colorScheme.primary,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 18),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            elevation: 2,
+                            elevation: isDark ? 4 : 2,
                           ),
                           child: _isLoading
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 24,
                                   height: 24,
                                   child: CircularProgressIndicator(
@@ -801,6 +828,9 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     required String title,
     required bool required,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -808,10 +838,10 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
           children: [
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
             if (required)
@@ -833,7 +863,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
           height: 3,
           width: 40,
           decoration: BoxDecoration(
-            color: const Color.fromARGB(255, 5, 59, 177),
+            color: colorScheme.primary,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -854,6 +884,10 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     bool optional = false,
     ValueChanged<String>? onChanged,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -863,7 +897,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
               label,
               style: TextStyle(
                 fontSize: 15,
-                color: Colors.grey.shade700,
+                color: colorScheme.onSurface.withOpacity(0.7),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -888,40 +922,41 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
             hintText: hintText,
             hintStyle: TextStyle(
               fontSize: 15,
-              color: Colors.grey.shade500,
+              color: colorScheme.onSurface.withOpacity(0.5),
             ),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 16, right: 12),
               child: Icon(
                 icon,
-                color: const Color.fromARGB(255, 5, 59, 177),
+                color: colorScheme.primary,
                 size: 22,
               ),
             ),
             prefixText: prefixText,
-            prefixStyle: const TextStyle(
+            prefixStyle: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w500,
+              color: colorScheme.onSurface,
             ),
             suffixIcon: suffixIcon,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: Colors.grey.shade300,
+                color: colorScheme.outline,
                 width: 1.5,
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Color.fromARGB(255, 5, 59, 177),
+              borderSide: BorderSide(
+                color: colorScheme.primary,
                 width: 2,
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: Colors.grey.shade300,
+                color: colorScheme.outline,
                 width: 1.5,
               ),
             ),
@@ -949,184 +984,195 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
               vertical: 18,
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
           ),
           keyboardType: keyboardType,
           maxLines: maxLines,
           onChanged: onChanged,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
+            color: colorScheme.onSurface,
           ),
         ),
       ],
     );
   }
 
-Widget _buildCategoryDropdown() {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Row(
-        children: [
-          Text(
-            'Category',
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.grey,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(left: 2),
-            child: Text(
-              '*',
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 8),
-      Container(
-        height: 56, // Fixed height to prevent layout shift
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: _categoryError != null 
-              ? Colors.red 
-              : Colors.grey.shade300,
-            width: 1.5,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.white,
-        ),
-        child: MenuAnchor(
-          builder: (BuildContext context, MenuController controller, Widget? child) {
-            return InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () {
-                if (controller.isOpen) {
-                  controller.close();
-                } else {
-                  controller.open();
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.category_outlined,
-                      color: const Color.fromARGB(255, 5, 59, 177),
-                      size: 22,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _categoryController.text.isEmpty
-                            ? 'Select Category'
-                            : _categoryController.text,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: _categoryController.text.isEmpty
-                              ? Colors.grey
-                              : Colors.black,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_drop_down,
-                      color: Colors.grey.shade600,
-                      size: 28,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-          menuChildren: [
-            // "Add New Category" option first for better visibility
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context, rootNavigator: true).pop();
-                    _showAddCategoryDialog();
-                  },
-                  icon: Icon(
-                    Icons.add_circle_outline,
-                    size: 18,
-                    color: const Color.fromARGB(255, 5, 59, 177),
-                  ),
-                  label: Text(
-                    'Add New Category',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: const Color.fromARGB(255, 5, 59, 177),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const Divider(height: 1, thickness: 1),
-            ..._categories.map((category) {
-              return MenuItemButton(
-                style: MenuItemButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                onPressed: () {
-                  setState(() {
-                    _categoryController.text = category;
-                    _categoryError = null;
-                  });
-                },
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    category,
-                    style: const TextStyle(
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              );
-            }).toList(),
-          ],
-        ),
-      ),
-      if (_categoryError != null)
-        Padding(
-          padding: const EdgeInsets.only(top: 4, left: 4),
-          child: Text(
-            _categoryError!,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.red,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-    ],
-  );
-}
-  Widget _buildSupplierDropdown() {
+  Widget _buildCategoryDropdown() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        const Row(
+          children: [
+            Text(
+              'Category',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.only(left: 2),
+              child: Text(
+                '*',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 56, // Fixed height to prevent layout shift
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _categoryError != null 
+                ? Colors.red 
+                : colorScheme.outline,
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+          ),
+          child: MenuAnchor(
+            builder: (BuildContext context, MenuController controller, Widget? child) {
+              return InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  if (controller.isOpen) {
+                    controller.close();
+                  } else {
+                    controller.open();
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.category_outlined,
+                        color: colorScheme.primary,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _categoryController.text.isEmpty
+                              ? 'Select Category'
+                              : _categoryController.text,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: _categoryController.text.isEmpty
+                                ? colorScheme.onSurface.withOpacity(0.5)
+                                : colorScheme.onSurface,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        color: colorScheme.onSurface.withOpacity(0.5),
+                        size: 28,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+            menuChildren: [
+              // "Add New Category" option first for better visibility
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context, rootNavigator: true).pop();
+                      _showAddCategoryDialog();
+                    },
+                    icon: Icon(
+                      Icons.add_circle_outline,
+                      size: 18,
+                      color: colorScheme.primary,
+                    ),
+                    label: Text(
+                      'Add New Category',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1, thickness: 1),
+              ..._categories.map((category) {
+                return MenuItemButton(
+                  style: MenuItemButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    backgroundColor: isDark ? colorScheme.surface : Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _categoryController.text = category;
+                      _categoryError = null;
+                    });
+                  },
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      category,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: colorScheme.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        if (_categoryError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              _categoryError!,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.red,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSupplierDropdown() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
           'Supplier',
           style: TextStyle(
             fontSize: 15,
-            color: Colors.grey,
+            color: colorScheme.onSurface.withOpacity(0.7),
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1134,11 +1180,11 @@ Widget _buildCategoryDropdown() {
         Container(
           decoration: BoxDecoration(
             border: Border.all(
-              color: Colors.grey.shade300,
+              color: colorScheme.outline,
               width: 1.5,
             ),
             borderRadius: BorderRadius.circular(12),
-            color: Colors.white,
+            color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButtonFormField<String>(
@@ -1155,7 +1201,6 @@ Widget _buildCategoryDropdown() {
                       'Select Supplier (Optional)',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.grey,
                       ),
                     ),
                   ),
@@ -1167,15 +1212,16 @@ Widget _buildCategoryDropdown() {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
                         supplier,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
+                          color: colorScheme.onSurface,
                         ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
                     ),
                   );
-                }).toList(),
+                }),
                 DropdownMenuItem(
                   value: 'new',
                   child: Padding(
@@ -1186,7 +1232,7 @@ Widget _buildCategoryDropdown() {
                         Icon(
                           Icons.add_circle_outline,
                           size: 18,
-                          color: const Color.fromARGB(255, 5, 59, 177),
+                          color: colorScheme.primary,
                         ),
                         const SizedBox(width: 8),
                         Flexible(
@@ -1194,7 +1240,7 @@ Widget _buildCategoryDropdown() {
                             'Add New Supplier',
                             style: TextStyle(
                               fontSize: 16,
-                              color: const Color.fromARGB(255, 5, 59, 177),
+                              color: colorScheme.primary,
                               fontWeight: FontWeight.w500,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -1228,25 +1274,27 @@ Widget _buildCategoryDropdown() {
                   padding: const EdgeInsets.only(left: 12, right: 8),
                   child: Icon(
                     Icons.local_shipping_outlined,
-                    color: const Color.fromARGB(255, 5, 59, 177),
+                    color: colorScheme.primary,
                     size: 22,
                   ),
                 ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
               ),
               icon: Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: Icon(
                   Icons.arrow_drop_down,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.onSurface.withOpacity(0.5),
                   size: 28,
                 ),
               ),
               isExpanded: true,
-              style: const TextStyle(
+              dropdownColor: isDark ? colorScheme.surface : Colors.white,
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
+                color: colorScheme.onSurface,
               ),
             ),
           ),
@@ -1255,19 +1303,22 @@ Widget _buildCategoryDropdown() {
     );
   }
 
-
   void _showAddCategoryDialog() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final categoryController = TextEditingController();
     
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
+          backgroundColor: colorScheme.surface,
+          title: Text(
             'Add New Category',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
             ),
           ),
           content: Column(
@@ -1276,21 +1327,35 @@ Widget _buildCategoryDropdown() {
               TextField(
                 controller: categoryController,
                 autofocus: true,
+                style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Enter category name',
+                  hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.all(16),
+                  filled: true,
+                  fillColor: theme.brightness == Brightness.dark 
+                      ? colorScheme.surfaceContainerHighest 
+                      : Colors.white,
                 ),
-                style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 8),
               Text(
                 'This category will be available for all items',
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
             ],
@@ -1300,6 +1365,7 @@ Widget _buildCategoryDropdown() {
               onPressed: () => Navigator.pop(context),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                foregroundColor: colorScheme.primary,
               ),
               child: const Text(
                 'Cancel',
@@ -1316,27 +1382,39 @@ Widget _buildCategoryDropdown() {
                       _categoryController.text = categoryController.text.trim();
                       _categoryError = null;
                     });
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('"${categoryController.text.trim()}" added successfully'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('"${categoryController.text.trim()}" added successfully'),
+                          backgroundColor: colorScheme.secondary,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    }
                   } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error adding category: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error adding category: $e'),
+                          backgroundColor: colorScheme.error,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
                   }
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 5, 59, 177),
+                backgroundColor: colorScheme.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: const Text(
                 'Add',
@@ -1350,17 +1428,21 @@ Widget _buildCategoryDropdown() {
   }
 
   void _showAddSupplierDialog() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final supplierController = TextEditingController();
     
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
+          backgroundColor: colorScheme.surface,
+          title: Text(
             'Add New Supplier',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
             ),
           ),
           content: Column(
@@ -1369,21 +1451,35 @@ Widget _buildCategoryDropdown() {
               TextField(
                 controller: supplierController,
                 autofocus: true,
+                style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Enter supplier name',
+                  hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.all(16),
+                  filled: true,
+                  fillColor: theme.brightness == Brightness.dark 
+                      ? colorScheme.surfaceContainerHighest 
+                      : Colors.white,
                 ),
-                style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 8),
               Text(
                 'You can add contact details later',
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
             ],
@@ -1393,6 +1489,7 @@ Widget _buildCategoryDropdown() {
               onPressed: () => Navigator.pop(context),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                foregroundColor: colorScheme.primary,
               ),
               child: const Text(
                 'Cancel',
@@ -1408,27 +1505,39 @@ Widget _buildCategoryDropdown() {
                       _suppliers.add(supplierController.text.trim());
                       _supplierController.text = supplierController.text.trim();
                     });
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('"${supplierController.text.trim()}" added successfully'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('"${supplierController.text.trim()}" added successfully'),
+                          backgroundColor: colorScheme.secondary,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    }
                   } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error adding supplier: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error adding supplier: $e'),
+                          backgroundColor: colorScheme.error,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
                   }
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 5, 59, 177),
+                backgroundColor: colorScheme.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: const Text(
                 'Add',
@@ -1439,5 +1548,21 @@ Widget _buildCategoryDropdown() {
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    _skuController.dispose();
+    _categoryController.dispose();
+    _priceController.dispose();
+    _costController.dispose();
+    _quantityController.dispose();
+    _lowStockController.dispose();
+    _unitController.dispose();
+    _locationController.dispose();
+    _supplierController.dispose();
+    super.dispose();
   }
 }

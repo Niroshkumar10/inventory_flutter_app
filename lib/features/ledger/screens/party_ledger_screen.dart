@@ -9,11 +9,11 @@ class PartyLedgerScreen extends StatefulWidget {
   final String partyType;
   
   const PartyLedgerScreen({
-    Key? key,
+    super.key,
     required this.userMobile,
     required this.party,
     required this.partyType,
-  }) : super(key: key);
+  });
 
   @override
   State<PartyLedgerScreen> createState() => _PartyLedgerScreenState();
@@ -32,24 +32,37 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
 
   Future<void> _loadCurrentBalance() async {
     final balance = await _ledgerService.getPartyBalance(widget.party.id);
-    setState(() => _currentBalance = balance);
+    if (mounted) {
+      setState(() => _currentBalance = balance);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final isCustomer = widget.partyType == 'customer';
+
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: Text('${widget.party.name} Ledger'),
-        backgroundColor: const Color.fromARGB(255, 7, 54, 114),
-        foregroundColor: Colors.black,
-        elevation: 0,
-       
+        title: Text(
+          '${widget.party.name} Ledger',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        elevation: 0.5,
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
       body: Column(
         children: [
           // Balance Card
           Card(
             margin: const EdgeInsets.all(16),
+            color: colorScheme.surface,
+            elevation: isDark ? 4 : 2,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -60,11 +73,12 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Current Balance',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       Text(
@@ -72,14 +86,14 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: _currentBalance >= 0 ? Colors.green : Colors.red,
+                          color: _currentBalance >= 0 ? colorScheme.secondary : colorScheme.error,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    widget.partyType == 'customer'
+                    isCustomer
                         ? (_currentBalance >= 0
                             ? 'Customer owes you'
                             : 'You owe customer')
@@ -87,7 +101,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                             ? 'You owe supplier'
                             : 'Supplier owes you'),
                     style: TextStyle(
-                      color: Colors.grey[600],
+                      color: colorScheme.onSurface.withOpacity(0.6),
                       fontSize: 12,
                     ),
                   ),
@@ -100,24 +114,33 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Card(
+              color: colorScheme.surface,
+              elevation: isDark ? 4 : 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: widget.partyType == 'customer' 
-                      ? Colors.blue.shade100 
-                      : Colors.orange.shade100,
+                  backgroundColor: isCustomer 
+                      ? colorScheme.secondary.withOpacity(0.2)
+                      : colorScheme.tertiary.withOpacity(0.2),
                   child: Icon(
-                    widget.partyType == 'customer' ? Icons.person : Icons.store,
-                    color: widget.partyType == 'customer' ? Colors.blue : Colors.orange,
+                    isCustomer ? Icons.person : Icons.store,
+                    color: isCustomer ? colorScheme.secondary : colorScheme.tertiary,
                   ),
                 ),
                 title: Text(
                   widget.party.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
                 subtitle: Text(
-                  widget.partyType == 'customer' 
+                  isCustomer 
                       ? widget.party.mobile 
                       : widget.party.phone,
+                  style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                 ),
               ),
             ),
@@ -134,7 +157,25 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
               ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(
+                    child: CircularProgressIndicator(color: colorScheme.primary),
+                  );
+                }
+                
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error, color: colorScheme.error, size: 50),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Error: ${snapshot.error}',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
+                      ],
+                    ),
+                  );
                 }
                 
                 final entries = snapshot.data ?? [];
@@ -143,12 +184,17 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                   return _emptyState();
                 }
                 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: entries.length,
-                  itemBuilder: (context, index) {
-                    return _transactionItem(entries[index]);
-                  },
+                return RefreshIndicator(
+                  onRefresh: _loadCurrentBalance,
+                  color: colorScheme.primary,
+                  backgroundColor: colorScheme.surface,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: entries.length,
+                    itemBuilder: (context, index) {
+                      return _transactionItem(entries[index]);
+                    },
+                  ),
                 );
               },
             ),
@@ -159,8 +205,17 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
   }
 
   Widget _transactionItem(LedgerEntry entry) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: isDark ? 4 : 2,
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: entry.typeColor.withOpacity(0.2),
@@ -168,22 +223,31 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
         ),
         title: Text(
           entry.description,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
             Chip(
-              label: Text(entry.typeLabel),
+              label: Text(
+                entry.typeLabel,
+                style: TextStyle(color: entry.typeColor, fontSize: 10),
+              ),
               backgroundColor: entry.typeColor.withOpacity(0.1),
-              labelStyle: TextStyle(color: entry.typeColor, fontSize: 10),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+              side: BorderSide(color: entry.typeColor.withOpacity(0.3)),
             ),
             const SizedBox(height: 4),
             Text(
-              entry.date.toString().split(' ')[0],
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              _formatDate(entry.date),
+              style: TextStyle(
+                fontSize: 11,
+                color: colorScheme.onSurface.withOpacity(0.5),
+              ),
             ),
           ],
         ),
@@ -195,7 +259,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
               '₹${entry.amount.toStringAsFixed(2)}',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: entry.isDebit() ? Colors.green : Colors.red,
+                color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
                 fontSize: 16,
               ),
             ),
@@ -204,7 +268,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
               'Bal: ₹${entry.balance.toStringAsFixed(2)}',
               style: TextStyle(
                 fontSize: 11,
-                color: entry.balance >= 0 ? Colors.green : Colors.red,
+                color: entry.balance >= 0 ? colorScheme.secondary : colorScheme.error,
               ),
             ),
           ],
@@ -215,20 +279,33 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
   }
 
   Widget _emptyState() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_long, size: 80, color: Colors.grey),
+          Icon(
+            Icons.receipt_long, 
+            size: 80, 
+            color: colorScheme.onSurface.withOpacity(0.2),
+          ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'No transactions yet',
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+            style: TextStyle(
+              color: colorScheme.onSurface.withOpacity(0.5),
+              fontSize: 16,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Add your first transaction with ${widget.party.name}',
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
+            style: TextStyle(
+              color: colorScheme.onSurface.withOpacity(0.5),
+              fontSize: 14,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -236,39 +313,47 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
     );
   }
 
- 
-
   void _showEntryDetails(LedgerEntry entry) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Transaction Details'),
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Transaction Details',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _detailRow('Date', entry.date.toString().split(' ')[0]),
-              _detailRow('Type', entry.typeLabel),
-              _detailRow('Description', entry.description),
-              _detailRow('Reference', entry.reference.isNotEmpty ? entry.reference : 'N/A'),
-              _detailRow('Amount', '₹${entry.amount.toStringAsFixed(2)}'),
-              _detailRow('Balance', '₹${entry.balance.toStringAsFixed(2)}'),
-              if (entry.notes.isNotEmpty) _detailRow('Notes', entry.notes),
+              _detailRow('Date', _formatDate(entry.date), colorScheme),
+              _detailRow('Type', entry.typeLabel, colorScheme),
+              _detailRow('Description', entry.description, colorScheme),
+              _detailRow('Reference', entry.reference.isNotEmpty ? entry.reference : 'N/A', colorScheme),
+              _detailRow('Amount', '₹${entry.amount.toStringAsFixed(2)}', colorScheme),
+              _detailRow('Balance', '₹${entry.balance.toStringAsFixed(2)}', colorScheme),
+              if (entry.notes.isNotEmpty) _detailRow('Notes', entry.notes, colorScheme),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(
+              'Close',
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _detailRow(String label, String value) {
+  Widget _detailRow(String label, String value, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -278,13 +363,25 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
             width: 100,
             child: Text(
               '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(value)),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.8)),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 }

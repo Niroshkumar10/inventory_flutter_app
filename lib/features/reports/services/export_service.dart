@@ -1242,11 +1242,11 @@ class ExportService {
     if (dataRows.isNotEmpty) {
       final headers = dataRows.first.keys.toList();
       csv += '"REPORT DATA"\n';
-      csv += headers.map((h) => '"${_formatColumnName(h)}"').join(',') + '\n';
+      csv += '${headers.map((h) => '"${_formatColumnName(h)}"').join(',')}\n';
       
       for (var row in dataRows) {
         final rowData = headers.map((h) => '"${_formatCsvCellValue(h, row[h])}"').join(',');
-        csv += rowData + '\n';
+        csv += '$rowData\n';
       }
     } else {
       csv += '"REPORT DATA"\n';

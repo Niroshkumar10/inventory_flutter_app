@@ -1,5 +1,5 @@
 // lib/features/reports/screens/reports_dashboard_screen.dart
-import 'package:flutter/foundation.dart'; // Add this import
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,7 +10,7 @@ import '../../session/session_service_new.dart';
 import '../services/export_service.dart';
 
 class ReportsDashboardScreen extends StatefulWidget {
-  const ReportsDashboardScreen({Key? key}) : super(key: key);
+  const ReportsDashboardScreen({super.key});
 
   @override
   State<ReportsDashboardScreen> createState() => _ReportsDashboardScreenState();
@@ -18,15 +18,13 @@ class ReportsDashboardScreen extends StatefulWidget {
 
 class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
   final ReportService _reportService = ReportService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ExportService _exportService = ExportService();
   
   final List<String> _periods = ['Today', 'This Week', 'This Month', 'Last Month', 'Custom'];
   String _selectedPeriod = 'This Month';
   int _selectedTab = 0;
+  String _searchQuery = '';
   
-  List<ReportSummary> _summaries = [];
   List<SalesReport> _salesReports = [];
   List<PurchaseReport> _purchaseReports = [];
   List<InventoryReport> _inventoryReports = [];
@@ -39,8 +37,9 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
   DateTime _endDate = DateTime.now();
   DateTimeRange? _selectedDateRange;
 
-  // Dynamic user mobile - will be loaded from auth/storage
   String? _userMobile;
+  String _paymentStatusFilter = 'all';
+  String _sortBy = 'date_desc';
 
   @override
   void initState() {
@@ -50,58 +49,37 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
 
   Future<void> _loadCurrentUserAndReports() async {
     try {
-      // ✅ USE SessionServiceNew
       _userMobile = await SessionServiceNew.getUserId();
-      
       if (_userMobile == null || _userMobile!.isEmpty) {
-        print('❌ No user mobile found via SessionService');
         _showError('Please login to view reports');
         setState(() => _isLoading = false);
         return;
       }
-      
-      print('👤 Reports using mobile from SessionService: $_userMobile');
       await _loadReports();
-      
     } catch (e) {
-      print('❌ Error loading user via SessionService: $e');
       setState(() => _isLoading = false);
       _showError('Failed to load user: $e');
     }
   }
 
   Future<void> _loadReports() async {
-    if (_userMobile == null || _userMobile!.isEmpty) {
-      print('❌ Cannot load reports: no user mobile available');
-      _showError('User information not available');
-      setState(() => _isLoading = false);
-      return;
-    }
+    if (_userMobile == null) return;
     
     setState(() => _isLoading = true);
     
     try {
-      print('=== LOADING REPORTS FOR USER: $_userMobile ===');
-      print('Date range: $_startDate to $_endDate');
-
-      // Load all reports in parallel for better performance
       final futures = await Future.wait([
-        _reportService.getDashboardSummary(
-          userMobile: _userMobile!,
-          startDate: _startDate,
-          endDate: _endDate,
-        ),
         _reportService.getSalesReports(
           userMobile: _userMobile!,
           startDate: _startDate,
           endDate: _endDate,
         ),
-        _reportService.getInventoryReports(userMobile: _userMobile!),
         _reportService.getPurchaseReports(
           userMobile: _userMobile!,
           startDate: _startDate,
           endDate: _endDate,
         ),
+        _reportService.getInventoryReports(userMobile: _userMobile!),
         _reportService.getCustomerReports(
           userMobile: _userMobile!,
           startDate: _startDate,
@@ -115,187 +93,2271 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
       ]);
 
       setState(() {
-        _summaries = futures[0] as List<ReportSummary>;
-        _salesReports = futures[1] as List<SalesReport>;
+        _salesReports = futures[0] as List<SalesReport>;
+        _purchaseReports = futures[1] as List<PurchaseReport>;
         _inventoryReports = futures[2] as List<InventoryReport>;
-        _purchaseReports = futures[3] as List<PurchaseReport>;
-        _customerReports = futures[4] as List<CustomerReport>;
-        _supplierReports = futures[5] as List<SupplierReport>;
+        _customerReports = futures[3] as List<CustomerReport>;
+        _supplierReports = futures[4] as List<SupplierReport>;
         _isLoading = false;
       });
-      
-      print('✅ Reports loaded successfully for user: $_userMobile');
-      
-    } catch (e, stackTrace) {
-      print('❌ ERROR loading reports: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       setState(() => _isLoading = false);
-      _showError('Failed to load reports: ${e.toString()}');
+      _showError('Failed to load reports: $e');
     }
   }
 
-Future<void> _debugSupplierData() async {
-  if (_userMobile == null) {
-    print('❌ Cannot debug: no user mobile available');
-    return;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDark ? colorScheme.background : const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        title: Text(
+          'Reports',
+          style: TextStyle(
+            fontSize: 20, 
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        backgroundColor: colorScheme.surface,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
+          onPressed: () => Navigator.pop(context),
+        ),
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        actions: [
+          if (!_isExporting)
+            IconButton(
+              icon: Icon(Icons.download, color: colorScheme.onSurface),
+              onPressed: _showExportDialog,
+            ),
+          IconButton(
+            icon: Icon(Icons.refresh, color: colorScheme.onSurface),
+            onPressed: _loadReports,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
+          : _userMobile == null
+              ? _buildNotLoggedInState()
+              : _buildMainContent(),
+    );
   }
-  
-  print('\n🔍 DEBUGGING SUPPLIER DATA FOR USER: $_userMobile\n');
-  
-  try {
-    // 1. Check suppliers in Firestore
-    final suppliersSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(_userMobile)
-        .collection('suppliers')
-        .where('isActive', isEqualTo: true)
-        .get();
+
+  Widget _buildMainContent() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Date Range Card
+          _buildDateRangeCard(),
+          
+          // Report Type Selector
+          _buildReportTypeSelector(),
+          
+          // Dynamic Content based on selected tab
+          _buildReportContent(),
+          
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateRangeCard() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Material(
+          color: isDark ? colorScheme.surface : Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with period dropdown
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.calendar_month_rounded,
+                            size: 20,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Date Range',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    // Period dropdown - Mobile optimized
+                    Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: colorScheme.primary.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedPeriod,
+                          isDense: true,
+                          icon: Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: colorScheme.primary,
+                              size: 22,
+                            ),
+                          ),
+                          style: TextStyle(
+                            color: colorScheme.primary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          items: _periods.map((period) {
+                            return DropdownMenuItem<String>(
+                              value: period,
+                              child: Text(
+                                period,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              _selectPeriod(value);
+                            }
+                          },
+                          dropdownColor: isDark ? colorScheme.surface : Colors.white,
+                          elevation: isDark ? 8 : 4,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Date range boxes
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildDateBox(
+                        'START DATE',
+                        DateFormat('dd MMM yyyy').format(_startDate),
+                        Icons.calendar_today_rounded,
+                      ),
+                    ),
+                    
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 18,
+                          color: colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                    
+                    Expanded(
+                      child: _buildDateBox(
+                        'END DATE',
+                        DateFormat('dd MMM yyyy').format(_endDate),
+                        Icons.calendar_today_rounded,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                if (_selectedPeriod == 'Custom') ...[
+                  const SizedBox(height: 16),
+                  // Custom range button
+                  Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: TextButton.icon(
+                        onPressed: () {
+                          _selectCustomDateRange();
+                        },
+                        icon: Icon(
+                          Icons.edit_calendar_rounded,
+                          size: 18,
+                          color: colorScheme.primary,
+                        ),
+                        label: Text(
+                          'Change Custom Range',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateBox(String label, String date, IconData icon) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11, 
+              color: colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: colorScheme.primary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  date,
+                  style: TextStyle(
+                    fontSize: 13, 
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportTypeSelector() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final types = ['Sales', 'Purchase', 'P&L', 'Inventory', 'Customer', 'Supplier'];
     
-    print('📋 Suppliers found: ${suppliersSnapshot.docs.length}');
-    for (final doc in suppliersSnapshot.docs) {
-      final data = doc.data();
-      print('   👥 Name: "${data['name']}", ID: ${doc.id}');
-      print('      Phone: ${data['phone'] ?? "N/A"}, Email: ${data['email'] ?? "N/A"}');
-      print('      isActive: ${data['isActive'] ?? true}');
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      height: 90,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: types.length,
+        itemBuilder: (context, index) {
+          final isSelected = _selectedTab == index;
+          final tabColor = _getTabColor(index);
+          
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedTab = index;
+                _paymentStatusFilter = 'all';
+              });
+            },
+            child: Container(
+              width: 90,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: isSelected 
+                    ? tabColor.withOpacity(0.1) 
+                    : colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? tabColor : colorScheme.outline,
+                  width: isSelected ? 2 : 1,
+                ),
+                boxShadow: isSelected ? null : [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.05),
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _getTabIcon(index),
+                    color: isSelected ? tabColor : colorScheme.onSurface.withOpacity(0.6),
+                    size: 26,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    types[index],
+                    style: TextStyle(
+                      color: isSelected ? tabColor : colorScheme.onSurface.withOpacity(0.7),
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  IconData _getTabIcon(int index) {
+    switch (index) {
+      case 0: return Icons.trending_up;
+      case 1: return Icons.shopping_cart;
+      case 2: return Icons.analytics;
+      case 3: return Icons.inventory;
+      case 4: return Icons.people;
+      case 5: return Icons.group;
+      default: return Icons.receipt;
     }
-    
-    // 2. Check purchase bills
-    final purchasesSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(_userMobile)
-        .collection('bills')
-        .where('type', isEqualTo: 'purchase')
-        .where('date', isGreaterThanOrEqualTo: _startDate)
-        .where('date', isLessThanOrEqualTo: _endDate)
-        .limit(10)
-        .get();
-    
-    print('\n📋 Purchase bills found: ${purchasesSnapshot.docs.length}');
-    for (final doc in purchasesSnapshot.docs) {
-      final data = doc.data();
-      print('   🛒 Supplier: "${data['partyName']}"');
-      print('      Amount: ₹${data['totalAmount']}, Due: ₹${data['amountDue']}');
-      print('      Date: ${data['date']}, Status: ${data['paymentStatus']}');
+  }
+
+  Color _getTabColor(int index) {
+    switch (index) {
+      case 0: return Colors.green;
+      case 1: return Colors.orange;
+      case 2: return Colors.blue;
+      case 3: return Colors.purple;
+      case 4: return Colors.teal;
+      case 5: return Colors.indigo;
+      default: return Colors.blue;
     }
-    
-    // 3. Check what getSupplierReports returns
-    print('\n🔄 Testing getSupplierReports()...');
-    try {
-      final testReports = await _reportService.getSupplierReports(
+  }
+
+  Widget _buildReportContent() {
+    switch (_selectedTab) {
+      case 0: return _buildSalesReport();
+      case 1: return _buildPurchaseReport();
+      case 2: return _buildProfitLossReport();
+      case 3: return _buildInventoryReport();
+      case 4: return _buildCustomerReport();
+      case 5: return _buildSupplierReport();
+      default: return _buildSalesReport();
+    }
+  }
+
+  // Sales Report
+  Widget _buildSalesReport() {
+    if (_salesReports.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.trending_up,
+        title: 'No Sales Data',
+        message: 'No sales transactions found for this period',
+        color: Colors.green,
+      );
+    }
+
+    final filteredReports = _filterAndSortReports(_salesReports);
+    final totalSales = _salesReports.fold(0.0, (sum, r) => sum + r.totalAmount);
+    final totalDue = _salesReports.fold(0.0, (sum, r) => sum + r.amountDue);
+    final totalPaid = _salesReports.fold(0.0, (sum, r) => sum + r.amountPaid);
+
+    return Column(
+      children: [
+        // Summary Cards
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Total Sales',
+                  '₹${NumberFormat('#,##0.00').format(totalSales)}',
+                  Icons.trending_up,
+                  Colors.green,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Collected',
+                  '₹${NumberFormat('#,##0.00').format(totalPaid)}',
+                  Icons.check_circle,
+                  Colors.blue,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Due',
+                  '₹${NumberFormat('#,##0.00').format(totalDue)}',
+                  Icons.access_time,
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Invoices',
+                  '${_salesReports.length}',
+                  Icons.receipt,
+                  Colors.purple,
+                  isCount: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Filters
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Payment Status',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildStatusChip('All', 'all', Colors.blue),
+                    _buildStatusChip('Paid', 'paid', Colors.green),
+                    _buildStatusChip('Partial', 'partial', Colors.orange),
+                    _buildStatusChip('Due', 'due', Colors.red),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Sort By',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  _buildSortChip('Newest', 'date_desc'),
+                  _buildSortChip('Oldest', 'date_asc'),
+                  _buildSortChip('Amount ↑', 'amount_asc'),
+                  _buildSortChip('Amount ↓', 'amount_desc'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                decoration: InputDecoration(
+                  hintText: 'Search by invoice or customer',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search, 
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(context).colorScheme.surfaceContainerHighest
+                      : Colors.grey.shade100,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onChanged: (value) => setState(() => _searchQuery = value),
+              ),
+            ],
+          ),
+        ),
+
+        // Results count
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Showing ${filteredReports.length} of ${_salesReports.length} transactions',
+            style: TextStyle(
+              fontSize: 13, 
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+        ),
+
+        // List
+        ...filteredReports.map((report) => _buildSalesCard(report)),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, Color color, {bool isCount = false}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12, 
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSalesCard(SalesReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green.shade400, Colors.green.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Icon(Icons.shopping_cart, color: Colors.white, size: 22),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      report.invoiceNumber,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 16,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      report.customerName,
+                      style: TextStyle(
+                        fontSize: 14, 
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildStatusBadge(report.paymentStatus),
+            ],
+          ),
+          Divider(height: 20, color: colorScheme.outline),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 14, color: colorScheme.onSurface.withOpacity(0.5)),
+                  const SizedBox(width: 4),
+                  Text(
+                    report.formattedDate,
+                    style: TextStyle(
+                      fontSize: 13, 
+                      color: colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '₹${NumberFormat('#,##0.00').format(report.totalAmount)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 18, 
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.inventory, size: 14, color: colorScheme.onSurface.withOpacity(0.5)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    report.items.map((i) => i.name).join(', '),
+                    style: TextStyle(
+                      fontSize: 13, 
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Purchase Report
+  Widget _buildPurchaseReport() {
+    if (_purchaseReports.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.shopping_cart,
+        title: 'No Purchase Data',
+        message: 'No purchase transactions found',
+        color: Colors.orange,
+      );
+    }
+
+    final filteredReports = _filterAndSortReports(_purchaseReports);
+    final totalPurchases = _purchaseReports.fold(0.0, (sum, r) => sum + r.totalAmount);
+    final totalDue = _purchaseReports.fold(0.0, (sum, r) => sum + r.amountDue);
+    final totalPaid = _purchaseReports.fold(0.0, (sum, r) => sum + r.amountPaid);
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Total Purchases',
+                  '₹${NumberFormat('#,##0.00').format(totalPurchases)}',
+                  Icons.shopping_cart,
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Paid',
+                  '₹${NumberFormat('#,##0.00').format(totalPaid)}',
+                  Icons.check_circle,
+                  Colors.green,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Due',
+                  '₹${NumberFormat('#,##0.00').format(totalDue)}',
+                  Icons.access_time,
+                  Colors.red,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Invoices',
+                  '${_purchaseReports.length}',
+                  Icons.receipt,
+                  Colors.purple,
+                  isCount: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Filters
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Payment Status',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildStatusChip('All', 'all', Colors.blue),
+                    _buildStatusChip('Paid', 'paid', Colors.green),
+                    _buildStatusChip('Partial', 'partial', Colors.orange),
+                    _buildStatusChip('Due', 'due', Colors.red),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Sort By',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  _buildSortChip('Newest', 'date_desc'),
+                  _buildSortChip('Oldest', 'date_asc'),
+                  _buildSortChip('Amount ↑', 'amount_asc'),
+                  _buildSortChip('Amount ↓', 'amount_desc'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                decoration: InputDecoration(
+                  hintText: 'Search by invoice or supplier',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search, 
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(context).colorScheme.surfaceContainerHighest
+                      : Colors.grey.shade100,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onChanged: (value) => setState(() => _searchQuery = value),
+              ),
+            ],
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Showing ${filteredReports.length} of ${_purchaseReports.length} transactions',
+            style: TextStyle(
+              fontSize: 13, 
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+        ),
+
+        ...filteredReports.map((report) => _buildPurchaseCard(report)),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildPurchaseCard(PurchaseReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.orange.shade400, Colors.orange.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Icon(Icons.inventory, color: Colors.white, size: 22),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      report.invoiceNumber,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 16,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      report.supplierName,
+                      style: TextStyle(
+                        fontSize: 14, 
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildStatusBadge(report.paymentStatus),
+            ],
+          ),
+          Divider(height: 20, color: colorScheme.outline),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 14, color: colorScheme.onSurface.withOpacity(0.5)),
+                  const SizedBox(width: 4),
+                  Text(
+                    report.formattedDate,
+                    style: TextStyle(
+                      fontSize: 13, 
+                      color: colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '₹${NumberFormat('#,##0.00').format(report.totalAmount)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 18, 
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.inventory, size: 14, color: colorScheme.onSurface.withOpacity(0.5)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    report.items.map((i) => i.name).join(', '),
+                    style: TextStyle(
+                      fontSize: 13, 
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Profit & Loss Report
+  Widget _buildProfitLossReport() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return FutureBuilder<ProfitLossReport>(
+      future: _reportService.getProfitLossReport(
         userMobile: _userMobile!,
         startDate: _startDate,
         endDate: _endDate,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        
+        if (snapshot.hasError || !snapshot.hasData) {
+          return _buildEmptyState(
+            icon: Icons.analytics,
+            title: 'No Data Available',
+            message: 'No profit/loss data for this period',
+            color: Colors.blue,
+          );
+        }
+        
+        final report = snapshot.data!;
+        final isProfit = report.netProfit >= 0;
+        final grossMargin = report.grossProfit > 0 && report.totalCost > 0
+            ? (report.grossProfit / (report.grossProfit + report.totalCost)) * 100
+            : 0;
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Period
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
+                ),
+                child: Text(
+                  '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}',
+                  style: TextStyle(
+                    color: colorScheme.primary, 
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // P&L Card
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.shadow.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    _buildPLRow('Revenue', report.formattedRevenue, Colors.green),
+                    const SizedBox(height: 12),
+                    _buildPLRow('COGS', '₹${NumberFormat('#,##0.00').format(report.totalCost)}', Colors.red),
+                    Divider(height: 24, color: colorScheme.outline),
+                    _buildPLRow('Gross Profit', '₹${NumberFormat('#,##0.00').format(report.grossProfit)}', Colors.blue, isBold: true),
+                    if (report.grossProfit > 0) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Gross Margin: ${grossMargin.toStringAsFixed(1)}%',
+                          style: TextStyle(
+                            color: colorScheme.primary, 
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _buildPLRow('Expenses', '₹${NumberFormat('#,##0.00').format(report.expenses)}', Colors.orange),
+                    Divider(height: 24, thickness: 1, color: colorScheme.outline),
+                    
+                    // Net Profit
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isProfit ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: isProfit ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surface,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isProfit ? Icons.trending_up : Icons.trending_down,
+                              color: isProfit ? Colors.green : Colors.red,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isProfit ? 'Net Profit' : 'Net Loss',
+                                  style: TextStyle(
+                                    color: isProfit ? Colors.green : Colors.red,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  report.formattedProfit,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: isProfit ? Colors.green : Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: isProfit ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3)),
+                            ),
+                            child: Text(
+                              '${report.profitMargin.toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isProfit ? Colors.green : Colors.red,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPLRow(String label, String value, Color color, {bool isBold = false}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Inventory Report
+  Widget _buildInventoryReport() {
+    if (_inventoryReports.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.inventory,
+        title: 'No Inventory Data',
+        message: 'No inventory items found',
+        color: Colors.purple,
       );
-      print('   ✅ getSupplierReports returned: ${testReports.length} reports');
-      
-      if (testReports.isEmpty) {
-        print('   ℹ️ No reports returned. Possible reasons:');
-        print('      • No purchase bills in date range');
-        print('      • Supplier names in bills don\'t match supplier names');
-        print('      • Suppliers might not be active');
+    }
+
+    final totalValue = _inventoryReports.fold(0.0, (sum, r) => sum + r.totalValue);
+    final lowStock = _inventoryReports.where((r) => r.status == 'low-stock').length;
+    final outOfStock = _inventoryReports.where((r) => r.status == 'out-of-stock').length;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Total Value',
+                  '₹${NumberFormat('#,##0.00').format(totalValue)}',
+                  Icons.attach_money,
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Items',
+                  '${_inventoryReports.length}',
+                  Icons.inventory,
+                  Colors.green,
+                  isCount: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Low Stock',
+                  '$lowStock',
+                  Icons.warning,
+                  Colors.orange,
+                  isCount: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Out of Stock',
+                  '$outOfStock',
+                  Icons.error,
+                  Colors.red,
+                  isCount: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        ..._inventoryReports.map((report) => _buildInventoryCard(report)),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildInventoryCard(InventoryReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    Color statusColor;
+    String statusText;
+    
+    switch (report.status) {
+      case 'in-stock':
+        statusColor = Colors.green;
+        statusText = 'In Stock';
+        break;
+      case 'low-stock':
+        statusColor = Colors.orange;
+        statusText = 'Low Stock';
+        break;
+      case 'out-of-stock':
+        statusColor = Colors.red;
+        statusText = 'Out of Stock';
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = report.status;
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.inventory_2, color: statusColor, size: 26),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  report.name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 16,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  report.sku,
+                  style: TextStyle(
+                    fontSize: 13, 
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 11, 
+                          color: statusColor, 
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${report.quantity} ${report.unit}',
+                      style: TextStyle(
+                        fontSize: 13, 
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                report.formattedValue,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 16,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '@ ₹${report.price.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 12, 
+                  color: colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Customer Report
+  Widget _buildCustomerReport() {
+    if (_customerReports.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.people,
+        title: 'No Customer Data',
+        message: 'No customer transactions found',
+        color: Colors.teal,
+      );
+    }
+
+    final totalRevenue = _customerReports.fold(0.0, (sum, r) => sum + r.totalSpent);
+    final avgPurchase = totalRevenue / _customerReports.length;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Customers',
+                  '${_customerReports.length}',
+                  Icons.people,
+                  Colors.teal,
+                  isCount: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Revenue',
+                  '₹${NumberFormat('#,##0.00').format(totalRevenue)}',
+                  Icons.trending_up,
+                  Colors.green,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _buildStatCard(
+            'Avg Purchase',
+            '₹${NumberFormat('#,##0.00').format(avgPurchase)}',
+            Icons.shopping_cart,
+            Colors.purple,
+          ),
+        ),
+        ..._customerReports.map((report) => _buildCustomerCard(report)),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildCustomerCard(CustomerReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.teal.shade400, Colors.teal.shade600],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(
+                report.name[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  report.name, 
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 16,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  report.mobile, 
+                  style: TextStyle(
+                    fontSize: 13, 
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${report.totalPurchases} purchases',
+                    style: TextStyle(
+                      fontSize: 11, 
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                report.formattedTotalSpent,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 16, 
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                report.formattedOutstanding,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: report.outstandingBalance > 0 ? Colors.red : Colors.green,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Supplier Report
+  Widget _buildSupplierReport() {
+    if (_supplierReports.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.group,
+        title: 'No Supplier Data',
+        message: 'No supplier transactions found',
+        color: Colors.indigo,
+      );
+    }
+
+    final totalPurchases = _supplierReports.fold(0.0, (sum, r) => sum + r.totalPurchases);
+    final avgOrder = totalPurchases / _supplierReports.length;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Suppliers',
+                  '${_supplierReports.length}',
+                  Icons.group,
+                  Colors.indigo,
+                  isCount: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Purchases',
+                  '₹${NumberFormat('#,##0.00').format(totalPurchases)}',
+                  Icons.shopping_cart,
+                  Colors.orange,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _buildStatCard(
+            'Avg Order',
+            '₹${NumberFormat('#,##0.00').format(avgOrder)}',
+            Icons.trending_up,
+            Colors.purple,
+          ),
+        ),
+        ..._supplierReports.map((report) => _buildSupplierCard(report)),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildSupplierCard(SupplierReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.indigo.shade400, Colors.indigo.shade600],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(
+                report.name[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  report.name, 
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 16,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  report.phone, 
+                  style: TextStyle(
+                    fontSize: 13, 
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${report.totalOrders} orders',
+                        style: TextStyle(
+                          fontSize: 11, 
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      report.formattedLastOrder,
+                      style: TextStyle(
+                        fontSize: 11, 
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                report.formattedPurchases,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 16, 
+                  color: Colors.orange,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                report.formattedPending,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: report.pendingPayment > 0 ? Colors.red : Colors.green,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper Methods
+  List<T> _filterAndSortReports<T>(List<T> reports) {
+    var filtered = reports;
+    
+    if (_searchQuery.isNotEmpty) {
+      if (T == SalesReport) {
+        filtered = (reports as List<SalesReport>)
+            .where((r) => 
+                r.invoiceNumber.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                r.customerName.toLowerCase().contains(_searchQuery.toLowerCase()))
+            .toList() as List<T>;
+      } else if (T == PurchaseReport) {
+        filtered = (reports as List<PurchaseReport>)
+            .where((r) => 
+                r.invoiceNumber.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                r.supplierName.toLowerCase().contains(_searchQuery.toLowerCase()))
+            .toList() as List<T>;
       }
-    } catch (e) {
-      print('   ❌ Error in getSupplierReports: $e');
     }
     
-    print('\n🔍 DEBUG COMPLETE\n');
+    if (_paymentStatusFilter != 'all') {
+      if (T == SalesReport) {
+        filtered = (filtered as List<SalesReport>)
+            .where((r) => r.paymentStatus == _paymentStatusFilter)
+            .toList() as List<T>;
+      } else if (T == PurchaseReport) {
+        filtered = (filtered as List<PurchaseReport>)
+            .where((r) => r.paymentStatus == _paymentStatusFilter)
+            .toList() as List<T>;
+      }
+    }
     
-    // Show debug info in a dialog
-    _showDebugDialog(suppliersSnapshot.docs.length, purchasesSnapshot.docs.length);
+    if (T == SalesReport) {
+      final list = filtered as List<SalesReport>;
+      switch (_sortBy) {
+        case 'date_desc': list.sort((a, b) => b.date.compareTo(a.date)); break;
+        case 'date_asc': list.sort((a, b) => a.date.compareTo(b.date)); break;
+        case 'amount_desc': list.sort((a, b) => b.totalAmount.compareTo(a.totalAmount)); break;
+        case 'amount_asc': list.sort((a, b) => a.totalAmount.compareTo(b.totalAmount)); break;
+      }
+      filtered = list as List<T>;
+    } else if (T == PurchaseReport) {
+      final list = filtered as List<PurchaseReport>;
+      switch (_sortBy) {
+        case 'date_desc': list.sort((a, b) => b.date.compareTo(a.date)); break;
+        case 'date_asc': list.sort((a, b) => a.date.compareTo(b.date)); break;
+        case 'amount_desc': list.sort((a, b) => b.totalAmount.compareTo(a.totalAmount)); break;
+        case 'amount_asc': list.sort((a, b) => a.totalAmount.compareTo(b.totalAmount)); break;
+      }
+      filtered = list as List<T>;
+    }
     
-  } catch (e) {
-    print('❌ Debug error: $e');
+    return filtered;
   }
-}
 
-void _showDebugDialog(int supplierCount, int purchaseCount) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Data Debug Info'),
-      content: SingleChildScrollView(
+  Widget _buildStatusChip(String label, String value, Color color) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final isSelected = _paymentStatusFilter == value;
+    
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label, style: TextStyle(fontSize: 12)),
+        selected: isSelected,
+        onSelected: (selected) => setState(() => _paymentStatusFilter = value),
+        backgroundColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade100,
+        selectedColor: color.withOpacity(0.2),
+        labelStyle: TextStyle(
+          color: isSelected ? color : colorScheme.onSurface.withOpacity(0.7),
+        ),
+        checkmarkColor: color,
+        side: isSelected 
+            ? BorderSide(color: color)
+            : BorderSide(color: colorScheme.outline),
+      ),
+    );
+  }
+
+  Widget _buildSortChip(String label, String value) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final isSelected = _sortBy == value;
+    
+    return ChoiceChip(
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      selected: isSelected,
+      onSelected: (selected) => setState(() => _sortBy = value),
+      backgroundColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade100,
+      selectedColor: colorScheme.primary.withOpacity(0.2),
+      labelStyle: TextStyle(
+        color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.7),
+      ),
+      side: isSelected 
+          ? BorderSide(color: colorScheme.primary)
+          : BorderSide(color: colorScheme.outline),
+    );
+  }
+
+  Widget _buildEmptyState({required IconData icon, required String title, required String message, required Color color}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('👤 User: $_userMobile'),
-            const SizedBox(height: 8),
-            Text('📅 Period: ${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}'),
-            const SizedBox(height: 8),
-            Text('👥 Active suppliers found: $supplierCount'),
-            const SizedBox(height: 8),
-            Text('🛒 Purchase bills in period: $purchaseCount'),
-            const SizedBox(height: 8),
-            Text('📊 Supplier reports loaded: ${_supplierReports.length}'),
-            const SizedBox(height: 16),
-            const Text(
-              'Possible issues:',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 60, color: color.withOpacity(0.5)),
             ),
-            const SizedBox(height: 4),
-            const Text('• No purchase bills in this period'),
-            const Text('• Supplier names in bills don\'t match exactly'),
-            const Text('• Check date range is correct'),
-            const Text('• Check if suppliers are marked as active'),
+            const SizedBox(height: 20),
+            Text(
+              title, 
+              style: TextStyle(
+                fontSize: 18, 
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message, 
+              style: TextStyle(
+                color: colorScheme.onSurface.withOpacity(0.6),
+              ), 
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _loadReports(); // Refresh
-          },
-          child: const Text('Refresh'),
-        ),
-      ],
-    ),
-  );
-}
-Future<void> _debugFirestoreStructure() async {
-  print('\n🔍 CHECKING FIRESTORE STRUCTURE FOR USER: $_userMobile\n');
-  
-  try {
-    // Check what's actually in the suppliers collection
-    final suppliersRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(_userMobile)
-        .collection('suppliers');
-    
-    final snapshot = await suppliersRef.get();
-    
-    print('📋 Suppliers collection path: users/$_userMobile/suppliers');
-    print('📋 Total documents: ${snapshot.docs.length}');
-    
-    for (final doc in snapshot.docs) {
-      print('\n📄 Document ID: ${doc.id}');
-      print('📄 Full data:');
-      doc.data().forEach((key, value) {
-        print('   $key: $value (${value.runtimeType})');
-      });
-    }
-    
-    // Check if there's an isActive field
-    if (snapshot.docs.isNotEmpty) {
-      final firstDoc = snapshot.docs.first;
-      final data = firstDoc.data();
-      print('\n🔍 Checking for isActive field:');
-      print('   Has isActive field: ${data.containsKey('isActive')}');
-      if (data.containsKey('isActive')) {
-        print('   isActive value: ${data['isActive']}');
-        print('   isActive type: ${data['isActive'].runtimeType}');
-      }
-    }
-    
-  } catch (e) {
-    print('❌ Error checking Firestore structure: $e');
+    );
   }
-}
-  // ==================== EXPORT METHODS ====================
+
+  Widget _buildStatusBadge(String status) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    Color bgColor;
+    Color textColor;
+    String label;
+    
+    switch (status) {
+      case 'paid':
+        bgColor = Colors.green;
+        textColor = Colors.white;
+        label = 'Paid';
+        break;
+      case 'partial':
+        bgColor = Colors.orange;
+        textColor = Colors.white;
+        label = 'Partial';
+        break;
+      case 'due':
+        bgColor = Colors.red;
+        textColor = Colors.white;
+        label = 'Due';
+        break;
+      default:
+        bgColor = colorScheme.surfaceContainerHighest;
+        textColor = colorScheme.onSurface;
+        label = status;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label, 
+        style: TextStyle(
+          color: textColor, 
+          fontSize: 11, 
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotLoggedInState() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.error.withOpacity(0.1), 
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.person_off, 
+                size: 60, 
+                color: colorScheme.error.withOpacity(0.5),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Not Logged In', 
+              style: TextStyle(
+                fontSize: 20, 
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please login to view reports', 
+              style: TextStyle(
+                color: colorScheme.onSurface.withOpacity(0.6),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary, 
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Go to Login'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _selectPeriod(String period) {
+    setState(() {
+      _selectedPeriod = period;
+      final now = DateTime.now();
+      
+      switch (period) {
+        case 'Today':
+          _startDate = DateTime(now.year, now.month, now.day);
+          _endDate = now;
+          break;
+        case 'This Week':
+          _startDate = now.subtract(Duration(days: now.weekday - 1));
+          _endDate = now;
+          break;
+        case 'This Month':
+          _startDate = DateTime(now.year, now.month, 1);
+          _endDate = now;
+          break;
+        case 'Last Month':
+          final lastMonth = DateTime(now.year, now.month - 1, 1);
+          _startDate = lastMonth;
+          _endDate = DateTime(lastMonth.year, lastMonth.month + 1, 0);
+          break;
+        case 'Custom':
+          _selectCustomDateRange();
+          return;
+      }
+    });
+    _loadReports();
+  }
+
+  Future<void> _selectCustomDateRange() async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
+      builder: (context, child) {
+        return Theme(
+          data: theme.copyWith(
+            colorScheme: colorScheme.copyWith(
+              primary: colorScheme.primary,
+              onPrimary: Colors.white,
+              surface: colorScheme.surface,
+              onSurface: colorScheme.onSurface,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+        _selectedPeriod = 'Custom';
+      });
+      _loadReports();
+    }
+  }
+
+  Future<void> _showExportDialog() async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Export Report',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 20, color: colorScheme.onSurface),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 8),
+              
+              Text(
+                'Select format to export',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // PDF Option
+              _buildExportOption(
+                icon: Icons.picture_as_pdf,
+                title: 'PDF Document',
+                subtitle: 'Best for printing & sharing',
+                color: Colors.red,
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleExport('pdf');
+                },
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Excel Option
+              _buildExportOption(
+                icon: Icons.table_chart,
+                title: 'Excel Spreadsheet',
+                subtitle: 'Best for data analysis',
+                color: Colors.green,
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleExport('excel');
+                },
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Both Formats
+              _buildExportOption(
+                icon: Icons.file_copy,
+                title: 'Both Formats',
+                subtitle: 'Export as PDF & Excel',
+                color: Colors.blue,
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleExport('both');
+                },
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Cancel Button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: colorScheme.outline),
+                    foregroundColor: colorScheme.onSurface,
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExportOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Material(
+      borderRadius: BorderRadius.circular(12),
+      color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey[50],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colorScheme.outline),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: colorScheme.onSurface.withOpacity(0.4)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleExport(String format) async {
     if (_userMobile == null) {
       _showError('Please login to export reports');
@@ -308,7 +2370,7 @@ Future<void> _debugFirestoreStructure() async {
       final reportType = _getCurrentReportType();
       final reportData = await _getCurrentReportData();
 
-      if (reportData == null || reportData.isEmpty) {
+      if (reportData.isEmpty) {
         _showError('No data available to export');
         return;
       }
@@ -323,7 +2385,6 @@ Future<void> _debugFirestoreStructure() async {
           title: _getReportTitle(),
         );
         
-        // On web, files are downloaded directly, so no need to open
         if (!kIsWeb) {
           await _exportService.openFile(filePath);
         }
@@ -339,7 +2400,6 @@ Future<void> _debugFirestoreStructure() async {
           data: reportData,
         );
         
-        // On web, files are downloaded directly, so no need to open
         if (!kIsWeb) {
           await _exportService.openFile(filePath);
         }
@@ -393,393 +2453,6 @@ Future<void> _debugFirestoreStructure() async {
     return titles[_selectedTab];
   }
 
-  void _showSuccess(String message) {
-    if (!mounted) return;
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  // ==================== UI BUILD METHODS ====================
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _userMobile == null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.person_off, size: 64, color: Colors.grey),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'User Not Logged In',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Please login to view reports',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pushReplacementNamed(context, '/login');
-                        },
-                        icon: const Icon(Icons.login),
-                        label: const Text('Go to Login'),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
-                  children: [
-                    // Report Tabs - moved to top with better spacing
-                    Container(
-                      color: Colors.grey[50],
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      child: Row(
-                        children: [
-                          // Export buttons
-                          if (!_isExporting)
-                            IconButton(
-                              icon: const Icon(Icons.download),
-                              onPressed: () => _showExportDialog(),
-                              tooltip: 'Export Report',
-                            )
-                          else
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            ),
-                          const SizedBox(width: 8),
-                          
-                          // Date range display
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Report Period',
-                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          
-                          // Period selector dropdown
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey[300]!),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: _selectedPeriod,
-                                icon: const Icon(Icons.arrow_drop_down, size: 20),
-                                style: Theme.of(context).textTheme.bodyMedium,
-                                items: _periods.map((period) {
-                                  return DropdownMenuItem(
-                                    value: period,
-                                    child: Text(period),
-                                  );
-                                }).toList(),
-                                onChanged: (value) => _selectPeriod(value!),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Tabs navigation
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: List.generate(6, (index) {
-                            final titles = [
-                              'Sales',
-                              'Purchase',
-                              'Profit & Loss',
-                              'Inventory',
-                              'Customer',
-                              'Supplier',
-                            ];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                label: Text(titles[index]),
-                                selected: _selectedTab == index,
-                                onSelected: (_) => setState(() => _selectedTab = index),
-                                selectedColor: Theme.of(context).primaryColor,
-                                labelStyle: TextStyle(
-                                  color: _selectedTab == index ? Colors.white : null,
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 8),
-                    
-                    // Report Content
-                    Expanded(
-                      child: _buildReportContent(),
-                    ),
-                  ],
-                ),
-    );
-  }
-Future<void> _showExportDialog() async {
-  return showDialog(
-    context: context,
-    barrierColor: Colors.black54,
-    builder: (context) => Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Export Report',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 8),
-            
-            Text(
-              'Select format to export',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Format Options
-            _buildExportOption(
-              context,
-              icon: Icons.picture_as_pdf,
-              title: 'PDF Document',
-              subtitle: 'Best for printing & sharing',
-              color: Colors.red,
-              onTap: () {
-                Navigator.pop(context);
-                _handleExport('pdf');
-              },
-            ),
-            
-            const SizedBox(height: 16),
-            
-            _buildExportOption(
-              context,
-              icon: Icons.table_chart,
-              title: 'Excel Spreadsheet',
-              subtitle: 'Best for data analysis',
-              color: Colors.green,
-              onTap: () {
-                Navigator.pop(context);
-                _handleExport('excel');
-              },
-            ),
-            
-            const SizedBox(height: 16),
-            
-            _buildExportOption(
-              context,
-              icon: Icons.file_copy,
-              title: 'Both Formats',
-              subtitle: 'Export as PDF & Excel',
-              color: Colors.blue,
-              onTap: () {
-                Navigator.pop(context);
-                _handleExport('both');
-              },
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Cancel Button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Cancel'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-Widget _buildExportOption(
-  BuildContext context, {
-  required IconData icon,
-  required String title,
-  required String subtitle,
-  required Color color,
-  required VoidCallback onTap,
-}) {
-  return Material(
-    borderRadius: BorderRadius.circular(12),
-    color: Colors.grey[50],
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            
-            const SizedBox(width: 16),
-            
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-  // ==================== HELPER METHODS ====================
-  void _selectPeriod(String period) {
-    setState(() {
-      _selectedPeriod = period;
-      final now = DateTime.now();
-      
-      switch (period) {
-        case 'Today':
-          _startDate = DateTime(now.year, now.month, now.day);
-          _endDate = now;
-          break;
-        case 'This Week':
-          _startDate = now.subtract(Duration(days: now.weekday - 1));
-          _endDate = now;
-          break;
-        case 'This Month':
-          _startDate = DateTime(now.year, now.month, 1);
-          _endDate = now;
-          break;
-        case 'Last Month':
-          final lastMonth = DateTime(now.year, now.month - 1, 1);
-          _startDate = lastMonth;
-          _endDate = DateTime(lastMonth.year, lastMonth.month + 1, 0);
-          break;
-        case 'Custom':
-          _selectCustomDateRange();
-          return;
-      }
-    });
-    
-    _loadReports();
-  }
-
-  Future<void> _selectCustomDateRange() async {
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      initialDateRange: _selectedDateRange ?? DateTimeRange(
-        start: _startDate,
-        end: _endDate,
-      ),
-    );
-    
-    if (picked != null) {
-      setState(() {
-        _selectedDateRange = picked;
-        _startDate = picked.start;
-        _endDate = picked.end;
-        _selectedPeriod = 'Custom';
-      });
-      _loadReports();
-    }
-  }
-
   String _getCurrentReportType() {
     switch (_selectedTab) {
       case 0: return 'sales';
@@ -792,8 +2465,19 @@ Widget _buildExportOption(
     }
   }
 
-  void _refreshReports() {
-    _loadReports();
+  void _showSuccess(String message) {
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
   }
 
   void _showError(String message) {
@@ -802,1451 +2486,549 @@ Widget _buildExportOption(
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }
 
-  // ==================== REPORT CONTENT ====================
-  Widget _buildReportContent() {
-    if (_userMobile == null) {
-      return const Center(
-        child: Text('Please login to view reports'),
-      );
-    }
-
-    switch (_selectedTab) {
-      case 0: return _buildSalesReport();
-      case 1: return _buildPurchaseReport();
-      case 2: return _buildProfitLossReport();
-      case 3: return _buildInventoryReport();
-      case 4: return _buildCustomerReport();
-      case 5: return _buildSupplierReport();
-      default: return _buildSalesReport();
-    }
+  void _refreshReports() {
+    _loadReports();
   }
 
+  // Detail view methods
+  void _showSaleDetails(SalesReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-Widget _buildSalesReport() {
-  if (_salesReports.isEmpty) {
-    return const Center(
-      child: Text('No sales data available'),
-    );
-  }
-
-  final totalSales = _salesReports.fold(0.0, (sum, report) => sum + report.totalAmount);
-  final totalCollected = _salesReports.fold(0.0, (sum, report) => sum + report.amountPaid);
-  final totalDue = _salesReports.fold(0.0, (sum, report) => sum + report.amountDue);
-
-  return SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      children: [
-        // Summary at top
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildCompactSummaryItem('Total Sales', totalSales, Colors.blue),
-                _buildCompactSummaryItem('Collected', totalCollected, Colors.green),
-                _buildCompactSummaryItem('Due', totalDue, Colors.orange),
-                _buildCompactSummaryItem('Invoices', _salesReports.length.toDouble(), Colors.purple),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        // Data table
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Sales Report',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columnSpacing: 20,
-                    horizontalMargin: 10,
-                    columns: const [
-                      DataColumn(label: Text('Invoice')),
-                      DataColumn(label: Text('Customer')),
-                      DataColumn(label: Text('Date')),
-                      DataColumn(label: Text('Categories')),
-                      DataColumn(label: Text('Items')),
-                      DataColumn(label: Text('Amount', textAlign: TextAlign.right)),
-                      DataColumn(label: Text('Status')),
-                    ],
-                    rows: _salesReports.take(10).map((report) {
-                      return DataRow(cells: [
-                        // Invoice
-                        DataCell(SizedBox(
-                          width: 100,
-                          child: Text(
-                            report.invoiceNumber,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        )),
-                        // Customer
-                        DataCell(SizedBox(
-                          width: 120,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                report.customerName,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              Text(
-                                report.customerMobile,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                        )),
-                        // Date
-                        DataCell(Text(report.formattedDate)),
-                        // Categories
-                       DataCell(Container(
-  width: 150,
-  constraints: BoxConstraints(maxHeight: 48), // Limit height
-  child: SingleChildScrollView( // Add scrolling for overflow
-    physics: NeverScrollableScrollPhysics(), // Disable scroll bar
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '${report.items.length} item(s)',
-          style: TextStyle(fontSize: 11, color: Colors.grey[600]), // Smaller font
-        ),
-        const SizedBox(height: 2),
-        ...report.items.take(2).map((item) {
-          return Text(
-            '• ${item.category ?? "No category"}', // Handle null category
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11), // Smaller font
-          );
-        }).toList(),
-        if (report.items.length > 2)
-          Text(
-            '+ ${report.items.length - 2} more',
-            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-          ),
-      ],
-    ),
-  ),
-)),
-                        // Items
-                        DataCell(SizedBox(
-                          width: 200,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ...report.items.take(3).map((item) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 2),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          item.name,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(fontSize: 12),
-                                        ),
-                                      ),
-                                      Text(
-                                        '×${item.quantity}',
-                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                              if (report.items.length > 3)
-                                Text(
-                                  '+ ${report.items.length - 3} more items',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                                ),
-                            ],
-                          ),
-                        )),
-                        // Amount
-                        DataCell(
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                report.formattedTotal,
-                                textAlign: TextAlign.right,
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              Text(
-                                'Due: ${report.formattedDue}',
-                                textAlign: TextAlign.right,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: report.amountDue > 0 ? Colors.red : Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Status
-                        DataCell(_buildStatusBadge(report.paymentStatus)),
-                      ]);
-                    }).toList(),
-                  ),
-                ),
-                // View All Items Button
-                if (_salesReports.isNotEmpty)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () {
-                        _showDetailedItemView();
-                      },
-                      icon: Icon(Icons.list_alt, size: 16),
-                      label: Text('View All Items with Categories'),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-// Method to show detailed items view
-void _showDetailedItemView() {
-  // Collect all items from all reports
-  final allItems = <SaleItemDetail>[];
-  for (var report in _salesReports) {
-    allItems.addAll(report.items);
-  }
-  
-  // Group by category
-  final itemsByCategory = <String, List<SaleItemDetail>>{};
-  for (var item in allItems) {
-itemsByCategory.putIfAbsent(item.category ?? 'Uncategorized', () => []).add(item);
-  }
-  
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('All Items by Category'),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...itemsByCategory.entries.map((entry) {
-              final categoryTotal = entry.value.fold(0.0, (sum, item) => sum + item.total);
-              return Card(
-                margin: EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            entry.key,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          Spacer(),
-                          Text(
-                            '₹${NumberFormat('#,##0.00').format(categoryTotal)}',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8),
-                      ...entry.value.map((item) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(item.name),
-                              ),
-                              Text('${item.quantity} × ₹${item.price}'),
-                              SizedBox(width: 16),
-                              Text(
-                                '₹${item.total.toStringAsFixed(2)}',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ],
-        ),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('Close'),
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-      ],
-    ),
-  );
-}
-
- // Updated _buildPurchaseReport() method in your reports_dashboard_screen.dart
-Widget _buildPurchaseReport() {
-  if (_purchaseReports.isEmpty) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.shopping_cart, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'No Purchase Data',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'No purchase transactions found for this period',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
+        child: _buildSaleDetailsSheet(report),
       ),
     );
   }
 
-  final totalPurchases = _purchaseReports.fold(0.0, (sum, report) => sum + report.totalAmount);
-  final totalPaid = _purchaseReports.fold(0.0, (sum, report) => sum + report.amountPaid);
-  final totalDue = _purchaseReports.fold(0.0, (sum, report) => sum + report.amountDue);
+  Widget _buildSaleDetailsSheet(SalesReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-  return 
-  SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      children: [
-        // Summary at top
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildCompactSummaryItem('Total Purchases', totalPurchases, Colors.blue),
-                _buildCompactSummaryItem('Paid', totalPaid, Colors.green),
-                _buildCompactSummaryItem('Due', totalDue, Colors.orange),
-                _buildCompactSummaryItem('Invoices', _purchaseReports.length.toDouble(), Colors.purple),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        // Data table with items and categories
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Purchase Report',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-               SingleChildScrollView(
-  scrollDirection: Axis.horizontal,
-  child: DataTable(
-    columnSpacing: 20,
-    columns: const [
-      DataColumn(label: Text('Invoice')),
-      DataColumn(label: Text('Supplier')),
-      DataColumn(label: Text('Date')),
-      DataColumn(label: Text('Categories')),
-      DataColumn(label: Text('Items')),
-      DataColumn(label: Text('Amount', textAlign: TextAlign.right)),
-      DataColumn(label: Text('Status')),
-      // REMOVED: DataColumn(label: Text('Action')),
-    ],
-    rows: _purchaseReports.take(10).map((report) {
-      return DataRow(cells: [
-        // Invoice
-        DataCell(SizedBox(
-          width: 100,
-          child: Text(
-            report.invoiceNumber,
-            overflow: TextOverflow.ellipsis,
-          ),
-        )),
-        // Supplier
-        DataCell(SizedBox(
-          width: 120,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                report.supplierName,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (report.supplierMobile.isNotEmpty)
-                Text(
-                  report.supplierMobile,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                ),
-            ],
-          ),
-        )),
-        // Date
-        DataCell(Text(report.formattedDate)),
-        // Categories
-        DataCell(Container(
-          width: 150,
-          constraints: BoxConstraints(maxHeight: 60),
-          child: SingleChildScrollView(
-            physics: NeverScrollableScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (report.items.isNotEmpty)
-                  ..._getUniqueCategories(report.items).take(2).map((category) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                        '• $category',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 11),
-                        maxLines: 1,
-                      ),
-                    );
-                  }).toList(),
-                if (_getUniqueCategories(report.items).length > 2)
-                  Text(
-                    '+ ${_getUniqueCategories(report.items).length - 2} more',
-                    style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                  ),
-                if (report.items.isEmpty)
-                  Text(
-                    'No items',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                  ),
-              ],
-            ),
-          ),
-        )),
-        // Items
-        DataCell(Container(
-          width: 200,
-          constraints: BoxConstraints(maxHeight: 60),
-          child: SingleChildScrollView(
-            physics: NeverScrollableScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ...report.items.take(3).map((item) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 11),
-                            maxLines: 1,
-                          ),
-                        ),
-                        Text(
-                          '×${item.quantity}',
-                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                if (report.items.length > 3)
-                  Text(
-                    '+ ${report.items.length - 3} more items',
-                    style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                  ),
-              ],
-            ),
-          ),
-        )),
-        // Amount
-        DataCell(Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              report.formattedTotal,
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-            ),
-            Text(
-              'Due: ${report.formattedDue}',
-              style: TextStyle(
-                fontSize: 11,
-                color: report.amountDue > 0 ? Colors.red : Colors.green,
-              ),
-            ),
-          ],
-        )),
-        // Status
-        DataCell(_buildStatusBadge(report.paymentStatus)),
-        // REMOVED: Action cell
-      ]);
-    }).toList(),
-  ),
-),
-                // View All Items Button
-                if (_purchaseReports.isNotEmpty)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () {
-                        _showAllPurchaseItems();
-                      },
-                      icon: Icon(Icons.list_alt, size: 16),
-                      label: Text('View All Items with Categories'),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-// Helper method to show purchase details
-void _showPurchaseDetails(PurchaseReport report) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) => Container(
+    return Container(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Header
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Text(
-                  'Purchase Invoice Details',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.shopping_cart, color: Colors.green.shade700, size: 24),
                 ),
-                Spacer(),
-                IconButton(
-                  icon: Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Invoice info
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Invoice: ${report.invoiceNumber}',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            Text('Date: ${report.formattedDate}'),
-                          ],
-                        ),
-                      ),
-                      _buildStatusBadge(report.paymentStatus),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  
-                  // Supplier info
-                  Text(
-                    'Supplier Details',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  SizedBox(height: 8),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(report.supplierName),
-                          if (report.supplierMobile.isNotEmpty)
-                            Text('Mobile: ${report.supplierMobile}'),
-                          if (report.supplierAddress.isNotEmpty)
-                            Text('Address: ${report.supplierAddress}'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  
-                  // Items list
-                  Text(
-                    'Items (${report.totalItems})',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  SizedBox(height: 8),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: [
-                          // Header
-                          Row(
-                            children: [
-                              Expanded(child: Text('Item', style: TextStyle(fontWeight: FontWeight.bold))),
-                              SizedBox(width: 50, child: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                              SizedBox(width: 80, child: Text('Price', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                              SizedBox(width: 80, child: Text('Total', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                            ],
-                          ),
-                          Divider(height: 16),
-                          // Items
-                          ...report.items.map((item) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(item.name),
-                                        if (item.category != null && item.category!.isNotEmpty)
-                                          Text(
-                                            'Category: ${item.category}',
-                                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(width: 50, child: Text('${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}', textAlign: TextAlign.right)),
-                                  SizedBox(width: 80, child: Text('₹${item.price.toStringAsFixed(2)}', textAlign: TextAlign.right)),
-                                  SizedBox(width: 80, child: Text('₹${item.total.toStringAsFixed(2)}', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w600))),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  
-                  // Totals
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: Text('Subtotal:')),
-                              Text('₹${NumberFormat('#,##0.00').format(report.subtotal)}'),
-                            ],
-                          ),
-                          SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Expanded(child: Text('GST:')),
-                              Text('₹${NumberFormat('#,##0.00').format(report.gstAmount)}'),
-                            ],
-                          ),
-                          Divider(height: 16),
-                          Row(
-                            children: [
-                              Expanded(child: Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-                              Text('₹${NumberFormat('#,##0.00').format(report.totalAmount)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            ],
-                          ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(child: Text('Amount Paid:', style: TextStyle(color: Colors.green))),
-                              Text('₹${NumberFormat('#,##0.00').format(report.amountPaid)}', style: TextStyle(color: Colors.green)),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Expanded(child: Text('Amount Due:', style: TextStyle(color: report.amountDue > 0 ? Colors.red : Colors.grey))),
-                              Text('₹${NumberFormat('#,##0.00').format(report.amountDue)}', style: TextStyle(color: report.amountDue > 0 ? Colors.red : Colors.grey)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-// Helper method for unique categories (add to your class)
-List<String> _getUniqueCategories(List<PurchaseItemDetail> items) {
-  final categories = items
-      .map((item) => item.category ?? 'No category')
-      .where((cat) => cat.isNotEmpty && cat != 'Uncategorized')
-      .toSet()
-      .toList();
-  
-  if (categories.isEmpty) return ['No category'];
-  return categories;
-}
-
-// Method to show all purchase items
-void _showAllPurchaseItems() {
-  // Collect all items from all purchase reports
-  final allItems = <PurchaseItemDetail>[];
-  for (var report in _purchaseReports) {
-    allItems.addAll(report.items);
-  }
-  
-  // Group by category
-  final itemsByCategory = <String, List<PurchaseItemDetail>>{};
-  for (var item in allItems) {
-    itemsByCategory.putIfAbsent(item.category ?? 'Uncategorized', () => []).add(item);
-  }
-  
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('All Purchase Items by Category'),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...itemsByCategory.entries.map((entry) {
-              final categoryTotal = entry.value.fold(0.0, (sum, item) => sum + item.total);
-              return Card(
-                margin: EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            entry.key,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          Spacer(),
-                          Text(
-                            '₹${NumberFormat('#,##0.00').format(categoryTotal)}',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-                          ),
-                        ],
+                      Text(
+                        report.invoiceNumber,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
                       ),
-                      SizedBox(height: 8),
-                      ...entry.value.map((item) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(item.name),
-                              ),
-                              Text('${item.quantity} × ₹${item.price}'),
-                              SizedBox(width: 16),
-                              Text(
-                                '₹${item.total.toStringAsFixed(2)}',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
+                      const SizedBox(height: 2),
+                      Text(
+                        report.formattedDate,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              );
-            }).toList(),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('Close'),
-        ),
-      ],
-    ),
-  );
-}
-
-  Widget _buildProfitLossReport() {
-    return FutureBuilder<ProfitLossReport>(
-      future: _reportService.getProfitLossReport(
-        userMobile: _userMobile!,
-        startDate: _startDate,
-        endDate: _endDate,
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        
-        if (!snapshot.hasData) {
-          return const Center(child: Text('No profit/loss data available'));
-        }
-        
-        final report = snapshot.data!;
-        
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Text(
-                    'Profit & Loss Statement',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    report.formattedPeriod,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  _buildPLRow('Total Revenue', report.formattedRevenue, Colors.green),
-                  _buildPLRow('Cost of Goods Sold', '₹${NumberFormat('#,##0.00').format(report.totalCost)}', Colors.red),
-                  const Divider(),
-                  _buildPLRow('Gross Profit', '₹${NumberFormat('#,##0.00').format(report.grossProfit)}', Colors.blue),
-                  _buildPLRow('Expenses', '₹${NumberFormat('#,##0.00').format(report.expenses)}', Colors.orange),
-                  const Divider(thickness: 2),
-                  _buildPLRow('Net Profit', report.formattedProfit, Colors.green, isBold: true),
-                  _buildPLRow('Profit Margin', report.formattedMargin, Colors.green),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPLRow(String label, String value, Color color, {bool isBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: isBold
-                ? Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  )
-                : Theme.of(context).textTheme.bodyLarge,
-          ),
-          Text(
-            value,
-            style: (isBold
-                ? Theme.of(context).textTheme.titleMedium
-                : Theme.of(context).textTheme.bodyLarge)?.copyWith(
-              color: color,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInventoryReport() {
-    if (_inventoryReports.isEmpty) {
-      return const Center(
-        child: Text('No inventory data available'),
-      );
-    }
-
-    final totalValue = _inventoryReports.fold(0.0, (sum, report) => sum + report.totalValue);
-    final totalItems = _inventoryReports.length;
-    final lowStockCount = _inventoryReports.where((r) => r.status == 'low-stock').length;
-    final outOfStockCount = _inventoryReports.where((r) => r.status == 'out-of-stock').length;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Summary at top
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildCompactSummaryItem('Total Value', totalValue, Colors.blue),
-                  _buildCompactSummaryItem('Items', totalItems.toDouble(), Colors.green),
-                  _buildCompactSummaryItem('Low Stock', lowStockCount.toDouble(), Colors.orange),
-                  _buildCompactSummaryItem('Out of Stock', outOfStockCount.toDouble(), Colors.red),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Data table
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Inventory Report',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Product')),
-                        DataColumn(label: Text('SKU')),
-                        DataColumn(label: Text('Stock')),
-                        DataColumn(label: Text('Value', textAlign: TextAlign.right)),
-                        DataColumn(label: Text('Status')),
-                      ],
-                      rows: _inventoryReports.take(10).map((report) {
-                        return DataRow(cells: [
-                          DataCell(SizedBox(
-                            width: 120,
-                            child: Text(
-                              report.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )),
-                          DataCell(Text(report.sku)),
-                          DataCell(Text('${report.quantity} ${report.unit}')),
-                          DataCell(
-                            Text(
-                              report.formattedValue,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          DataCell(_buildInventoryStatusBadge(report.status)),
-                        ]);
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCustomerReport() {
-    if (_customerReports.isEmpty) {
-      return const Center(
-        child: Text('No customer data available'),
-      );
-    }
-
-    final totalCustomers = _customerReports.length;
-    final totalRevenue = _customerReports.fold(0.0, (sum, report) => sum + report.totalSpent);
-    final totalOutstanding = _customerReports.fold(0.0, (sum, report) => sum + report.outstandingBalance);
-    final avgPurchaseValue = totalCustomers > 0 ? totalRevenue / totalCustomers : 0;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Summary at top
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildCompactSummaryItem('Customers', totalCustomers.toDouble(), Colors.blue),
-                  _buildCompactSummaryItem('Revenue', totalRevenue, Colors.green),
-                  _buildCompactSummaryItem('Outstanding', totalOutstanding, Colors.orange),
-                  _buildCompactSummaryItem('Avg Purchase', avgPurchaseValue.toDouble(), Colors.purple),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Data table
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Customer Report',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Customer')),
-                        DataColumn(label: Text('Mobile')),
-                        DataColumn(label: Text('Purchases')),
-                        DataColumn(label: Text('Total Spent', textAlign: TextAlign.right)),
-                        DataColumn(label: Text('Outstanding', textAlign: TextAlign.right)),
-                      ],
-                      rows: _customerReports.take(10).map((report) {
-                        return DataRow(cells: [
-                          DataCell(SizedBox(
-                            width: 120,
-                            child: Text(
-                              report.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )),
-                          DataCell(Text(report.mobile)),
-                          DataCell(Text('${report.totalPurchases}')),
-                          DataCell(
-                            Text(
-                              report.formattedTotalSpent,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              report.formattedOutstanding,
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                color: report.outstandingBalance > 0 ? Colors.red : Colors.green,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ]);
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-Widget _buildSupplierReport() {
-  print('📊 Building supplier report UI...');
-  print('📊 Supplier reports count: ${_supplierReports.length}');
-  
-  if (_supplierReports.isEmpty) {
-    print('ℹ️ Showing empty state for supplier reports');
-    print('📅 Date range: $_startDate to $_endDate');
-    print('👤 User mobile: $_userMobile');
-    
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.group_outlined,
-              size: 80,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'No Supplier Purchase Data',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'No purchase transactions found for suppliers in the selected period.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Period: ${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[500],
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                print('🔄 Refreshing supplier data...');
-                _loadReports(); // Refresh all reports
-              },
-              child: const Text('Refresh Data'),
-            ),
-            const SizedBox(height: 10),
-            TextButton(
-              onPressed: () {
-                _debugSupplierData();
-              },
-              child: const Text('Debug Data'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  final totalSuppliers = _supplierReports.length;
-  final totalPurchases = _supplierReports.fold(0.0, (sum, report) => sum + report.totalPurchases);
-  final totalPending = _supplierReports.fold(0.0, (sum, report) => sum + report.pendingPayment);
-  final avgOrderValue = totalSuppliers > 0 ? totalPurchases / totalSuppliers : 0;
-
-  print('📊 Supplier report stats:');
-  print('   Total suppliers: $totalSuppliers');
-  print('   Total purchases: ₹$totalPurchases');
-  print('   Total pending: ₹$totalPending');
-  
-  for (final report in _supplierReports.take(3)) {
-    print('   📍 ${report.name}: ₹${report.totalPurchases} in ${report.totalOrders} orders');
-  }
-
-  return SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      children: [
-        // Summary at top
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildCompactSummaryItem('Suppliers', totalSuppliers.toDouble(), Colors.blue),
-                _buildCompactSummaryItem('Purchases', totalPurchases, Colors.green),
-                _buildCompactSummaryItem('Pending', totalPending, Colors.orange),
-                _buildCompactSummaryItem('Avg Order', avgOrderValue.toDouble(), Colors.purple),
+                _buildStatusBadge(report.paymentStatus),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        
-        // Data table
-        Card(
-          child: Padding(
+          
+          Divider(height: 1, color: colorScheme.outline),
+          
+          // Customer Info
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(Icons.person, size: 16, color: colorScheme.onSurface.withOpacity(0.6)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        report.customerName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      if (report.customerMobile.isNotEmpty)
+                        Text(
+                          report.customerMobile,
+                          style: TextStyle(
+                            fontSize: 12, 
+                            color: colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          Divider(height: 1, color: colorScheme.outline),
+          
+          // Items
+          Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  'Items',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...report.items.map((item) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                              if (item.category != null)
+                                Text(
+                                  item.category!,
+                                  style: TextStyle(
+                                    fontSize: 11, 
+                                    color: colorScheme.onSurface.withOpacity(0.6),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${item.quantity} × ₹${item.price}',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          '₹${item.total.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          
+          Divider(height: 1, color: colorScheme.outline),
+          
+          // Totals
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Subtotal:', style: TextStyle(color: colorScheme.onSurface)),
+                    Text(
+                      '₹${report.subtotal.toStringAsFixed(2)}',
+                      style: TextStyle(color: colorScheme.onSurface),
+                    ),
+                  ],
+                ),
+                if (report.gstAmount > 0) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('GST:', style: TextStyle(color: colorScheme.onSurface)),
+                      Text(
+                        '₹${report.gstAmount.toStringAsFixed(2)}',
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
+                    ],
+                  ),
+                ],
+                Divider(height: 16, color: colorScheme.outline),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Supplier Report',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                      'Total:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 16,
+                        color: colorScheme.onSurface,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      onPressed: _refreshReports,
-                      tooltip: 'Refresh',
+                    Text(
+                      '₹${report.totalAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.green,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Supplier')),
-                      DataColumn(label: Text('Contact')),
-                      DataColumn(label: Text('Orders')),
-                      DataColumn(label: Text('Total Purchases', textAlign: TextAlign.right)),
-                      DataColumn(label: Text('Pending', textAlign: TextAlign.right)),
-                      DataColumn(label: Text('Last Order')),
-                    ],
-                    rows: _supplierReports.take(10).map((report) {
-                      return DataRow(cells: [
-                        DataCell(SizedBox(
-                          width: 120,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                report.name,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              if (report.email.isNotEmpty)
-                                Text(
-                                  report.email,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                                ),
-                            ],
-                          ),
-                        )),
-                        DataCell(Text(report.phone)),
-                        DataCell(
-                          Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '${report.totalOrders}',
-                                style: const TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ),
-                        ),
-                        DataCell(
-                          Text(
-                            report.formattedPurchases,
-                            textAlign: TextAlign.right,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ),
-                        DataCell(
-                          Text(
-                            report.formattedPending,
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              color: report.pendingPayment > 0 ? Colors.orange : Colors.green,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        DataCell(
-                          Text(
-                            report.lastOrderDate.year > 1970 
-                                ? report.formattedLastOrder 
-                                : 'No orders',
-                            style: TextStyle(
-                              color: report.lastOrderDate.year > 1970 
-                                  ? Colors.grey[800] 
-                                  : Colors.grey[500],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ]);
-                    }).toList(),
-                  ),
-                ),
-                
-                // Show total count if more than 10
-                if (_supplierReports.length > 10)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Text(
-                      'Showing 10 of ${_supplierReports.length} suppliers',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
+                if (report.amountDue > 0) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Amount Paid:',
+                        style: TextStyle(color: colorScheme.secondary),
                       ),
-                    ),
+                      Text(
+                        '₹${report.amountPaid.toStringAsFixed(2)}',
+                        style: TextStyle(color: colorScheme.secondary),
+                      ),
+                    ],
                   ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Amount Due:',
+                        style: TextStyle(color: colorScheme.error),
+                      ),
+                      Text(
+                        '₹${report.amountDue.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          color: colorScheme.error, 
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
-
-
-  // ==================== HELPER WIDGETS ====================
-  Widget _buildCompactSummaryItem(String title, double value, Color color) {
-    return Column(
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value < 1000
-              ? '₹${NumberFormat('#,##0').format(value)}'
-              : '₹${NumberFormat('#,##0.0').format(value / 1000)}K',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: color,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatusBadge(String status) {
-    Color bgColor;
-    Color textColor;
-    String label;
-    
-    switch (status) {
-      case 'paid':
-        bgColor = const Color(0xFFdcfce7);
-        textColor = const Color(0xFF166534);
-        label = 'Paid';
-        break;
-      case 'partial':
-        bgColor = const Color(0xFFfef3c7);
-        textColor = const Color(0xFF92400e);
-        label = 'Partial';
-        break;
-      case 'due':
-        bgColor = const Color(0xFFfee2e2);
-        textColor = const Color(0xFF991b1b);
-        label = 'Due';
-        break;
-      default:
-        bgColor = Colors.grey[200]!;
-        textColor = Colors.grey[800]!;
-        label = status;
-    }
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildInventoryStatusBadge(String status) {
-    Color bgColor;
-    Color textColor;
-    String label;
-    
-    switch (status) {
-      case 'in-stock':
-        bgColor = const Color(0xFFdbeafe);
-        textColor = const Color(0xFF1e40af);
-        label = 'In Stock';
-        break;
-      case 'low-stock':
-        bgColor = const Color(0xFFfef3c7);
-        textColor = const Color(0xFF92400e);
-        label = 'Low Stock';
-        break;
-      case 'out-of-stock':
-        bgColor = const Color(0xFFfee2e2);
-        textColor = const Color(0xFF991b1b);
-        label = 'Out of Stock';
-        break;
-      default:
-        bgColor = Colors.grey[200]!;
-        textColor = Colors.grey[800]!;
-        label = status;
-    }
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
+  void _showPurchaseDetails(PurchaseReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
+        child: _buildPurchaseDetailsSheet(report),
+      ),
+    );
+  }
+
+  Widget _buildPurchaseDetailsSheet(PurchaseReport report) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.inventory, color: Colors.orange.shade700, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        report.invoiceNumber,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        report.formattedDate,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildStatusBadge(report.paymentStatus),
+              ],
+            ),
+          ),
+          
+          Divider(height: 1, color: colorScheme.outline),
+          
+          // Supplier Info
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(Icons.business, size: 16, color: colorScheme.onSurface.withOpacity(0.6)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        report.supplierName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      if (report.supplierMobile.isNotEmpty)
+                        Text(
+                          report.supplierMobile,
+                          style: TextStyle(
+                            fontSize: 12, 
+                            color: colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          Divider(height: 1, color: colorScheme.outline),
+          
+          // Items
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Items',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...report.items.map((item) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                              if (item.category != null)
+                                Text(
+                                  item.category!,
+                                  style: TextStyle(
+                                    fontSize: 11, 
+                                    color: colorScheme.onSurface.withOpacity(0.6),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${item.quantity} × ₹${item.price}',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          '₹${item.total.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          
+          Divider(height: 1, color: colorScheme.outline),
+          
+          // Totals
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Subtotal:', style: TextStyle(color: colorScheme.onSurface)),
+                    Text(
+                      '₹${report.subtotal.toStringAsFixed(2)}',
+                      style: TextStyle(color: colorScheme.onSurface),
+                    ),
+                  ],
+                ),
+                if (report.gstAmount > 0) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('GST:', style: TextStyle(color: colorScheme.onSurface)),
+                      Text(
+                        '₹${report.gstAmount.toStringAsFixed(2)}',
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
+                    ],
+                  ),
+                ],
+                Divider(height: 16, color: colorScheme.outline),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 16,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      '₹${report.totalAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+                if (report.amountDue > 0) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Amount Paid:',
+                        style: TextStyle(color: colorScheme.secondary),
+                      ),
+                      Text(
+                        '₹${report.amountPaid.toStringAsFixed(2)}',
+                        style: TextStyle(color: colorScheme.secondary),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Amount Due:',
+                        style: TextStyle(color: colorScheme.error),
+                      ),
+                      Text(
+                        '₹${report.amountDue.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          color: colorScheme.error, 
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

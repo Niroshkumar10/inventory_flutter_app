@@ -41,7 +41,7 @@ dependencies:
   intl: ^0.18.1
   
   # PDF Export (Core packages)
-  printing: ^5.13.1  # For PDF printing
+  # printing: ^5.13.1  # For PDF printing
   
   # Platform-specific (will be handled conditionally)
   path_provider: ^2.1.1  # For mobile file system

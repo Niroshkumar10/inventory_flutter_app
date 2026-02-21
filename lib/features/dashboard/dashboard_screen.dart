@@ -14,9 +14,9 @@ class DashboardScreen extends StatefulWidget {
   final String userMobile;
 
   const DashboardScreen({
-    Key? key,
+    super.key,
     required this.userMobile,
-  }) : super(key: key);
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -56,6 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
       ),
+   
       drawer: SidebarMenu(
         userMobile: widget.userMobile,
         selectedIndex: _selectedIndex,

@@ -9,10 +9,10 @@ class CategoryItemsScreen extends StatefulWidget {
   final String userMobile;
 
   const CategoryItemsScreen({
-    Key? key,
+    super.key,
     required this.category,
     required this.userMobile,
-  }) : super(key: key);
+  });
 
   @override
   State<CategoryItemsScreen> createState() => _CategoryItemsScreenState();

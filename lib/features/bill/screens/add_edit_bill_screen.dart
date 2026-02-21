@@ -64,7 +64,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
   String? _selectedCategory;
   List<InventoryItem> _filteredItems = [];
   bool _isSelectingFromInventory = false;
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   
   // Add InventoryService variable
   late InventoryService _inventoryService;
@@ -200,7 +200,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           await _inventoryService.adjustStock(
             itemId,
             adjustment,
-            'Updated from ${oldQty} to ${newQty} in bill ${newBill.invoiceNumber}',
+            'Updated from $oldQty to $newQty in bill ${newBill.invoiceNumber}',
           );
           
           print('  ✅ Stock adjustment completed for item $itemId');
@@ -274,9 +274,15 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
 
   void _initControllersFromItems() {
     // Clear existing controllers
-    for (final c in _descControllers) c.dispose();
-    for (final c in _qtyControllers) c.dispose();
-    for (final c in _priceControllers) c.dispose();
+    for (final c in _descControllers) {
+      c.dispose();
+    }
+    for (final c in _qtyControllers) {
+      c.dispose();
+    }
+    for (final c in _priceControllers) {
+      c.dispose();
+    }
     
     _descControllers.clear();
     _qtyControllers.clear();
@@ -331,6 +337,10 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
   }
 
   void _showAddPartyDialog() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
     final partyType = widget.type == 'sales' ? 'Customer' : 'Supplier';
     
     showDialog(
@@ -341,33 +351,80 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
         final addressController = TextEditingController();
         
         return AlertDialog(
-          title: Text('Add New $partyType'),
+          backgroundColor: colorScheme.surface,
+          title: Text(
+            'Add New $partyType',
+            style: TextStyle(color: colorScheme.onSurface),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextFormField(
                   controller: nameController,
+                  style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     labelText: '$partyType Name *',
-                    border: OutlineInputBorder(),
+                    labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                   ),
                 ),
                 SizedBox(height: 12),
                 TextFormField(
                   controller: phoneController,
+                  style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     labelText: 'Mobile Number',
-                    border: OutlineInputBorder(),
+                    labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                   ),
                   keyboardType: TextInputType.phone,
                 ),
                 SizedBox(height: 12),
                 TextFormField(
                   controller: addressController,
+                  style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     labelText: 'Address',
-                    border: OutlineInputBorder(),
+                    labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                   ),
                   maxLines: 2,
                 ),
@@ -377,13 +434,19 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.primary),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
                 if (nameController.text.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter name')),
+                    SnackBar(
+                      content: const Text('Please enter name'),
+                      backgroundColor: colorScheme.error,
+                    ),
                   );
                   return;
                 }
@@ -421,16 +484,25 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('$partyType added successfully'),
+                      backgroundColor: colorScheme.secondary,
                     ),
                   );
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Error adding $partyType: $e'),
+                      backgroundColor: colorScheme.error,
                     ),
                   );
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
               child: const Text('Save'),
             ),
           ],
@@ -440,6 +512,10 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
   }
 
   void _showInventorySelectionDialog(int itemIndex) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     showDialog(
       context: context,
       builder: (context) {
@@ -447,6 +523,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           builder: (context, setState) {
             return Dialog(
               insetPadding: EdgeInsets.all(16),
+              backgroundColor: colorScheme.surface,
               child: Container(
                 width: double.infinity,
                 constraints: BoxConstraints(maxHeight: 500),
@@ -460,6 +537,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                     ),
@@ -468,11 +546,25 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextField(
                         controller: _searchController,
+                        style: TextStyle(color: colorScheme.onSurface),
                         decoration: InputDecoration(
                           hintText: 'Search items...',
-                          prefixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                          hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                          prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.5)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: colorScheme.outline),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: colorScheme.outline),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                          ),
+                          filled: true,
+                          fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                         ),
                         onChanged: (value) {
                           _filterItems();
@@ -486,18 +578,36 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: DropdownButtonFormField<String>(
                         value: _selectedCategory,
+                        dropdownColor: colorScheme.surface,
+                        style: TextStyle(color: colorScheme.onSurface),
                         decoration: InputDecoration(
                           labelText: 'Filter by Category',
-                          border: OutlineInputBorder(),
+                          labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: colorScheme.outline),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                          ),
+                          filled: true,
+                          fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                         ),
                         items: [
-                          DropdownMenuItem(value: 'All', child: Text('All Categories')),
+                          DropdownMenuItem(
+                            value: 'All', 
+                            child: Text('All Categories', style: TextStyle(color: colorScheme.onSurface)),
+                          ),
                           ..._categories.map((category) {
                             return DropdownMenuItem(
                               value: category,
-                              child: Text(category),
+                              child: Text(category, style: TextStyle(color: colorScheme.onSurface)),
                             );
-                          }).toList(),
+                          }),
                         ],
                         onChanged: (value) {
                           setState(() {
@@ -512,31 +622,59 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     
                     Expanded(
                       child: _filteredItems.isEmpty
-                          ? Center(child: Text('No items found'))
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              itemCount: _filteredItems.length,
-                              itemBuilder: (context, index) {
-                                final inventoryItem = _filteredItems[index];
-                                return ListTile(
-                                  title: Text(inventoryItem.name),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Selling Price: ₹${inventoryItem.price.toStringAsFixed(2)}'),
-                                      Text('Stock: ${inventoryItem.quantity} ${inventoryItem.unit}'),
-                                      Text('Category: ${inventoryItem.category}'),
-                                    ],
-                                  ),
-                                  trailing: ElevatedButton(
-                                    onPressed: () {
-                                      _addInventoryItemToBill(itemIndex, inventoryItem);
-                                      Navigator.pop(context);
-                                    },
-                                    child: Text('Select'),
-                                  ),
-                                );
-                              },
+                          ? Center(
+                              child: Text(
+                                'No items found',
+                                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                              ),
+                            )
+                          : Container(
+                              color: colorScheme.background,
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: _filteredItems.length,
+                                itemBuilder: (context, index) {
+                                  final inventoryItem = _filteredItems[index];
+                                  return Card(
+                                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                    color: colorScheme.surface,
+                                    child: ListTile(
+                                      title: Text(
+                                        inventoryItem.name,
+                                        style: TextStyle(color: colorScheme.onSurface),
+                                      ),
+                                      subtitle: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Selling Price: ₹${inventoryItem.price.toStringAsFixed(2)}',
+                                            style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                                          ),
+                                          Text(
+                                            'Stock: ${inventoryItem.quantity} ${inventoryItem.unit}',
+                                            style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                                          ),
+                                          Text(
+                                            'Category: ${inventoryItem.category}',
+                                            style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                                          ),
+                                        ],
+                                      ),
+                                      trailing: ElevatedButton(
+                                        onPressed: () {
+                                          _addInventoryItemToBill(itemIndex, inventoryItem);
+                                          Navigator.pop(context);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: colorScheme.primary,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: Text('Select'),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                     ),
                     
@@ -549,7 +687,10 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                         children: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: Text('Cancel'),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(color: colorScheme.primary),
+                            ),
                           ),
                         ],
                       ),
@@ -623,27 +764,36 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
     final partyList = widget.type == 'sales' ? _customerNames : _supplierNames;
     final partyType = widget.type == 'sales' ? 'Customer' : 'Supplier';
-    final iconColor = widget.type == 'sales' ? Colors.green : Colors.orange;
+    final iconColor = widget.type == 'sales' ? colorScheme.secondary : colorScheme.tertiary;
     final icon = widget.type == 'sales' ? Icons.person : Icons.local_shipping_outlined;
     
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
       appBar: AppBar(
         title: Text(
           widget.billToEdit != null 
             ? 'Edit ${widget.type == 'sales' ? 'Sales' : 'Purchase'}'
             : 'New ${widget.type == 'sales' ? 'Sales' : 'Purchase'}',
+          style: TextStyle(color: colorScheme.onSurface),
         ),
+        backgroundColor: colorScheme.surface,
+        elevation: 0.5,
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
         actions: [
           IconButton(
-            icon: const Icon(Icons.save),
+            icon: Icon(Icons.save, color: colorScheme.onSurface),
             onPressed: _isLoading ? null : _saveBill,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
@@ -653,9 +803,9 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                   children: [
                     if (_invoiceNumber != null)
                       Card(
-                        color: widget.type == 'sales' 
-                          ? Colors.green.shade50 
-                          : Colors.orange.shade50,
+                        color: (widget.type == 'sales' 
+                          ? colorScheme.secondary 
+                          : colorScheme.tertiary).withOpacity(0.1),
                         child: Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Row(
@@ -689,16 +839,33 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     
                     const SizedBox(height: 16),
                     
-                    const Text(
+                    Text(
                       'Party Details',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    
+                    const SizedBox(height: 16),
+
+                    // Enhanced dropdown with mobile-optimized styling
                     Container(
+                      height: 56,
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: colorScheme.outline,
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        color: colorScheme.surface,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorScheme.shadow.withOpacity(0.05),
+                            blurRadius: 2,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButtonFormField<String>(
@@ -706,31 +873,154 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                                 partyList.contains(_partyNameController.text)
                                 ? _partyNameController.text 
                                 : null,
-                          items: [
-                            DropdownMenuItem(
-                              value: null,
-                              child: Text(
-                                'Select $partyType',
-                                style: const TextStyle(color: Colors.grey),
+                          isExpanded: true,
+                          dropdownColor: colorScheme.surface,
+                          hint: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'Select $partyType',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: colorScheme.onSurface.withOpacity(0.4),
                               ),
                             ),
+                          ),
+                          icon: Padding(
+                            padding: const EdgeInsets.only(right: 14),
+                            child: Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: _partyNameController.text.isNotEmpty 
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurface.withOpacity(0.5),
+                              size: 20,
+                            ),
+                          ),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: colorScheme.onSurface,
+                          ),
+                          items: [
+                            // Placeholder item
+                            DropdownMenuItem<String>(
+                              value: null,
+                              child: Container(
+                                constraints: const BoxConstraints(minHeight: 48),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.help_outline_rounded,
+                                      size: 18,
+                                      color: colorScheme.onSurface.withOpacity(0.4),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'Select $partyType',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          color: colorScheme.onSurface.withOpacity(0.6),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            
+                            // Party list items
                             ...partyList.map((name) {
-                              return DropdownMenuItem(
+                              final bool isSelected = _partyNameController.text == name;
+                              return DropdownMenuItem<String>(
                                 value: name,
-                                child: Text(name),
-                              );
-                            }).toList(),
-                            DropdownMenuItem(
-                              value: 'new',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.add, size: 16, color: Colors.blue),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Add New $partyType',
-                                    style: const TextStyle(color: Colors.blue),
+                                child: Container(
+                                  constraints: const BoxConstraints(minHeight: 48),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        partyType.toLowerCase() == 'customer' 
+                                            ? Icons.person_outline_rounded
+                                            : Icons.store_outlined,
+                                        size: 18,
+                                        color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      
+                                      Expanded(
+                                        child: Text(
+                                          name,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                            color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      
+                                      if (isSelected)
+                                        Icon(
+                                          Icons.check_rounded,
+                                          size: 18,
+                                          color: colorScheme.primary,
+                                        ),
+                                    ],
                                   ),
-                                ],
+                                ),
+                              );
+                            }),
+                            
+                            // Add New Party option
+                            DropdownMenuItem<String>(
+                              value: 'new',
+                              child: Container(
+                                constraints: const BoxConstraints(minHeight: 48),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    top: BorderSide(color: colorScheme.outline),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.primary.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Icon(
+                                        Icons.add_rounded,
+                                        size: 16,
+                                        color: colorScheme.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'Add New $partyType',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: colorScheme.primary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.arrow_forward_rounded,
+                                      size: 16,
+                                      color: colorScheme.primary.withOpacity(0.7),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -742,19 +1032,35 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                             }
                           },
                           decoration: InputDecoration(
-                            prefixIcon: Icon(icon, color: iconColor),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Icon(
+                                icon, 
+                                color: iconColor,
+                                size: 20,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            focusedErrorBorder: InputBorder.none,
                             labelText: '$partyType Name *',
+                            labelStyle: TextStyle(
+                              fontSize: 14,
+                              color: colorScheme.onSurface.withOpacity(0.6),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            floatingLabelBehavior: FloatingLabelBehavior.auto,
+                            floatingLabelStyle: TextStyle(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
-                          isExpanded: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please select a $partyType';
-                            }
-                            return null;
-                          },
+                          elevation: isDark ? 8 : 4,
+                          borderRadius: BorderRadius.circular(12),
+                          menuMaxHeight: 400,
                         ),
                       ),
                     ),
@@ -763,10 +1069,24 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     
                     TextFormField(
                       controller: _partyPhoneController,
+                      style: TextStyle(color: colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: widget.type == 'sales' ? 'Customer Mobile' : 'Supplier Phone',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.phone),
+                        labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.phone, color: colorScheme.primary),
+                        filled: true,
+                        fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                       ),
                       keyboardType: TextInputType.phone,
                     ),
@@ -775,10 +1095,24 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     
                     TextFormField(
                       controller: _partyAddressController,
+                      style: TextStyle(color: colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: widget.type == 'sales' ? 'Customer Address' : 'Supplier Address',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.location_on),
+                        labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.location_on, color: colorScheme.primary),
+                        filled: true,
+                        fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                       ),
                       maxLines: 2,
                     ),
@@ -786,13 +1120,21 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     const SizedBox(height: 24),
                     
                     Card(
+                      color: colorScheme.surface,
+                      elevation: isDark ? 4 : 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(12.0),
                         child: Row(
                           children: [
-                            const Icon(Icons.receipt, color: Colors.blue),
+                            Icon(Icons.receipt, color: colorScheme.primary),
                             const SizedBox(width: 12),
-                            const Text('GST Invoice'),
+                            Text(
+                              'GST Invoice',
+                              style: TextStyle(color: colorScheme.onSurface),
+                            ),
                             const Spacer(),
                             Switch(
                               value: _isGST,
@@ -802,7 +1144,10 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                                   _calculateTotals();
                                 });
                               },
-                              activeColor: Colors.blue,
+                              activeColor: colorScheme.primary,
+                              activeTrackColor: colorScheme.primary.withOpacity(0.5),
+                              inactiveThumbColor: colorScheme.onSurface.withOpacity(0.5),
+                              inactiveTrackColor: colorScheme.onSurface.withOpacity(0.1),
                             ),
                           ],
                         ),
@@ -814,9 +1159,13 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'Items',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16, 
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                         Row(
                           children: [
@@ -828,7 +1177,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                               },
                               icon: Icon(
                                 _isSelectingFromInventory ? Icons.list : Icons.inventory,
-                                color: _isSelectingFromInventory ? Colors.blue : Colors.grey,
+                                color: _isSelectingFromInventory ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
                               ),
                               tooltip: _isSelectingFromInventory 
                                   ? 'Manual Entry' 
@@ -836,7 +1185,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                             ),
                             IconButton(
                               onPressed: _addItem,
-                              icon: const Icon(Icons.add_circle, color: Colors.blue),
+                              icon: Icon(Icons.add_circle, color: colorScheme.primary),
                               tooltip: 'Add Item',
                             ),
                           ],
@@ -858,7 +1207,11 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     const SizedBox(height: 24),
                     
                     Card(
-                      color: Colors.blue.shade50,
+                      color: colorScheme.primary.withOpacity(0.1),
+                      elevation: isDark ? 4 : 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
@@ -868,17 +1221,29 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Text('GST Rate (%):'),
+                                  Text(
+                                    'GST Rate (%):',
+                                    style: TextStyle(color: colorScheme.onSurface),
+                                  ),
                                   const SizedBox(width: 8),
                                   SizedBox(
                                     width: 100,
                                     child: TextFormField(
                                       controller: _gstRateController,
                                       textAlign: TextAlign.right,
+                                      style: TextStyle(color: colorScheme.onSurface),
                                       keyboardType:
                                           const TextInputType.numberWithOptions(decimal: true),
-                                      decoration: const InputDecoration(
-                                        border: UnderlineInputBorder(),
+                                      decoration: InputDecoration(
+                                        border: UnderlineInputBorder(
+                                          borderSide: BorderSide(color: colorScheme.outline),
+                                        ),
+                                        enabledBorder: UnderlineInputBorder(
+                                          borderSide: BorderSide(color: colorScheme.outline),
+                                        ),
+                                        focusedBorder: UnderlineInputBorder(
+                                          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                                        ),
                                         contentPadding: EdgeInsets.zero,
                                       ),
                                       onChanged: (value) => _calculateTotals(),
@@ -888,7 +1253,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                               ),
                               _buildTotalRow('GST Amount:', _gstAmount),
                             ],
-                            const Divider(),
+                            Divider(color: colorScheme.outline),
                             _buildTotalRow('Total Amount:', _totalAmount, isTotal: true),
                           ],
                         ),
@@ -897,19 +1262,38 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     
                     const SizedBox(height: 24),
                     
-                    const Text(
+                    Text(
                       'Payment Details',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16, 
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     
                     TextFormField(
                       controller: _amountPaidController,
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: colorScheme.onSurface),
+                      decoration: InputDecoration(
                         labelText: 'Amount Paid',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.payments),
+                        labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.payments, color: colorScheme.primary),
                         prefixText: '₹ ',
+                        prefixStyle: TextStyle(color: colorScheme.onSurface),
+                        filled: true,
+                        fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                       ),
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
@@ -919,21 +1303,29 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     const SizedBox(height: 12),
                     
                     Card(
+                      color: colorScheme.surface,
+                      elevation: isDark ? 4 : 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'Amount Due:',
-                              style: TextStyle(fontSize: 16),
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: colorScheme.onSurface,
+                              ),
                             ),
                             Text(
                               '₹${_amountDue.toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
-                                color: _amountDue > 0 ? Colors.red : Colors.green,
+                                color: _amountDue > 0 ? colorScheme.error : colorScheme.secondary,
                               ),
                             ),
                           ],
@@ -945,10 +1337,24 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     
                     TextFormField(
                       controller: _notesController,
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: colorScheme.onSurface),
+                      decoration: InputDecoration(
                         labelText: 'Notes (Optional)',
-                        border: OutlineInputBorder(),
+                        labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                        ),
                         alignLabelWithHint: true,
+                        filled: true,
+                        fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                       ),
                       maxLines: 3,
                     ),
@@ -960,16 +1366,17 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                       height: 50,
                       child: ElevatedButton.icon(
                         onPressed: _isLoading ? null : _saveBill,
-                        icon: const Icon(Icons.save),
+                        icon: const Icon(Icons.save, color: Colors.white),
                         label: Text(
                           _isLoading ? 'Saving...' : 'Save Transaction',
-                          style: const TextStyle(fontSize: 16),
+                          style: const TextStyle(fontSize: 16, color: Colors.white),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: iconColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
+                          elevation: isDark ? 4 : 2,
                         ),
                       ),
                     ),
@@ -983,11 +1390,20 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
   }
 
   Widget _buildItemRow(int index) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
     final item = _items[index];
     final isFromInventory = item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty;
     
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
+      color: colorScheme.surface,
+      elevation: isDark ? 4 : 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
@@ -999,21 +1415,34 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                   child: TextFormField(
                     controller: _descControllers[index],
                     readOnly: isFromInventory,
+                    style: TextStyle(color: colorScheme.onSurface),
                     decoration: InputDecoration(
                       labelText: 'Description',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.outline),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                      ),
                       contentPadding: EdgeInsets.symmetric(horizontal: 8),
                       suffixIcon: isFromInventory
                           ? Tooltip(
                               message: 'From Inventory',
-                              child: Icon(Icons.inventory, color: Colors.green, size: 16),
+                              child: Icon(Icons.inventory, color: colorScheme.secondary, size: 16),
                             )
                           : null,
+                      filled: true,
+                      fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                     ),
                     onChanged: (value) {
                       if (!isFromInventory) {
                         setState(() {
-                          // Now copyWith will preserve inventoryItemId and unit automatically
                           _items[index] = item.copyWith(description: value);
                         });
                         _calculateTotals();
@@ -1026,7 +1455,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                 if (_isSelectingFromInventory && !isFromInventory)
                   IconButton(
                     onPressed: () => _showInventorySelectionDialog(index),
-                    icon: Icon(Icons.search, color: Colors.blue),
+                    icon: Icon(Icons.search, color: colorScheme.primary),
                     tooltip: 'Select from Inventory',
                   ),
                 
@@ -1046,10 +1475,24 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _qtyControllers[index],
+                    style: TextStyle(color: colorScheme.onSurface),
                     decoration: InputDecoration(
                       labelText: 'Qty',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.outline),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                      ),
                       contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                      filled: true,
+                      fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                     ),
                     keyboardType: TextInputType.number,
                     onChanged: (value) {
@@ -1068,17 +1511,32 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                   child: TextFormField(
                     controller: _priceControllers[index],
                     readOnly: isFromInventory,
+                    style: TextStyle(color: colorScheme.onSurface),
                     decoration: InputDecoration(
                       labelText: 'Price',
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.outline),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                      ),
                       prefixText: '₹ ',
+                      prefixStyle: TextStyle(color: colorScheme.onSurface),
                       contentPadding: EdgeInsets.symmetric(horizontal: 8),
                       suffixIcon: isFromInventory
                           ? Tooltip(
                               message: 'Price from inventory',
-                              child: Icon(Icons.lock, color: Colors.blue, size: 16),
+                              child: Icon(Icons.lock, color: colorScheme.primary, size: 16),
                             )
                           : null,
+                      filled: true,
+                      fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                     ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     onChanged: isFromInventory ? null : (value) {
@@ -1096,12 +1554,15 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                 if (item.unit != null && item.unit!.isNotEmpty)
                   Expanded(
                     child: Card(
-                      color: Colors.grey.shade100,
+                      color: colorScheme.surfaceContainerHighest,
                       child: Padding(
                         padding: const EdgeInsets.all(12.0),
                         child: Text(
                           item.unit!,
-                          style: TextStyle(fontSize: 14),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: colorScheme.onSurface,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -1112,14 +1573,15 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                 
                 Expanded(
                   child: Card(
-                    color: Colors.grey.shade100,
+                    color: colorScheme.surfaceContainerHighest,
                     child: Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: Text(
                         '₹${(item.quantity * item.price).toStringAsFixed(2)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
+                          color: colorScheme.onSurface,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -1140,7 +1602,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                         padding: const EdgeInsets.only(top: 8.0),
                         child: Text(
                           '⚠️ Insufficient stock! Available: ${inventoryItem.quantity}',
-                          style: TextStyle(color: Colors.red, fontSize: 12),
+                          style: TextStyle(color: colorScheme.error, fontSize: 12),
                         ),
                       );
                     } else if (inventoryItem.quantity < 10) {
@@ -1148,7 +1610,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                         padding: const EdgeInsets.only(top: 8.0),
                         child: Text(
                           '⚠️ Low stock! Available: ${inventoryItem.quantity}',
-                          style: TextStyle(color: Colors.orange, fontSize: 12),
+                          style: TextStyle(color: colorScheme.tertiary, fontSize: 12),
                         ),
                       );
                     }
@@ -1163,6 +1625,9 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
   }
  
   Widget _buildTotalRow(String label, double amount, {bool isTotal = false}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1171,7 +1636,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           style: TextStyle(
             fontSize: isTotal ? 18 : 14,
             fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            color: isTotal ? Colors.blue.shade900 : Colors.blue.shade700,
+            color: isTotal ? colorScheme.primary : colorScheme.onSurface,
           ),
         ),
         Text(
@@ -1179,7 +1644,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           style: TextStyle(
             fontSize: isTotal ? 18 : 14,
             fontWeight: FontWeight.bold,
-            color: isTotal ? Colors.blue : Colors.blue.shade900,
+            color: isTotal ? colorScheme.primary : colorScheme.onSurface,
           ),
         ),
       ],
@@ -1205,7 +1670,10 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
     if (_partyNameController.text.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Please select a ${widget.type == 'sales' ? 'customer' : 'supplier'}')),
+          SnackBar(
+            content: Text('Please select a ${widget.type == 'sales' ? 'customer' : 'supplier'}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
       return;
@@ -1217,7 +1685,10 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
       if (item.description.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please enter item description')),
+            SnackBar(
+              content: const Text('Please enter item description'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
           );
         }
         return;
@@ -1225,7 +1696,10 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
       if (item.price <= 0) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Item price must be greater than 0')),
+            SnackBar(
+              content: const Text('Item price must be greater than 0'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
           );
         }
         return;
@@ -1233,7 +1707,10 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
       if (item.quantity <= 0) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Item quantity must be greater than 0')),
+            SnackBar(
+              content: const Text('Item quantity must be greater than 0'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
           );
         }
         return;
@@ -1271,6 +1748,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(errorMessage),
+              backgroundColor: Theme.of(context).colorScheme.error,
               duration: Duration(seconds: 3),
             ),
           );
@@ -1375,8 +1853,9 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Transaction updated successfully'),
+              SnackBar(
+                content: const Text('Transaction updated successfully'),
+                backgroundColor: Theme.of(context).colorScheme.secondary,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -1389,6 +1868,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Failed to update transaction: ${e.toString()}'),
+                backgroundColor: Theme.of(context).colorScheme.error,
                 duration: Duration(seconds: 3),
               ),
             );
@@ -1406,8 +1886,9 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Transaction saved successfully'),
+              SnackBar(
+                content: const Text('Transaction saved successfully'),
+                backgroundColor: Theme.of(context).colorScheme.secondary,
                 duration: Duration(seconds: 2),
               ),
             );
@@ -1420,6 +1901,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Failed to save transaction: ${e.toString()}'),
+                backgroundColor: Theme.of(context).colorScheme.error,
                 duration: Duration(seconds: 3),
               ),
             );
@@ -1444,6 +1926,7 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error saving transaction: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: Duration(seconds: 3),
           ),
         );
@@ -1516,9 +1999,15 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
 
   @override
   void dispose() {
-    for (final c in _descControllers) c.dispose();
-    for (final c in _qtyControllers) c.dispose();
-    for (final c in _priceControllers) c.dispose();
+    for (final c in _descControllers) {
+      c.dispose();
+    }
+    for (final c in _qtyControllers) {
+      c.dispose();
+    }
+    for (final c in _priceControllers) {
+      c.dispose();
+    }
     
     _partyNameController.dispose();
     _partyPhoneController.dispose();

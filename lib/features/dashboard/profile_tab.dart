@@ -8,9 +8,9 @@ class ProfileScreen extends StatefulWidget {
   final String userMobile;
   
   const ProfileScreen({
-    Key? key,
+    super.key,
     required this.userMobile,
-  }) : super(key: key);
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -38,10 +38,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       await SessionServiceNew.logout();
-      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+      }
     } catch (e) {
       print('Logout error: $e');
-      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+      }
     }
   }
 
@@ -60,34 +64,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isEditing = false;
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated successfully'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile updated successfully'),
+            backgroundColor: Theme.of(context).colorScheme.secondary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating profile: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
     
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.background : const Color(0xFFF5F6FA),
+      appBar: AppBar(
+        title: Text(
+          'Profile',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        backgroundColor: colorScheme.surface,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
+          onPressed: () => Navigator.pop(context),
+        ),
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        actions: [
+          if (!_isEditing)
+            IconButton(
+              icon: Icon(Icons.edit, color: colorScheme.onSurface),
+              onPressed: () => setState(() => _isEditing = true),
+              tooltip: 'Edit Profile',
+            ),
+        ],
+      ),
       body: FutureBuilder<String>(
         future: SessionServiceNew.getUserId(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(child: CircularProgressIndicator(color: colorScheme.primary));
           }
 
           final mobile = widget.userMobile;
@@ -103,46 +145,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildLoginPrompt() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.person_off,
-              size: 80,
-              color: Colors.grey[400],
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.person_off,
+                size: 64,
+                color: colorScheme.primary.withOpacity(0.5),
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Text(
-              'Please Login',
+              'Not Logged In',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
+                color: colorScheme.onSurface,
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
-              'You need to login to view your profile',
+              'Please login to view your profile',
               style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[500],
+                fontSize: 14,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
               },
-              icon: const Icon(Icons.login),
-              label: const Text('Go to Login'),
+              icon: const Icon(Icons.login, color: Colors.white),
+              label: const Text('Go to Login', style: TextStyle(color: Colors.white)),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                minimumSize: const Size(200, 50),
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -152,6 +207,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileContent(String mobile, bool isSmallScreen) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -159,7 +217,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator(color: colorScheme.primary));
         }
 
         if (snapshot.hasError) {
@@ -175,6 +233,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final location = data['location']?.toString() ?? 'Not specified';
         final createdAt = data['createdAt'] as Timestamp?;
         final businessName = data['businessName']?.toString() ?? 'My Business';
+        final email = data['email']?.toString() ?? 'Not provided';
+        final phone = data['phone']?.toString() ?? mobile;
 
         // Initialize controllers with current data
         if (!_isEditing) {
@@ -182,279 +242,301 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _locationController.text = location;
         }
 
-        return CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // Profile Header - Mobile Optimized
-            SliverAppBar(
-              expandedHeight: isSmallScreen ? 180 : 200,
-              pinned: true,
-              floating: true,
-              backgroundColor: Theme.of(context).primaryColor,
-              flexibleSpace: FlexibleSpaceBar(
-                titlePadding: const EdgeInsets.only(bottom: 16),
-                
-                background: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Theme.of(context).primaryColor,
-                        Theme.of(context).primaryColor.withOpacity(0.8),
-                      ],
-                    ),
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+          child: Column(
+            children: [
+              // Profile Header Card
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(isSmallScreen ? 20 : 24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.7)],
                   ),
-                  child: SafeArea(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(height: isSmallScreen ? 30 : 40),
-                        CircleAvatar(
-                          radius: isSmallScreen ? 35 : 40,
-                          backgroundColor: Colors.white,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: TextStyle(
-                              fontSize: isSmallScreen ? 30 : 36,
-                              color: Colors.black87,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            name,
-                            style: TextStyle(
-                              fontSize: isSmallScreen ? 18 : 22,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            businessName,
-                            style: TextStyle(
-                              fontSize: isSmallScreen ? 12 : 14,
-                              color: Colors.white70,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Avatar
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: CircleAvatar(
+                        radius: isSmallScreen ? 40 : 45,
+                        backgroundColor: Colors.white,
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 36 : 42,
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 20 : 24,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      businessName,
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 14 : 16,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        mobile,
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 12 : 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              actions: [
-                if (!_isEditing)
-                  IconButton(
-                    icon: Icon(Icons.edit, color: Colors.white, size: isSmallScreen ? 20 : 24),
-                    onPressed: () => setState(() => _isEditing = true),
-                    tooltip: 'Edit Profile',
-                  ),
-               
-              ],
-            ),
 
-            // Profile Details - Mobile Optimized
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Business Card
-                    _buildCard(
-                      icon: Icons.business,
-                      title: 'Business Information',
-                      children: [
-                        _infoRow('Business Name', businessName, isSmallScreen),
-                        _infoRow('Location', location, isSmallScreen),
+              const SizedBox(height: 16),
+
+              // Personal Information Card
+              _buildInfoCard(
+                icon: Icons.person_outline,
+                title: 'Personal Information',
+                children: _isEditing
+                    ? [
+                        _buildEditableField('Full Name', _nameController, isSmallScreen),
+                        const SizedBox(height: 16),
+                        _buildEditableField('Location', _locationController, isSmallScreen),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _updateProfile,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: colorScheme.secondary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text('Save Changes'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => setState(() => _isEditing = false),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: colorScheme.onSurface,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  side: BorderSide(color: colorScheme.outline),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ]
+                    : [
+                        _buildInfoRow('Full Name', name, isSmallScreen),
+                        _buildInfoRow('Mobile Number', phone, isSmallScreen),
+                        _buildInfoRow('Email', email, isSmallScreen),
+                        _buildInfoRow('Location', location, isSmallScreen),
                         if (createdAt != null)
-                          _infoRow(
+                          _buildInfoRow(
                             'Member Since',
                             '${createdAt.toDate().day}/${createdAt.toDate().month}/${createdAt.toDate().year}',
                             isSmallScreen,
                           ),
                       ],
-                    ),
+              ),
 
-                    SizedBox(height: isSmallScreen ? 12 : 16),
+              const SizedBox(height: 16),
 
-                    // Personal Information Card
-                    _buildCard(
-                      icon: Icons.person_outline,
-                      title: 'Personal Information',
-                      trailing: _isEditing
-                          ? IconButton(
-                              icon: Icon(Icons.close, size: isSmallScreen ? 20 : 24),
-                              onPressed: () => setState(() => _isEditing = false),
-                              tooltip: 'Cancel',
-                            )
-                          : null,
-                      children: _isEditing
-                          ? [
-                              _editableField('Name', _nameController, isSmallScreen),
-                              SizedBox(height: isSmallScreen ? 8 : 12),
-                              _editableField('Location', _locationController, isSmallScreen),
-                              SizedBox(height: isSmallScreen ? 16 : 20),
-                              ElevatedButton(
-                                onPressed: _updateProfile,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 15),
-                                  minimumSize: const Size(double.infinity, 0),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Save Changes',
-                                  style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
-                                ),
-                              ),
-                            ]
-                          : [
-                              _infoRow('Full Name', name, isSmallScreen),
-                              _infoRow('Mobile Number', mobile, isSmallScreen),
-                            ],
-                    ),
+              // Business Information Card
+              _buildInfoCard(
+                icon: Icons.business,
+                title: 'Business Information',
+                children: [
+                  _buildInfoRow('Business Name', businessName, isSmallScreen),
+                  _buildInfoRow('GST Number', data['gst']?.toString() ?? 'Not added', isSmallScreen),
+                  _buildInfoRow('Address', data['address']?.toString() ?? 'Not added', isSmallScreen),
+                ],
+              ),
 
-                    SizedBox(height: isSmallScreen ? 12 : 16),
+              const SizedBox(height: 24),
 
-                    // Quick Stats Card - FIXED OVERFLOW ISSUE
-
-                    SizedBox(height: isSmallScreen ? 16 : 24),
-
-                    // Logout Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isLoggingOut ? null : _logout,
-                        icon: _isLoggingOut
-                            ? SizedBox(
-                                width: isSmallScreen ? 18 : 20,
-                                height: isSmallScreen ? 18 : 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Icon(Icons.logout, size: isSmallScreen ? 20 : 24),
-                        label: _isLoggingOut
-                            ? Text(
-                                'Logging out...',
-                                style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
-                              )
-                            : Text(
-                                'Logout from Account',
-                                style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
-                              ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 14 : 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+              // Logout Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoggingOut ? null : _logout,
+                  icon: _isLoggingOut
+                      ? SizedBox(
+                          width: isSmallScreen ? 18 : 20,
+                          height: isSmallScreen ? 18 : 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
-                        ),
-                      ),
+                        )
+                      : const Icon(Icons.logout, color: Colors.white),
+                  label: Text(
+                    _isLoggingOut ? 'Logging out...' : 'Logout from Account',
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 14 : 16,
+                      color: Colors.white,
                     ),
-
-                    SizedBox(height: isSmallScreen ? 16 : 20),
-                  ],
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.error,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 14 : 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: theme.brightness == Brightness.dark ? 4 : 2,
+                  ),
                 ),
               ),
-            ),
-          ],
+
+              const SizedBox(height: 20),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildCard({
+  Widget _buildInfoCard({
     required IconData icon,
     required String title,
-    List<Widget>? children,
-    Widget? trailing,
+    required List<Widget> children,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final isSmallScreen = MediaQuery.of(context).size.width < 360;
     
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      icon,
-                      color: Theme.of(context).primaryColor,
-                      size: isSmallScreen ? 20 : 24,
-                    ),
-                    SizedBox(width: isSmallScreen ? 8 : 10),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 16 : 18,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                  ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                if (trailing != null) trailing,
-              ],
-            ),
-            if (children != null && children.isNotEmpty) ...[
-              SizedBox(height: isSmallScreen ? 12 : 15),
-              ...children,
+                child: Icon(icon, color: colorScheme.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 16 : 18,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
             ],
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
       ),
     );
   }
 
-  Widget _infoRow(String label, String value, bool isSmallScreen) {
+  Widget _buildInfoRow(String label, String value, bool isSmallScreen) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Padding(
       padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 6 : 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 2,
+          // Label with fixed width for alignment
+          SizedBox(
+            width: isSmallScreen ? 100 : 120,
             child: Text(
-              '$label:',
+              label,
               style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey,
                 fontSize: isSmallScreen ? 13 : 14,
+                color: colorScheme.onSurface.withOpacity(0.6),
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
+          // Colon with fixed width
+          SizedBox(
+            width: 20,
+            child: Text(
+              ':',
+              style: TextStyle(
+                fontSize: isSmallScreen ? 13 : 14,
+                color: colorScheme.onSurface.withOpacity(0.6),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          // Value - expanded to fill remaining space
           Expanded(
-            flex: 3,
             child: Text(
               value,
               style: TextStyle(
-                fontWeight: FontWeight.w500,
                 fontSize: isSmallScreen ? 13 : 14,
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -465,136 +547,106 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _editableField(String label, TextEditingController controller, bool isSmallScreen) {
+  Widget _buildEditableField(String label, TextEditingController controller, bool isSmallScreen) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey,
             fontSize: isSmallScreen ? 13 : 14,
+            color: colorScheme.onSurface.withOpacity(0.7),
+            fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
-          style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
+          style: TextStyle(
+            fontSize: isSmallScreen ? 14 : 15,
+            color: colorScheme.onSurface,
+          ),
           decoration: InputDecoration(
             contentPadding: EdgeInsets.symmetric(
-              horizontal: isSmallScreen ? 12 : 16,
-              vertical: isSmallScreen ? 12 : 16,
+              horizontal: isSmallScreen ? 14 : 16,
+              vertical: isSmallScreen ? 12 : 14,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: colorScheme.outline),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: colorScheme.outline),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: colorScheme.primary, width: 2),
             ),
             filled: true,
-            fillColor: Colors.grey[50],
+            fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
           ),
         ),
       ],
     );
   }
 
-  Widget _statCard(String title, String value, IconData icon, Color color, bool isSmallScreen) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: color,
-                size: isSmallScreen ? 16 : 20,
-              ),
-            ),
-            SizedBox(height: isSmallScreen ? 4 : 8),
-            FittedBox(
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 14 : 18,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-                maxLines: 1,
-              ),
-            ),
-            SizedBox(height: isSmallScreen ? 2 : 4),
-            FittedBox(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 10 : 12,
-                  color: Colors.grey,
-                ),
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildErrorUI(String error) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 80,
-              color: Colors.red[300],
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.error.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.error_outline,
+                size: 64,
+                color: colorScheme.error.withOpacity(0.5),
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Text(
               'Something went wrong',
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
+                color: colorScheme.onSurface,
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               error,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[500],
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () => setState(() {}),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try Again'),
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              label: const Text('Try Again', style: TextStyle(color: Colors.white)),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -604,51 +656,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildUserNotFoundUI(String mobile, bool isSmallScreen) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircleAvatar(
-              radius: isSmallScreen ? 40 : 50,
-              backgroundColor: Colors.deepPurple,
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.tertiary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
               child: Text(
                 mobile.isNotEmpty ? mobile.substring(0, 1).toUpperCase() : '?',
                 style: TextStyle(
-                  fontSize: isSmallScreen ? 32 : 40,
-                  color: Colors.white,
+                  fontSize: isSmallScreen ? 40 : 48,
+                  color: colorScheme.tertiary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Text(
               mobile,
               style: TextStyle(
-                fontSize: isSmallScreen ? 18 : 22,
+                fontSize: isSmallScreen ? 20 : 24,
                 fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
-              "Your profile is not yet complete.",
+              'Profile not complete',
               style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 16,
-                color: Colors.grey,
+                fontSize: 16,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
-              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 4),
             Text(
-              "Please complete your registration.",
+              'Please complete your registration',
               style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 16,
-                color: Colors.grey,
+                fontSize: 14,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
             Column(
               children: [
                 SizedBox(
@@ -658,43 +716,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       setState(() => _isEditing = true);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: Colors.white,
                       padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 14 : 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                      elevation: theme.brightness == Brightness.dark ? 4 : 2,
                     ),
                     child: Text(
                       'Complete Profile',
-                      style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 14 : 16,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton(
+                  child: OutlinedButton.icon(
                     onPressed: _isLoggingOut ? null : _logout,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
+                    icon: _isLoggingOut
+                        ? SizedBox(
+                            width: isSmallScreen ? 16 : 18,
+                            height: isSmallScreen ? 16 : 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.error,
+                            ),
+                          )
+                        : Icon(Icons.logout, color: colorScheme.error),
+                    label: Text(
+                      _isLoggingOut ? 'Logging out...' : 'Logout',
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 14 : 16,
+                        color: colorScheme.error,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colorScheme.error,
                       padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 14 : 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                      side: BorderSide(color: colorScheme.error),
                     ),
-                    child: _isLoggingOut
-                        ? SizedBox(
-                            width: isSmallScreen ? 18 : 20,
-                            height: isSmallScreen ? 18 : 20,
-                            child: const CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            'Logout',
-                            style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
-                          ),
                   ),
                 ),
               ],

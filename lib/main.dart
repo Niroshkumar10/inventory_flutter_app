@@ -1,28 +1,24 @@
+// lib/main.dart (final version)
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
-import 'auth_wrapper.dart';
 import 'core/theme/app_theme.dart';
-import './features/splash/splash_screen.dart'; // Import SplashScreen
+import './features/splash/splash_screen.dart';
+import 'core/providers/theme_provider.dart';
 
 Future<void> main() async {
-  // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
   
   print('🚀 Starting Firebase initialization...');
   
   try {
-    // Initialize Firebase with your generated options
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    
     print('✅ Firebase initialized successfully');
-    print('📱 Platform: ${DefaultFirebaseOptions.currentPlatform.appId}');
   } catch (e) {
     print('❌ Firebase initialization failed: $e');
-    print('⚠️ Continuing without Firebase...');
   }
   
   runApp(const MyApp());
@@ -33,11 +29,22 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Inventory App',
-      theme: AppTheme.lightTheme,
-      home: const SplashScreen(), // Changed: AuthWrapper → SplashScreen
-      debugShowCheckedModeBanner: false,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Inventory App',
+            theme: AppTheme.lightTheme,      // Your light theme with Roboto
+            darkTheme: AppTheme.darkTheme,    // Your dark theme with Roboto
+            themeMode: themeProvider.themeMode,
+            home: const SplashScreen(),
+            debugShowCheckedModeBanner: false,
+          );
+        },
+      ),
     );
   }
 }

@@ -13,7 +13,7 @@ import 'party_ledger_screen.dart';
 class LedgerHomeScreen extends StatefulWidget {
   final String userMobile;
   
-  const LedgerHomeScreen({Key? key, required this.userMobile}) : super(key: key);
+  const LedgerHomeScreen({super.key, required this.userMobile});
 
   @override
   State<LedgerHomeScreen> createState() => _LedgerHomeScreenState();
@@ -37,17 +37,27 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
+        backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
         appBar: AppBar(
-          title: const Text('My Accounts'),
-          backgroundColor: Colors.blue.shade700,
-          foregroundColor: Colors.white,
+          backgroundColor: colorScheme.primary,
+          title: const Text(
+            'My Accounts',
+            style: TextStyle(color: Colors.white),
+          ),
+          iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
-          bottom: const TabBar(
+          bottom: TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
             indicatorColor: Colors.white,
-            tabs: [
+            tabs: const [
               Tab(icon: Icon(Icons.dashboard), text: 'Summary'),
               Tab(icon: Icon(Icons.people), text: 'Customers'),
               Tab(icon: Icon(Icons.store), text: 'Suppliers'),
@@ -55,9 +65,12 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
           ),
         ),
         floatingActionButton: FloatingActionButton.extended(
-          backgroundColor: Colors.blue.shade700,
-          icon: const Icon(Icons.add),
-          label: const Text('Add Record'),
+          icon: const Icon(Icons.add, color: Colors.white),
+          label: const Text(
+            'Add Record',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: colorScheme.primary,
           onPressed: () => _addLedgerEntry(),
         ),
         body: TabBarView(
@@ -72,11 +85,17 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Widget _buildSummaryScreen() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return RefreshIndicator(
       onRefresh: () async {
         setState(() {});
         await Future.delayed(const Duration(milliseconds: 300));
       },
+      color: colorScheme.primary,
+      backgroundColor: colorScheme.surface,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -96,8 +115,8 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  elevation: 4,
-                  color: Colors.blue.shade50,
+                  elevation: isDark ? 4 : 2,
+                  color: colorScheme.primary.withOpacity(0.1),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -106,7 +125,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                           'Your Balance',
                           style: TextStyle(
                             fontSize: 16,
-                            color: Colors.blue.shade800,
+                            color: colorScheme.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -116,15 +135,17 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                           style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
-                            color: netBalance >= 0 ? Colors.green.shade800 : Colors.red.shade800,
+                            color: netBalance >= 0 ? colorScheme.secondary : colorScheme.error,
                           ),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          netBalance >= 0 ? 'People owe you money' : 'You owe money to people',
+                          netBalance >= 0 
+                              ? 'People have to pay you money' 
+                              : 'You have to pay money to people',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey.shade700,
+                            color: colorScheme.onSurface.withOpacity(0.7),
                           ),
                         ),
                       ],
@@ -150,7 +171,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                           child: _simpleStatCard(
                             'Sales',
                             stats['totalSales'] ?? 0,
-                            Colors.green,
+                            colorScheme.secondary,
                             Icons.shopping_cart,
                           ),
                         ),
@@ -159,7 +180,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                           child: _simpleStatCard(
                             'Purchases',
                             stats['totalPurchases'] ?? 0,
-                            Colors.orange,
+                            colorScheme.tertiary,
                             Icons.shopping_bag,
                           ),
                         ),
@@ -172,7 +193,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                           child: _simpleStatCard(
                             'Received',
                             stats['totalPayments'] ?? 0,
-                            Colors.blue,
+                            colorScheme.primary,
                             Icons.download,
                           ),
                         ),
@@ -195,12 +216,12 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
             const SizedBox(height: 20),
             
             // Quick Actions
-            const Text(
+            Text(
               'Quick Actions',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 12),
@@ -216,19 +237,19 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                 _simpleActionCard(
                   'Add Sale',
                   Icons.shopping_cart,
-                  Colors.green,
+                  colorScheme.secondary,
                   () => _addSale(),
                 ),
                 _simpleActionCard(
                   'Add Purchase',
                   Icons.shopping_bag,
-                  Colors.orange,
+                  colorScheme.tertiary,
                   () => _addPurchase(),
                 ),
                 _simpleActionCard(
                   'Receive Money',
                   Icons.download,
-                  Colors.blue,
+                  colorScheme.primary,
                   () => _addPayment(),
                 ),
                 _simpleActionCard(
@@ -243,12 +264,12 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
             const SizedBox(height: 20),
             
             // Recent Records
-            const Text(
+            Text(
               'Recent Records',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 12),
@@ -257,7 +278,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
               stream: _ledgerService.getLedgerEntries(limit: 5),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(child: CircularProgressIndicator(color: colorScheme.primary));
                 }
                 
                 final entries = snapshot.data ?? [];
@@ -276,7 +297,10 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
             
             TextButton(
               onPressed: _viewAllEntries,
-              child: const Text('View All Records'),
+              child: Text(
+                'View All Records',
+                style: TextStyle(color: colorScheme.primary),
+              ),
             ),
           ],
         ),
@@ -285,6 +309,10 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Widget _buildPartyList(String partyType) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isCustomer = partyType == 'customer';
+
     if (partyType == 'customer') {
       return StreamBuilder<List<Customer>>(
         stream: _customerService.getCustomers(),
@@ -303,8 +331,13 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Widget _buildPartyListView(AsyncSnapshot snapshot, String partyType) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final isCustomer = partyType == 'customer';
+
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator(color: colorScheme.primary));
     }
     
     if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -313,89 +346,108 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
     
     final parties = snapshot.data!;
     
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: parties.length,
-      itemBuilder: (context, index) {
-        final party = parties[index];
-        late String partyId;
-        late String partyName;
-        late String contact;
-        
-        if (partyType == 'customer') {
-          final customer = party as Customer;
-          partyId = customer.id;
-          partyName = customer.name;
-          contact = customer.mobile;
-        } else {
-          final supplier = party as Supplier;
-          partyId = supplier.id;
-          partyName = supplier.name;
-          contact = supplier.phone;
-        }
-        
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: partyType == 'customer' 
-                  ? Colors.blue.shade100
-                  : Colors.orange.shade100,
-              child: Icon(
-                partyType == 'customer' ? Icons.person : Icons.store,
-                color: partyType == 'customer' ? Colors.blue : Colors.orange,
-              ),
-            ),
-            title: Text(
-              partyName,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: FutureBuilder<double>(
-              future: _ledgerService.getPartyBalance(partyId),
-              builder: (context, balanceSnapshot) {
-                if (balanceSnapshot.connectionState == ConnectionState.waiting) {
-                  return Text(contact);
-                }
-                
-                final balance = balanceSnapshot.data ?? 0;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(contact),
-                    const SizedBox(height: 4),
-                    Text(
-                      balance >= 0 ? 'Owes you: ${_currencyFormat.format(balance)}' 
-                                 : 'You owe: ${_currencyFormat.format(balance.abs())}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: balance >= 0 ? Colors.green.shade800 : Colors.red.shade800,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            trailing: Icon(
-              Icons.chevron_right,
-              color: Colors.grey.shade500,
-            ),
-            onTap: () => _viewPartyLedger(party, partyType),
-          ),
-        );
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {});
       },
+      color: colorScheme.primary,
+      backgroundColor: colorScheme.surface,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: parties.length,
+        itemBuilder: (context, index) {
+          final party = parties[index];
+          late String partyId;
+          late String partyName;
+          late String contact;
+          
+          if (isCustomer) {
+            final customer = party as Customer;
+            partyId = customer.id;
+            partyName = customer.name;
+            contact = customer.mobile;
+          } else {
+            final supplier = party as Supplier;
+            partyId = supplier.id;
+            partyName = supplier.name;
+            contact = supplier.phone;
+          }
+          
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: isDark ? 4 : 2,
+            color: colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: (isCustomer ? colorScheme.secondary : colorScheme.tertiary).withOpacity(0.2),
+                child: Icon(
+                  isCustomer ? Icons.person : Icons.store,
+                  color: isCustomer ? colorScheme.secondary : colorScheme.tertiary,
+                ),
+              ),
+              title: Text(
+                partyName,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              subtitle: FutureBuilder<double>(
+                future: _ledgerService.getPartyBalance(partyId),
+                builder: (context, balanceSnapshot) {
+                  if (balanceSnapshot.connectionState == ConnectionState.waiting) {
+                    return Text(contact, style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)));
+                  }
+                  
+                  final balance = balanceSnapshot.data ?? 0;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        contact,
+                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        balance >= 0 
+                            ? 'Owes you: ${_currencyFormat.format(balance)}' 
+                            : 'You owe: ${_currencyFormat.format(balance.abs())}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: balance >= 0 ? colorScheme.secondary : colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: colorScheme.onSurface.withOpacity(0.5),
+              ),
+              onTap: () => _viewPartyLedger(party, partyType),
+            ),
+          );
+        },
+      ),
     );
   }
 
   Widget _simpleStatCard(String title, double value, Color color, IconData icon) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      elevation: 2,
+      elevation: isDark ? 4 : 2,
+      color: colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -415,9 +467,10 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -439,11 +492,16 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Widget _simpleActionCard(String title, IconData icon, Color color, VoidCallback onTap) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      elevation: 2,
+      elevation: isDark ? 4 : 2,
+      color: colorScheme.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
@@ -457,9 +515,10 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
@@ -470,12 +529,17 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Widget _simpleTransactionItem(LedgerEntry entry) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      elevation: 1,
+      elevation: isDark ? 4 : 1,
+      color: colorScheme.surface,
       child: ListTile(
         leading: Container(
           width: 40,
@@ -492,9 +556,10 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
         ),
         title: Text(
           entry.partyName,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 15,
+            color: colorScheme.onSurface,
           ),
         ),
         subtitle: Column(
@@ -502,7 +567,10 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
           children: [
             Text(
               entry.description,
-              style: const TextStyle(fontSize: 13),
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurface.withOpacity(0.7),
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -511,7 +579,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
               _dateFormat.format(entry.date),
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: colorScheme.onSurface.withOpacity(0.5),
               ),
             ),
           ],
@@ -525,7 +593,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: entry.isDebit() ? Colors.green.shade800 : Colors.red.shade800,
+                color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
               ),
             ),
             Container(
@@ -534,6 +602,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
               decoration: BoxDecoration(
                 color: entry.statusColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(4),
+    border: Border.all(color: entry.statusColor.withOpacity(0.3)), // Fixed: Use Border.all()
               ),
               child: Text(
                 entry.statusLabel,
@@ -552,6 +621,9 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Widget _simpleEmptyState() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Padding(
       padding: const EdgeInsets.all(40),
       child: Column(
@@ -559,21 +631,21 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
           Icon(
             Icons.receipt_long,
             size: 80,
-            color: Colors.grey.shade300,
+            color: colorScheme.onSurface.withOpacity(0.2),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No records yet',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.grey,
+              color: colorScheme.onSurface.withOpacity(0.5),
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Add your first transaction',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
           ),
         ],
       ),
@@ -581,6 +653,9 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Widget _emptyPartyState(String partyType) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -590,15 +665,15 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
             Icon(
               partyType == 'customer' ? Icons.person : Icons.store,
               size: 80,
-              color: Colors.grey.shade300,
+              color: colorScheme.onSurface.withOpacity(0.2),
             ),
             const SizedBox(height: 16),
             Text(
               'No ${partyType == 'customer' ? 'customers' : 'suppliers'} yet',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey,
+                color: colorScheme.onSurface.withOpacity(0.5),
               ),
             ),
             const SizedBox(height: 8),
@@ -606,7 +681,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
               partyType == 'customer'
                   ? 'Add customers to track sales'
                   : 'Add suppliers to track purchases',
-              style: const TextStyle(color: Colors.grey),
+              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
             ),
           ],
         ),
@@ -615,14 +690,18 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Widget _buildLoadingCard() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Padding(
-        padding: EdgeInsets.all(20),
+      color: colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
         child: Center(
-          child: CircularProgressIndicator(),
+          child: CircularProgressIndicator(color: colorScheme.primary),
         ),
       ),
     );
@@ -674,14 +753,17 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   void _showSimpleDetails(LedgerEntry entry) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(20),
               topRight: Radius.circular(20),
             ),
@@ -695,7 +777,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: colorScheme.onSurface.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -712,17 +794,22 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                   ),
                   title: Text(
                     entry.typeLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                     ),
                   ),
-                  subtitle: Text('with ${entry.partyName}'),
+                  subtitle: Text(
+                    'with ${entry.partyName}',
+                    style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
+                  ),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: entry.statusColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
+    border: Border.all(color: entry.statusColor.withOpacity(0.3)), // Fixed: Use Border.all()
                     ),
                     child: Text(
                       entry.statusLabel,
@@ -738,11 +825,14 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     children: [
-                      _detailItem('Date', _dateFormat.format(entry.date)),
-                      _detailItem('Amount', _currencyFormat.format(entry.amount)),
-                      if (entry.description.isNotEmpty) _detailItem('Description', entry.description),
-                      if (entry.reference.isNotEmpty) _detailItem('Reference', entry.reference),
-                      if (entry.notes.isNotEmpty) _detailItem('Notes', entry.notes),
+                      _detailItem('Date', _dateFormat.format(entry.date), colorScheme),
+                      _detailItem('Amount', _currencyFormat.format(entry.amount), colorScheme),
+                      if (entry.description.isNotEmpty) 
+                        _detailItem('Description', entry.description, colorScheme),
+                      if (entry.reference.isNotEmpty) 
+                        _detailItem('Reference', entry.reference, colorScheme),
+                      if (entry.notes.isNotEmpty) 
+                        _detailItem('Notes', entry.notes, colorScheme),
                     ],
                   ),
                 ),
@@ -754,6 +844,8 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                         onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(color: colorScheme.outline),
+                          foregroundColor: colorScheme.onSurface,
                         ),
                         child: const Text('Close'),
                       ),
@@ -767,7 +859,8 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
                             Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade700,
+                            backgroundColor: colorScheme.primary,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           child: const Text('Mark Paid'),
@@ -785,7 +878,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
     );
   }
 
-  Widget _detailItem(String label, String value) {
+  Widget _detailItem(String label, String value, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -795,17 +888,18 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
             width: 100,
             child: Text(
               '$label:',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w500,
-                color: Colors.grey,
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
+                color: colorScheme.onSurface,
               ),
             ),
           ),
@@ -815,13 +909,20 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
   }
 
   Future<void> _markAsPaid(LedgerEntry entry) async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     try {
       await _ledgerService.updateLedgerStatus(entry.id, 'paid');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Marked as paid'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text('Marked as paid'),
+            backgroundColor: colorScheme.secondary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         );
         setState(() {});
@@ -831,7 +932,8 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: colorScheme.error,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }

@@ -7,10 +7,10 @@ class SupplierFormModal extends StatefulWidget {
   final Supplier? supplier;
   
   const SupplierFormModal({
-    Key? key, 
+    super.key, 
     required this.userMobile,
     this.supplier,
-  }) : super(key: key);
+  });
 
   @override
   _SupplierFormModalState createState() => _SupplierFormModalState();
@@ -68,12 +68,18 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
         final newId = await _supplierService.addSupplier(supplier);
         print('✅ Supplier added with ID: $newId');
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Supplier added successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Supplier added successfully'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
       } else {
         // Update existing supplier
         final updatedSupplier = widget.supplier!.copyWith(
@@ -85,22 +91,33 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
         
         await _supplierService.updateSupplier(updatedSupplier);
         
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Supplier updated successfully'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
+      }
+      
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Supplier updated successfully'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
-      
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -110,6 +127,10 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -117,9 +138,9 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
         right: 16,
         top: 16,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Form(
         key: _formKey,
@@ -134,13 +155,14 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                 children: [
                   Text(
                     widget.supplier == null ? 'Add Supplier' : 'Edit Supplier',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close, color: colorScheme.onSurface),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -148,7 +170,10 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               
               Text(
                 'User: ${widget.userMobile}',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                  color: colorScheme.onSurface.withOpacity(0.6), 
+                  fontSize: 12,
+                ),
               ),
               
               const SizedBox(height: 20),
@@ -156,10 +181,32 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               // Name Field
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Supplier Name *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
+                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.tertiary, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.error),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.error, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.person, color: colorScheme.tertiary),
+                  filled: true,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -174,10 +221,32 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               // Phone Field
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Phone Number *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
+                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.tertiary, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.error),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.error, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.phone, color: colorScheme.tertiary),
+                  filled: true,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                 ),
                 keyboardType: TextInputType.phone,
                 validator: (value) {
@@ -194,16 +263,61 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               const SizedBox(height: 16),
               
               // Email Field
+              TextFormField(
+                controller: _emailController,
+                style: TextStyle(color: colorScheme.onSurface),
+                decoration: InputDecoration(
+                  labelText: 'Email (Optional)',
+                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.tertiary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.email, color: colorScheme.tertiary),
+                  filled: true,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value != null && value.isNotEmpty) {
+                    if (!value.contains('@') || !value.contains('.')) {
+                      return 'Please enter a valid email';
+                    }
+                  }
+                  return null;
+                },
+              ),
               
               const SizedBox(height: 16),
               
               // Address Field
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Address',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.location_on),
+                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.tertiary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.location_on, color: colorScheme.tertiary),
+                  filled: true,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                 ),
                 maxLines: 3,
               ),
@@ -214,14 +328,16 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveSupplier,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: colorScheme.tertiary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  elevation: isDark ? 4 : 2,
                 ),
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
@@ -233,7 +349,10 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                         widget.supplier == null 
                             ? 'Add Supplier' 
                             : 'Update Supplier',
-                        style: const TextStyle(fontSize: 16),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
               ),
               

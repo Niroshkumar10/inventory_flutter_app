@@ -7,10 +7,10 @@ class AddEditCustomerScreen extends StatefulWidget {
   final Customer? customer;
   
   const AddEditCustomerScreen({
-    Key? key,
+    super.key,
     required this.userMobile,
     this.customer,
-  }) : super(key: key);
+  });
 
   @override
   State<AddEditCustomerScreen> createState() => _AddEditCustomerScreenState();
@@ -64,9 +64,19 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
         );
         
         await _customerService.addCustomer(customer);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Customer added successfully')),
-        );
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Customer added successfully'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
       } else {
         // Update existing customer
         final updatedCustomer = widget.customer!.copyWith(
@@ -76,16 +86,34 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
         );
         
         await _customerService.updateCustomer(updatedCustomer);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Customer updated successfully')),
-        );
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Customer updated successfully'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
       }
       
-      Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -95,6 +123,10 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -102,9 +134,9 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
         right: 16,
         top: 16,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Form(
         key: _formKey,
@@ -118,13 +150,14 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 children: [
                   Text(
                     widget.customer == null ? 'Add Customer' : 'Edit Customer',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close, color: colorScheme.onSurface),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -132,17 +165,42 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
               
               Text(
                 'User: ${widget.userMobile}',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                  color: colorScheme.onSurface.withOpacity(0.6), 
+                  fontSize: 12,
+                ),
               ),
               
               const SizedBox(height: 20),
               
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Customer Name *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
+                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.error),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.error, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.person, color: colorScheme.primary),
+                  filled: true,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -156,10 +214,32 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
               
               TextFormField(
                 controller: _mobileController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Mobile Number *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
+                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.error),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.error, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.phone, color: colorScheme.primary),
+                  filled: true,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                 ),
                 keyboardType: TextInputType.phone,
                 validator: (value) {
@@ -177,10 +257,24 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
               
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Address',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.location_on),
+                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.location_on, color: colorScheme.primary),
+                  filled: true,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                 ),
                 maxLines: 3,
               ),
@@ -190,14 +284,16 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveCustomer,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  elevation: isDark ? 4 : 2,
                 ),
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
@@ -209,7 +305,10 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                         widget.customer == null 
                             ? 'Add Customer' 
                             : 'Update Customer',
-                        style: const TextStyle(fontSize: 16),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
               ),
               

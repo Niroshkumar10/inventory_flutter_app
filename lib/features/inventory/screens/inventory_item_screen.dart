@@ -11,11 +11,11 @@ class InventoryItemScreen extends StatelessWidget {
   final String userMobile;
 
   const InventoryItemScreen({
-    Key? key,
+    super.key,
     required this.item,
     required this.inventoryService,
     required this.userMobile,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +144,7 @@ class InventoryItemScreen extends StatelessWidget {
             const Divider(),
             _buildInfoRow(
               label: 'Created',
-              value: '${item.createdAt.toLocal().toString().split(' ')[0]}',
+              value: item.createdAt.toLocal().toString().split(' ')[0],
             ),
           ],
         ),

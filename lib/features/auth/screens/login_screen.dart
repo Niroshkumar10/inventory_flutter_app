@@ -6,7 +6,7 @@ import '../../session/session_service_new.dart';
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
 
-  const LoginScreen({Key? key, required this.onLoginSuccess}) : super(key: key);
+  const LoginScreen({super.key, required this.onLoginSuccess});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -413,7 +413,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       '• Enter your 10-digit mobile number\n'
                       '• If you are a new user, you will be asked to provide additional details\n'

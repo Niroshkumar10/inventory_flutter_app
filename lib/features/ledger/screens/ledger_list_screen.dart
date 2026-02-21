@@ -9,11 +9,11 @@ class LedgerListScreen extends StatefulWidget {
   final String? partyType;
   
   const LedgerListScreen({
-    Key? key,
+    super.key,
     required this.userMobile,
     this.partyId,
     this.partyType,
-  }) : super(key: key);
+  });
 
   @override
   State<LedgerListScreen> createState() => _LedgerListScreenState();
@@ -37,15 +37,24 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: const Text('All Ledger Entries'),
-        backgroundColor:  const Color.fromARGB(255, 7, 54, 114),
-        foregroundColor: Colors.black,
-        elevation: 0,
+        title: Text(
+          'All Ledger Entries',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        elevation: 0.5,
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_alt),
+            icon: Icon(Icons.filter_alt, color: colorScheme.onSurface),
             onPressed: _showFilterDialog,
           ),
         ],
@@ -55,14 +64,20 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
+              style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'Search by party or description',
-                prefixIcon: const Icon(Icons.search),
+                hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.5)),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
                 ),
               ),
               onChanged: (value) {
@@ -79,14 +94,19 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
                 children: [
                   Chip(
                     label: Text(
-                      '${_startDate?.toString().split(' ')[0] ?? 'Start'} - ${_endDate?.toString().split(' ')[0] ?? 'End'}',
+                      '${_startDate != null ? _formatDate(_startDate!) : 'Start'} - ${_endDate != null ? _formatDate(_endDate!) : 'End'}',
+                      style: TextStyle(color: colorScheme.primary),
                     ),
-                    backgroundColor: Colors.blue.shade100,
+                    backgroundColor: colorScheme.primary.withOpacity(0.1),
+                    side: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
                   ),
                   const Spacer(),
                   TextButton(
                     onPressed: _clearFilters,
-                    child: const Text('Clear Filters'),
+                    child: Text(
+                      'Clear Filters',
+                      style: TextStyle(color: colorScheme.primary),
+                    ),
                   ),
                 ],
               ),
@@ -102,7 +122,9 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
               ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(
+                    child: CircularProgressIndicator(color: colorScheme.primary),
+                  );
                 }
                 
                 if (snapshot.hasError) {
@@ -110,9 +132,12 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error, color: Colors.red, size: 50),
+                        Icon(Icons.error, color: colorScheme.error, size: 50),
                         const SizedBox(height: 10),
-                        Text('Error: ${snapshot.error}'),
+                        Text(
+                          'Error: ${snapshot.error}',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
                       ],
                     ),
                   );
@@ -129,12 +154,19 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
                   return _emptyState();
                 }
                 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: filteredEntries.length,
-                  itemBuilder: (context, index) {
-                    return _ledgerEntryCard(filteredEntries[index]);
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    setState(() {});
                   },
+                  color: colorScheme.primary,
+                  backgroundColor: colorScheme.surface,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: filteredEntries.length,
+                    itemBuilder: (context, index) {
+                      return _ledgerEntryCard(filteredEntries[index]);
+                    },
+                  ),
                 );
               },
             ),
@@ -145,8 +177,17 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
   }
 
   Widget _ledgerEntryCard(LedgerEntry entry) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: isDark ? 4 : 2,
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: entry.typeColor.withOpacity(0.2),
@@ -154,7 +195,10 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
         ),
         title: Text(
           entry.partyName,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,16 +207,22 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
             Row(
               children: [
                 Chip(
-                  label: Text(entry.typeLabel),
+                  label: Text(
+                    entry.typeLabel,
+                    style: TextStyle(color: entry.typeColor, fontSize: 10),
+                  ),
                   backgroundColor: entry.typeColor.withOpacity(0.1),
-                  labelStyle: TextStyle(color: entry.typeColor, fontSize: 10),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                  side: BorderSide(color: entry.typeColor.withOpacity(0.3)),
                 ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     entry.description,
-                    style: const TextStyle(fontSize: 12),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -180,8 +230,11 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              entry.date.toString().split(' ')[0],
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              _formatDate(entry.date),
+              style: TextStyle(
+                fontSize: 11,
+                color: colorScheme.onSurface.withOpacity(0.5),
+              ),
             ),
           ],
         ),
@@ -193,7 +246,7 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
               '₹${entry.amount.toStringAsFixed(2)}',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: entry.isDebit() ? Colors.green : Colors.red,
+                color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
                 fontSize: 16,
               ),
             ),
@@ -202,7 +255,7 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
               'Bal: ₹${entry.balance.toStringAsFixed(2)}',
               style: TextStyle(
                 fontSize: 11,
-                color: entry.balance >= 0 ? Colors.green : Colors.red,
+                color: entry.balance >= 0 ? colorScheme.secondary : colorScheme.error,
               ),
             ),
           ],
@@ -214,21 +267,34 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
   }
 
   Widget _emptyState() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_long, size: 80, color: Colors.grey),
+          Icon(
+            Icons.receipt_long, 
+            size: 80, 
+            color: colorScheme.onSurface.withOpacity(0.2),
+          ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'No ledger entries found',
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+            style: TextStyle(
+              color: colorScheme.onSurface.withOpacity(0.5),
+              fontSize: 16,
+            ),
           ),
           const SizedBox(height: 8),
           if (_search.isNotEmpty || _startDate != null || _endDate != null)
             TextButton(
               onPressed: _clearFilters,
-              child: const Text('Clear Filters'),
+              child: Text(
+                'Clear Filters',
+                style: TextStyle(color: colorScheme.primary),
+              ),
             ),
         ],
       ),
@@ -236,45 +302,91 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
   }
 
   void _showFilterDialog() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Filter Entries'),
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Filter Entries',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.calendar_today),
-              title: const Text('Start Date'),
-              subtitle: Text(_startDate?.toString().split(' ')[0] ?? 'Not set'),
+              leading: Icon(Icons.calendar_today, color: colorScheme.primary),
+              title: Text(
+                'Start Date',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              subtitle: Text(
+                _startDate != null ? _formatDate(_startDate!) : 'Not set',
+                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+              ),
               onTap: () async {
                 final date = await showDatePicker(
                   context: context,
                   initialDate: _startDate ?? DateTime.now(),
                   firstDate: DateTime(2000),
                   lastDate: DateTime(2100),
+                  builder: (context, child) {
+                    return Theme(
+                      data: theme.copyWith(
+                        colorScheme: colorScheme.copyWith(
+                          primary: colorScheme.primary,
+                          onPrimary: Colors.white,
+                          surface: colorScheme.surface,
+                          onSurface: colorScheme.onSurface,
+                        ),
+                      ),
+                      child: child!,
+                    );
+                  },
                 );
-                if (date != null) {
+                if (date != null && mounted) {
                   setState(() => _startDate = date);
+                  Navigator.pop(context);
                 }
-                Navigator.pop(context);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.calendar_today),
-              title: const Text('End Date'),
-              subtitle: Text(_endDate?.toString().split(' ')[0] ?? 'Not set'),
+              leading: Icon(Icons.calendar_today, color: colorScheme.primary),
+              title: Text(
+                'End Date',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              subtitle: Text(
+                _endDate != null ? _formatDate(_endDate!) : 'Not set',
+                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+              ),
               onTap: () async {
                 final date = await showDatePicker(
                   context: context,
                   initialDate: _endDate ?? DateTime.now(),
                   firstDate: DateTime(2000),
                   lastDate: DateTime(2100),
+                  builder: (context, child) {
+                    return Theme(
+                      data: theme.copyWith(
+                        colorScheme: colorScheme.copyWith(
+                          primary: colorScheme.primary,
+                          onPrimary: Colors.white,
+                          surface: colorScheme.surface,
+                          onSurface: colorScheme.onSurface,
+                        ),
+                      ),
+                      child: child!,
+                    );
+                  },
                 );
-                if (date != null) {
+                if (date != null && mounted) {
                   setState(() => _endDate = date);
+                  Navigator.pop(context);
                 }
-                Navigator.pop(context);
               },
             ),
           ],
@@ -282,13 +394,20 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               setState(() {});
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Apply Filters'),
           ),
         ],
@@ -305,32 +424,42 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
   }
 
   void _showEntryDetails(LedgerEntry entry) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Transaction Details'),
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Transaction Details',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _detailRow('Date', entry.date.toString().split(' ')[0]),
-              _detailRow('Type', entry.typeLabel),
-              _detailRow('Party', entry.partyName),
-              _detailRow('Description', entry.description),
-              _detailRow('Reference', entry.reference.isNotEmpty ? entry.reference : 'N/A'),
-              _detailRow('Debit', '₹${entry.debit.toStringAsFixed(2)}'),
-              _detailRow('Credit', '₹${entry.credit.toStringAsFixed(2)}'),
-              _detailRow('Amount', '₹${entry.amount.toStringAsFixed(2)}'),
-              _detailRow('Balance', '₹${entry.balance.toStringAsFixed(2)}'),
-              if (entry.notes.isNotEmpty) _detailRow('Notes', entry.notes),
+              _detailRow('Date', _formatDate(entry.date), colorScheme),
+              _detailRow('Type', entry.typeLabel, colorScheme),
+              _detailRow('Party', entry.partyName, colorScheme),
+              _detailRow('Description', entry.description, colorScheme),
+              _detailRow('Reference', entry.reference.isNotEmpty ? entry.reference : 'N/A', colorScheme),
+              _detailRow('Debit', '₹${entry.debit.toStringAsFixed(2)}', colorScheme),
+              _detailRow('Credit', '₹${entry.credit.toStringAsFixed(2)}', colorScheme),
+              _detailRow('Amount', '₹${entry.amount.toStringAsFixed(2)}', colorScheme),
+              _detailRow('Balance', '₹${entry.balance.toStringAsFixed(2)}', colorScheme),
+              if (entry.notes.isNotEmpty) _detailRow('Notes', entry.notes, colorScheme),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(
+              'Close',
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
         ],
       ),
@@ -338,78 +467,182 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
   }
 
   void _showActionMenu(LedgerEntry entry) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showModalBottomSheet(
       context: context,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.edit, color: Colors.blue),
-            title: const Text('Edit Entry'),
-            onTap: () {
-              Navigator.pop(context);
-              _editEntry(entry);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text('Delete Entry'),
-            onTap: () {
-              Navigator.pop(context);
-              _deleteEntry(entry);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.copy, color: Colors.green),
-            title: const Text('Duplicate Entry'),
-            onTap: () {
-              Navigator.pop(context);
-              _duplicateEntry(entry);
-            },
-          ),
-        ],
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Actions',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.edit, color: colorScheme.primary, size: 20),
+              ),
+              title: Text(
+                'Edit Entry',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _editEntry(entry);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.delete, color: colorScheme.error, size: 20),
+              ),
+              title: Text(
+                'Delete Entry',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteEntry(entry);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.copy, color: colorScheme.secondary, size: 20),
+              ),
+              title: Text(
+                'Duplicate Entry',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _duplicateEntry(entry);
+              },
+            ),
+            Container(
+              margin: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: colorScheme.outline),
+                    foregroundColor: colorScheme.onSurface,
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _editEntry(LedgerEntry entry) {
-    // TODO: Implement edit functionality
+    final theme = Theme.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit functionality coming soon')),
+      SnackBar(
+        content: const Text('Edit functionality coming soon'),
+        backgroundColor: theme.colorScheme.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
     );
   }
 
   void _deleteEntry(LedgerEntry entry) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete Entry'),
-        content: Text('Are you sure you want to delete this ${entry.typeLabel} entry?'),
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Delete Entry',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        content: Text(
+          'Are you sure you want to delete this ${entry.typeLabel} entry?',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               try {
                 await _ledgerService.deleteLedgerEntry(entry.id);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Entry deleted successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Entry deleted successfully'),
+                      backgroundColor: colorScheme.secondary,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  );
+                }
               } catch (e) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: colorScheme.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Delete'),
@@ -420,13 +653,20 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
   }
 
   void _duplicateEntry(LedgerEntry entry) {
-    // TODO: Implement duplicate functionality
+    final theme = Theme.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Duplicate functionality coming soon')),
+      SnackBar(
+        content: const Text('Duplicate functionality coming soon'),
+        backgroundColor: theme.colorScheme.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
     );
   }
 
-  Widget _detailRow(String label, String value) {
+  Widget _detailRow(String label, String value, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -436,13 +676,25 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
             width: 100,
             child: Text(
               '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(value)),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.8)),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 }
