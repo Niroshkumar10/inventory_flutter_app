@@ -19,6 +19,9 @@ class InventoryItemScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(item.name),
@@ -37,10 +40,11 @@ class InventoryItemScreen extends StatelessWidget {
                 ),
               ).then((value) {
                 if (value == true) {
+                  final currentColorScheme = Theme.of(context).colorScheme;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text('Item updated successfully'),
-                      backgroundColor: Colors.green,
+                      backgroundColor: currentColorScheme.secondary,
                     ),
                   );
                 }
@@ -50,7 +54,7 @@ class InventoryItemScreen extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => _showDeleteDialog(context, item), // Pass context
+            onPressed: () => _showDeleteDialog(context, item),
             tooltip: 'Delete Item',
           ),
         ],
@@ -74,7 +78,7 @@ class InventoryItemScreen extends StatelessWidget {
       ),
     );
   }
-
+  
   Widget _buildHeader() {
     return Row(
       children: [
@@ -140,7 +144,11 @@ class InventoryItemScreen extends StatelessWidget {
             const Divider(),
             _buildInfoRow(label: 'Location', value: item.location ?? 'Not specified'),
             const Divider(),
-            _buildInfoRow(label: 'Supplier ID', value: item.supplierId ?? 'Not specified'),
+            // Now using supplierName directly from the model
+            _buildInfoRow(
+              label: 'Supplier',
+              value: item.supplierName ?? 'Not specified',
+            ),
             const Divider(),
             _buildInfoRow(
               label: 'Created',
@@ -296,34 +304,43 @@ class InventoryItemScreen extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildAdditionalInfo() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Additional Information',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+Widget _buildAdditionalInfo() {
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Additional Information',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(height: 12),
-            _buildInfoRow(
-              label: 'Last Updated',
-              value: item.updatedAt.toLocal().toString(),
-            ),
-            const Divider(),
-            _buildInfoRow(label: 'Item ID', value: item.id),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          _buildInfoRow(
+            label: 'Last Updated',
+            value: _formatDateTime(item.updatedAt),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
+// Add this helper method to format the date and time
+String _formatDateTime(DateTime dateTime) {
+  final localDateTime = dateTime.toLocal();
+  
+  // Format: YYYY-MM-DD HH:MM:SS (without milliseconds)
+  return '${localDateTime.year}-${_twoDigits(localDateTime.month)}-${_twoDigits(localDateTime.day)} '
+      '${_twoDigits(localDateTime.hour)}:${_twoDigits(localDateTime.minute)}:${_twoDigits(localDateTime.second)}';
+}
+
+String _twoDigits(int n) {
+  return n.toString().padLeft(2, '0');
+}
   Widget _buildStatCard({
     required String title,
     required String value,
@@ -361,7 +378,6 @@ class InventoryItemScreen extends StatelessWidget {
     );
   }
 
-  // Delete Methods - Fixed to accept BuildContext parameter
   void _showDeleteDialog(BuildContext context, InventoryItem item) {
     showDialog(
       context: context,
@@ -389,36 +405,31 @@ class InventoryItemScreen extends StatelessWidget {
     );
   }
 
- Future<void> _deleteItem(BuildContext context, InventoryItem item) async {
-  try {
-    // Close the dialog using root navigator
-    Navigator.of(context, rootNavigator: true).pop();
-    
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Deleting "${item.name}"...'),
-        backgroundColor: Colors.blue,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-
-    await inventoryService.deleteInventoryItem(item.id);
-    
-    // Navigate back to inventory list using root navigator
-    Navigator.of(context, rootNavigator: true).pop(item.name);
-    
-  } catch (e) {
-    // Only show error if still on screen
-    if (context.mounted) {
+  Future<void> _deleteItem(BuildContext context, InventoryItem item) async {
+    try {
+      Navigator.of(context, rootNavigator: true).pop();
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
+          content: Text('Deleting "${item.name}"...'),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 1),
         ),
       );
+
+      await inventoryService.deleteInventoryItem(item.id);
+      Navigator.of(context, rootNavigator: true).pop(item.name);
+      
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
-}
 }

@@ -757,7 +757,7 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
       ),
       child: Column(
         children: [
-          Row(
+                   Row(
             children: [
               Container(
                 width: 45,
@@ -795,6 +795,19 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
                         color: colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
+                    // 👇 NEW: Show paid amount for partial payments
+                    if (report.paymentStatus == 'partial')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Paid: ₹${NumberFormat('#,##0.00').format(report.amountPaid)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1211,8 +1224,8 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
                   children: [
                     _buildPLRow('Revenue', report.formattedRevenue, Colors.green),
                     const SizedBox(height: 12),
-                    _buildPLRow('COGS', '₹${NumberFormat('#,##0.00').format(report.totalCost)}', Colors.red),
-                    Divider(height: 24, color: colorScheme.outline),
+_buildPLRow('Cost of Goods', '₹${NumberFormat('#,##0.00').format(report.totalCost)}', Colors.red),    
+                Divider(height: 24, color: colorScheme.outline),
                     _buildPLRow('Gross Profit', '₹${NumberFormat('#,##0.00').format(report.grossProfit)}', Colors.blue, isBold: true),
                     if (report.grossProfit > 0) ...[
                       const SizedBox(height: 4),
@@ -1232,8 +1245,12 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
                       ),
                     ],
                     const SizedBox(height: 16),
-                    _buildPLRow('Expenses', '₹${NumberFormat('#,##0.00').format(report.expenses)}', Colors.orange),
-                    Divider(height: 24, thickness: 1, color: colorScheme.outline),
+if (report.expenses > 0) ...[
+  _buildPLRow('Expenses', '₹${NumberFormat('#,##0.00').format(report.expenses)}', Colors.orange),
+  Divider(height: 24, thickness: 1, color: colorScheme.outline),
+] else ...[
+  Divider(height: 24, thickness: 1, color: colorScheme.outline), // Keep divider even if expenses zero
+],                    Divider(height: 24, thickness: 1, color: colorScheme.outline),
                     
                     // Net Profit
                     Container(
@@ -2358,61 +2375,80 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
     );
   }
 
-  Future<void> _handleExport(String format) async {
-    if (_userMobile == null) {
-      _showError('Please login to export reports');
+Future<void> _handleExport(String format) async {
+  if (_userMobile == null) {
+    _showError('Please login to export reports');
+    return;
+  }
+
+  setState(() => _isExporting = true);
+
+  try {
+    // IMPORTANT: Fetch the user data from Firestore
+    print('📱 Fetching user data for: $_userMobile');
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_userMobile!)
+        .get();
+    
+    Map<String, dynamic>? userData;
+    if (userDoc.exists) {
+      userData = userDoc.data() as Map<String, dynamic>;
+      print('✅ User data fetched:');
+      print('  - name: ${userData['name']}');
+      print('  - businessName: ${userData['businessName']}');
+      print('  - location: ${userData['location']}');
+    } else {
+      print('⚠️ No user document found for $_userMobile');
+    }
+
+    final reportType = _getCurrentReportType();
+    final reportData = await _getCurrentReportData();
+
+    if (reportData.isEmpty) {
+      _showError('No data available to export');
       return;
     }
 
-    setState(() => _isExporting = true);
-
-    try {
-      final reportType = _getCurrentReportType();
-      final reportData = await _getCurrentReportData();
-
-      if (reportData.isEmpty) {
-        _showError('No data available to export');
-        return;
+    if (format == 'pdf' || format == 'both') {
+      final result = await _exportService.exportToPdf(
+        reportType: reportType,
+        userMobile: _userMobile!,
+        startDate: _startDate,
+        endDate: _endDate,
+        data: reportData,
+        title: _getReportTitle(),
+        userData: userData, // THIS IS CRITICAL - passing user data
+      );
+      
+      if (!kIsWeb) {
+        // For mobile, we need to open the file
+        // The exportToPdf method already handles this internally
       }
-
-      if (format == 'pdf' || format == 'both') {
-        final filePath = await _exportService.exportToPdf(
-          reportType: reportType,
-          userMobile: _userMobile!,
-          startDate: _startDate,
-          endDate: _endDate,
-          data: reportData,
-          title: _getReportTitle(),
-        );
-        
-        if (!kIsWeb) {
-          await _exportService.openFile(filePath);
-        }
-        _showSuccess('PDF exported successfully!');
-      }
-
-      if (format == 'excel' || format == 'both') {
-        final filePath = await _exportService.exportToExcel(
-          reportType: reportType,
-          userMobile: _userMobile!,
-          startDate: _startDate,
-          endDate: _endDate,
-          data: reportData,
-        );
-        
-        if (!kIsWeb) {
-          await _exportService.openFile(filePath);
-        }
-        _showSuccess('Excel exported successfully!');
-      }
-    } catch (e) {
-      print('❌ Export error: $e');
-      _showError('Export failed: ${e.toString()}');
-    } finally {
-      setState(() => _isExporting = false);
+      _showSuccess('PDF exported successfully!');
     }
-  }
 
+    if (format == 'excel' || format == 'both') {
+      final result = await _exportService.exportToExcel(
+        reportType: reportType,
+        userMobile: _userMobile!,
+        startDate: _startDate,
+        endDate: _endDate,
+        data: reportData,
+      );
+      
+      if (!kIsWeb) {
+        // The exportToExcel method already handles opening the file
+      }
+      _showSuccess('Excel exported successfully!');
+    }
+  } catch (e) {
+    print('❌ Export error: $e');
+    _showError('Export failed: ${e.toString()}');
+  } finally {
+    setState(() => _isExporting = false);
+  }
+}
   Future<List<Map<String, dynamic>>> _getCurrentReportData() async {
     switch (_selectedTab) {
       case 0: // Sales

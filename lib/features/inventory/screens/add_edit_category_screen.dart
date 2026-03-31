@@ -38,60 +38,61 @@ class _AddEditCategoryScreenState extends State<AddEditCategoryScreen> {
     _descriptionController.dispose();
     super.dispose();
   }
+// screens/add_edit_category_screen.dart - Line ~40-70
 
-  Future<void> _saveCategory() async {
-    if (!_formKey.currentState!.validate()) return;
+Future<void> _saveCategory() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isSaving = true;
-    });
+  setState(() {
+    _isSaving = true;
+  });
 
-    try {
-      final name = _nameController.text.trim();
-      final description = _descriptionController.text.trim();
+  try {
+    final name = _nameController.text.trim();
+    final description = _descriptionController.text.trim();
 
-      if (widget.category == null) {
-        // Add new category
-        await widget.inventoryService.addCategory(
-          name,
-          description: description.isNotEmpty ? description : null,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Category added successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        // Update existing category
-        await widget.inventoryService.updateCategory(
-          widget.category!.id,
-          name,
-          description: description.isNotEmpty ? description : null,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Category updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-
-      Navigator.pop(context, true);
-    } catch (e) {
+    if (widget.category == null) {
+      // Add new category
+      await widget.inventoryService.addCategory(
+        name,
+        description: description.isNotEmpty ? description : null,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
+        const SnackBar(
+          content: Text('Category added successfully'),
+          backgroundColor: Colors.green,
         ),
       );
-    } finally {
-      setState(() {
-        _isSaving = false;
-      });
+    } else {
+      // Update existing category - PASS THE OLD CATEGORY NAME
+      await widget.inventoryService.updateCategory(
+        widget.category!.id,
+        name,
+        description: description.isNotEmpty ? description : null,
+        oldCategoryName: widget.category!.name, // ADD THIS LINE
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Category updated successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
-  }
 
+    Navigator.pop(context, true);
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  } finally {
+    setState(() {
+      _isSaving = false;
+    });
+  }
+}
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.category != null;

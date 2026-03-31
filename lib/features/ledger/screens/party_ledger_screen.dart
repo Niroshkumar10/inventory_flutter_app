@@ -37,6 +37,35 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
     }
   }
 
+Future<void> _markAsPaid(LedgerEntry entry) async {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+
+  try {
+    await _ledgerService.updateLedgerStatus(entry.id, 'paid');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Marked as paid'),
+          backgroundColor: colorScheme.secondary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadCurrentBalance(); // Refresh balance
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -204,80 +233,129 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
     );
   }
 
-  Widget _transactionItem(LedgerEntry entry) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+Widget _transactionItem(LedgerEntry entry) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final isDark = theme.brightness == Brightness.dark;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: isDark ? 4 : 2,
-      color: colorScheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: entry.typeColor.withOpacity(0.2),
-          child: Icon(entry.typeIcon, color: entry.typeColor, size: 20),
-        ),
-        title: Text(
-          entry.description,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Chip(
-              label: Text(
-                entry.typeLabel,
-                style: TextStyle(color: entry.typeColor, fontSize: 10),
-              ),
-              backgroundColor: entry.typeColor.withOpacity(0.1),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
-              side: BorderSide(color: entry.typeColor.withOpacity(0.3)),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _formatDate(entry.date),
-              style: TextStyle(
-                fontSize: 11,
-                color: colorScheme.onSurface.withOpacity(0.5),
-              ),
-            ),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '₹${entry.amount.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Bal: ₹${entry.balance.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 11,
-                color: entry.balance >= 0 ? colorScheme.secondary : colorScheme.error,
-              ),
-            ),
-          ],
-        ),
-        onTap: () => _showEntryDetails(entry),
-      ),
-    );
+  // Determine status color and label
+  Color getStatusColor() {
+    final status = entry.status.toLowerCase();
+    if (status == 'paid' || status == 'completed') {
+      return Colors.green;
+    } else if (status == 'pending' || status == 'due') {
+      return Colors.orange;
+    } else if (status == 'overdue') {
+      return Colors.red;
+    } else if (status == 'cancelled') {
+      return Colors.grey;
+    }
+    return Colors.grey;
   }
 
+  String getStatusLabel() {
+    final status = entry.status.toLowerCase();
+    if (status == 'paid' || status == 'completed') {
+      return 'Paid';
+    } else if (status == 'pending' || status == 'due') {
+      return 'Pending';
+    } else if (status == 'overdue') {
+      return 'Overdue';
+    } else if (status == 'cancelled') {
+      return 'Cancelled';
+    }
+    return entry.status;
+  }
+
+  final statusColor = getStatusColor();
+  final statusLabel = getStatusLabel();
+
+  return Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    elevation: isDark ? 4 : 2,
+    color: colorScheme.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: ListTile(
+      leading: CircleAvatar(
+        backgroundColor: entry.typeColor.withOpacity(0.2),
+        child: Icon(entry.typeIcon, color: entry.typeColor, size: 20),
+      ),
+      title: Text(
+        entry.description,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: colorScheme.onSurface,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          // Type chip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: entry.typeColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: entry.typeColor.withOpacity(0.3)),
+            ),
+            child: Text(
+              entry.typeLabel,
+              style: TextStyle(color: entry.typeColor, fontSize: 10),
+            ),
+          ),
+          // Date
+          Text(
+            _formatDate(entry.date),
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Amount (at the top)
+          Text(
+            '₹${entry.amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Status badge (below the amount)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: statusColor.withOpacity(0.3)),
+            ),
+            child: Text(
+              statusLabel,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: statusColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+      onTap: () => _showEntryDetails(entry),
+    ),
+  );
+}
   Widget _emptyState() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -312,46 +390,103 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
       ),
     );
   }
+void _showEntryDetails(LedgerEntry entry) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
 
-  void _showEntryDetails(LedgerEntry entry) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  // Determine status color and label
+  Color getStatusColor() {
+    final status = entry.status.toLowerCase();
+    if (status == 'paid' || status == 'completed') {
+      return Colors.green;
+    } else if (status == 'pending' || status == 'due') {
+      return Colors.orange;
+    }
+    return Colors.grey;
+  }
 
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        title: Text(
-          'Transaction Details',
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _detailRow('Date', _formatDate(entry.date), colorScheme),
-              _detailRow('Type', entry.typeLabel, colorScheme),
-              _detailRow('Description', entry.description, colorScheme),
-              _detailRow('Reference', entry.reference.isNotEmpty ? entry.reference : 'N/A', colorScheme),
-              _detailRow('Amount', '₹${entry.amount.toStringAsFixed(2)}', colorScheme),
-              _detailRow('Balance', '₹${entry.balance.toStringAsFixed(2)}', colorScheme),
-              if (entry.notes.isNotEmpty) _detailRow('Notes', entry.notes, colorScheme),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
+  String getStatusLabel() {
+    final status = entry.status.toLowerCase();
+    if (status == 'paid' || status == 'completed') {
+      return 'Paid';
+    } else if (status == 'pending' || status == 'due') {
+      return 'Pending';
+    }
+    return entry.status;
+  }
+
+  final statusColor = getStatusColor();
+  final statusLabel = getStatusLabel();
+
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      backgroundColor: colorScheme.surface,
+      title: Row(
+        children: [
+          Expanded(
             child: Text(
-              'Close',
-              style: TextStyle(color: colorScheme.primary),
+              'Transaction Details',
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: statusColor.withOpacity(0.3)),
+            ),
+            child: Text(
+              statusLabel,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: statusColor,
+              ),
             ),
           ),
         ],
       ),
-    );
-  }
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _detailRow('Date', _formatDate(entry.date), colorScheme),
+            _detailRow('Type', entry.typeLabel, colorScheme),
+            _detailRow('Description', entry.description, colorScheme),
+            _detailRow('Reference', entry.reference.isNotEmpty ? entry.reference : 'N/A', colorScheme),
+            _detailRow('Amount', '₹${entry.amount.toStringAsFixed(2)}', colorScheme),
+            _detailRow('Balance', '₹${entry.balance.toStringAsFixed(2)}', colorScheme),
+            if (entry.notes.isNotEmpty) _detailRow('Notes', entry.notes, colorScheme),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Close',
+            style: TextStyle(color: colorScheme.primary),
+          ),
+        ),
+        if (entry.status.toLowerCase() == 'pending')
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _markAsPaid(entry);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Mark as Paid'),
+          ),
+      ],
+    ),
+  );
+}
 
   Widget _detailRow(String label, String value, ColorScheme colorScheme) {
     return Padding(

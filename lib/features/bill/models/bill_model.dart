@@ -10,6 +10,7 @@ class Bill {
   String partyPhone;
   String partyAddress;
   List<BillItem> items;
+  
   double subtotal;
   double gstRate;
   double gstAmount;
@@ -209,6 +210,7 @@ class BillItem {
   String? unit;
   String? category;
   String? name;
+  
 
   BillItem({
     required this.id,
@@ -220,6 +222,7 @@ class BillItem {
     this.unit,
     this.category,
     this.name,
+    
   });
 
   Map<String, dynamic> toMap() {

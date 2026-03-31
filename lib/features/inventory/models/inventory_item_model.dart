@@ -43,6 +43,8 @@ class InventoryItem {
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
+
+
   // Helper function to parse date from Firestore
   static DateTime _parseDate(dynamic date) {
     if (date == null) return DateTime.now();
@@ -189,6 +191,55 @@ class InventoryItem {
       isActive: isActive ?? this.isActive,
     );
   }
+
+  // In your InventoryItem class, add this method:
+
+Map<String, dynamic> toCacheMap() {
+  return {
+    'id': id,
+    'name': name,
+    'description': description,
+    'sku': sku,
+    'category': category,
+    'price': price,
+    'cost': cost,
+    'quantity': quantity,
+    'lowStockThreshold': lowStockThreshold,
+    'unit': unit,
+    'location': location,
+    'supplierId': supplierId,
+    'supplierName': supplierName,
+    'imageUrl': imageUrl,
+    'userMobile': userMobile,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'isActive': isActive,
+  };
+}
+
+// Also add a factory method for cache:
+factory InventoryItem.fromCacheMap(Map<String, dynamic> map, String id) {
+  return InventoryItem(
+    id: id,
+    name: map['name'] ?? '',
+    description: map['description'] ?? '',
+    sku: map['sku'] ?? '',
+    category: map['category'] ?? '',
+    price: (map['price'] ?? 0).toDouble(),
+    cost: (map['cost'] ?? 0).toDouble(),
+    quantity: map['quantity'] ?? 0,
+    lowStockThreshold: map['lowStockThreshold'] ?? 5,
+    unit: map['unit'] ?? 'pcs',
+    location: map['location'] ?? '',
+    supplierId: map['supplierId'] ?? '',
+    supplierName: map['supplierName'] ?? '',
+    imageUrl: map['imageUrl'] ?? '',
+    userMobile: map['userMobile'] ?? '',
+    createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+    updatedAt: DateTime.parse(map['updatedAt'] ?? DateTime.now().toIso8601String()),
+    isActive: map['isActive'] ?? true,
+  );
+}
   
   bool get isLowStock => quantity <= lowStockThreshold;
   double get totalValue => price * quantity;

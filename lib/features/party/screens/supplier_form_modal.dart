@@ -26,17 +26,52 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
   final _addressController = TextEditingController();
   
   bool _isLoading = false;
+  List<Supplier> _existingSuppliers = [];
+  bool _isDataLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _supplierService = SupplierService(widget.userMobile);
+    _loadExistingSuppliers();
     
     if (widget.supplier != null) {
       _nameController.text = widget.supplier!.name;
       _phoneController.text = widget.supplier!.phone;
       _emailController.text = widget.supplier!.email;
       _addressController.text = widget.supplier!.address;
+    }
+  }
+
+  Future<void> _loadExistingSuppliers() async {
+    try {
+      // Get the stream
+      final suppliersStream = _supplierService.getSuppliers();
+      
+      // Listen to the stream
+      suppliersStream.listen((suppliers) {
+        if (mounted) {
+          setState(() {
+            _existingSuppliers = suppliers;
+            _isDataLoaded = true;
+          });
+        }
+      }, onError: (error) {
+        print('Error loading suppliers: $error');
+        if (mounted) {
+          setState(() {
+            _isDataLoaded = true; // Mark as loaded even on error to enable validation
+          });
+        }
+      });
+      
+    } catch (e) {
+      print('Error setting up supplier stream: $e');
+      if (mounted) {
+        setState(() {
+          _isDataLoaded = true; // Mark as loaded even on error
+        });
+      }
     }
   }
 
@@ -47,6 +82,94 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
     _emailController.dispose();
     _addressController.dispose();
     super.dispose();
+  }
+
+  // Validation method for name (check if exists)
+  String? _validateName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter supplier name';
+    }
+    
+    final trimmedName = value.trim();
+    
+    // Skip validation if data hasn't loaded yet
+    if (!_isDataLoaded) {
+      return null;
+    }
+    
+    // Skip validation if editing the same supplier
+    if (widget.supplier != null && widget.supplier!.name == trimmedName) {
+      return null;
+    }
+    
+    // Check if name already exists (case-insensitive)
+    final nameExists = _existingSuppliers.any(
+      (supplier) => supplier.name.toLowerCase() == trimmedName.toLowerCase()
+    );
+    
+    if (nameExists) {
+      return 'Supplier with this name already exists';
+    }
+    
+    return null;
+  }
+
+  // Validation method for phone (check if exists and 10 digits)
+  String? _validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter phone number';
+    }
+    
+    final trimmedPhone = value.trim();
+    
+    // Check if it contains only digits
+    final phoneRegex = RegExp(r'^[0-9]+$');
+    if (!phoneRegex.hasMatch(trimmedPhone)) {
+      return 'Phone number should contain only digits';
+    }
+    
+    // Check length (exactly 10 digits)
+    if (trimmedPhone.length != 10) {
+      return 'Phone number must be exactly 10 digits';
+    }
+    
+    // Skip validation if data hasn't loaded yet
+    if (!_isDataLoaded) {
+      return null;
+    }
+    
+    // Skip validation if editing the same supplier
+    if (widget.supplier != null && widget.supplier!.phone == trimmedPhone) {
+      return null;
+    }
+    
+    // Check if phone already exists
+    final phoneExists = _existingSuppliers.any(
+      (supplier) => supplier.phone == trimmedPhone
+    );
+    
+    if (phoneExists) {
+      return 'Supplier with this phone number already exists';
+    }
+    
+    return null;
+  }
+
+  // Validation method for email
+  String? _validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // Email is optional
+    }
+    
+    final trimmedEmail = value.trim();
+    
+    // Basic email validation
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(trimmedEmail)) {
+      return 'Please enter a valid email address';
+    }
+    
+    return null;
   }
 
   Future<void> _saveSupplier() async {
@@ -61,7 +184,6 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
           name: _nameController.text.trim(),
           phone: _phoneController.text.trim(),
           userMobile: widget.userMobile,
-          email: _emailController.text.trim(),
           address: _addressController.text.trim(),
         );
         
@@ -85,7 +207,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
         final updatedSupplier = widget.supplier!.copyWith(
           name: _nameController.text.trim(),
           phone: _phoneController.text.trim(),
-          email: _emailController.text.trim(),
+          email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
           address: _addressController.text.trim(),
         );
         
@@ -178,7 +300,17 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               
               const SizedBox(height: 20),
               
-              // Name Field
+              // Show loading indicator while data is being loaded
+              if (!_isDataLoaded)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: LinearProgressIndicator(
+                    backgroundColor: colorScheme.surfaceContainerHighest,
+                    valueColor: AlwaysStoppedAnimation<Color>(colorScheme.tertiary),
+                  ),
+                ),
+              
+              // Name Field with validation
               TextFormField(
                 controller: _nameController,
                 style: TextStyle(color: colorScheme.onSurface),
@@ -207,18 +339,20 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                   prefixIcon: Icon(Icons.person, color: colorScheme.tertiary),
                   filled: true,
                   fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+                  helperText: _isDataLoaded ? 'Name must be unique' : 'Loading existing suppliers...',
+                  helperStyle: TextStyle(
+                    color: _isDataLoaded 
+                        ? colorScheme.onSurface.withOpacity(0.4) 
+                        : colorScheme.tertiary,
+                    fontSize: 12,
+                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter supplier name';
-                  }
-                  return null;
-                },
+                validator: _validateName,
               ),
               
               const SizedBox(height: 16),
               
-              // Phone Field
+              // Phone Field with validation
               TextFormField(
                 controller: _phoneController,
                 style: TextStyle(color: colorScheme.onSurface),
@@ -247,54 +381,26 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                   prefixIcon: Icon(Icons.phone, color: colorScheme.tertiary),
                   filled: true,
                   fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+                  helperText: _isDataLoaded 
+                      ? '10-digit number, must be unique'
+                      : 'Loading existing suppliers...',
+                  helperStyle: TextStyle(
+                    color: _isDataLoaded 
+                        ? colorScheme.onSurface.withOpacity(0.4) 
+                        : colorScheme.tertiary,
+                    fontSize: 12,
+                  ),
+                  counterText: '', // Hide default counter
                 ),
                 keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter phone number';
-                  }
-                  if (value.trim().length < 10) {
-                    return 'Please enter valid phone number';
-                  }
-                  return null;
-                },
+                maxLength: 10, // Limit to 10 digits
+                validator: _validatePhone,
               ),
               
               const SizedBox(height: 16),
               
-              // Email Field
-              TextFormField(
-                controller: _emailController,
-                style: TextStyle(color: colorScheme.onSurface),
-                decoration: InputDecoration(
-                  labelText: 'Email (Optional)',
-                  labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: colorScheme.outline),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: colorScheme.tertiary, width: 2),
-                  ),
-                  prefixIcon: Icon(Icons.email, color: colorScheme.tertiary),
-                  filled: true,
-                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
-                ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value != null && value.isNotEmpty) {
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Please enter a valid email';
-                    }
-                  }
-                  return null;
-                },
-              ),
-              
+              // Email Field with improved validation
+
               const SizedBox(height: 16),
               
               // Address Field
@@ -326,7 +432,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               
               // Save Button
               ElevatedButton(
-                onPressed: _isLoading ? null : _saveSupplier,
+                onPressed: (_isLoading || !_isDataLoaded) ? null : _saveSupplier,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorScheme.tertiary,
                   foregroundColor: Colors.white,
@@ -346,9 +452,11 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                         ),
                       )
                     : Text(
-                        widget.supplier == null 
-                            ? 'Add Supplier' 
-                            : 'Update Supplier',
+                        !_isDataLoaded 
+                            ? 'Loading...' 
+                            : (widget.supplier == null 
+                                ? 'Add Supplier' 
+                                : 'Update Supplier'),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

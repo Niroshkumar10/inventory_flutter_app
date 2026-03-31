@@ -35,8 +35,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   late TextEditingController _supplierController;
 
   bool _isLoading = false;
-  bool _skuChecking = false;
-  String? _skuError;
+  
   List<String> _categories = [];
   List<String> _suppliers = [];
   final Map<String, String> _supplierMap = {};
@@ -73,7 +72,9 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     _lowStockController = TextEditingController(text: item?.lowStockThreshold.toString() ?? '10');
     _unitController = TextEditingController(text: item?.unit ?? 'pcs');
     _locationController = TextEditingController(text: item?.location ?? '');
-    _supplierController = TextEditingController(text: item?.supplierId ?? '');
+    
+    // FIX: Use supplierName instead of supplierId
+    _supplierController = TextEditingController(text: item?.supplierName ?? '');
 
     // Load categories and suppliers
     _loadCategories();
@@ -95,6 +96,11 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   }
 
   String? _validateSKU(String? value) {
+    // Skip validation for editing (SKU is read-only)
+    if (widget.item != null) {
+      return null;
+    }
+    
     if (value == null || value.trim().isEmpty) {
       return 'SKU is required';
     }
@@ -104,7 +110,6 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     if (value.trim().length > 50) {
       return 'SKU must be less than 50 characters';
     }
-    // Check for valid SKU format (alphanumeric with optional dashes/underscores)
     if (!RegExp(r'^[a-zA-Z0-9\-_]+$').hasMatch(value.trim())) {
       return 'SKU can only contain letters, numbers, dashes, and underscores';
     }
@@ -140,7 +145,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
 
   String? _validateCost(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return null; // Cost is optional
+      return null;
     }
     final cost = double.tryParse(value);
     if (cost == null) {
@@ -219,153 +224,109 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     }
   }
 
-  Future<void> _checkSku() async {
-    if (_skuController.text.isEmpty) return;
-    
-    setState(() {
-      _skuChecking = true;
-      _skuError = null;
-    });
+  // ============ SAVE METHOD WITH VALIDATION ============
+// ============ SAVE METHOD WITH VALIDATION ============
+Future<void> _saveItem() async {
+  // Clear previous errors
+  setState(() {
+    _nameError = null;
+    _skuValidationError = null;
+    _categoryError = null;
+    _priceError = null;
+    _costError = null;
+    _quantityError = null;
+    _lowStockError = null;
+    _unitError = null;
+  });
 
-    try {
-      final exists = await widget.inventoryService.skuExists(
-        _skuController.text.trim(),
-        excludeId: widget.item?.id,
-      );
-      
-      if (exists && mounted) {
-        setState(() {
-          _skuError = 'SKU already exists';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _skuError = 'Error checking SKU';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _skuChecking = false;
-        });
-      }
-    }
+  // Validate all fields
+  final nameValidation = _validateName(_nameController.text);
+  final skuValidation = _validateSKU(_skuController.text);
+  final categoryValidation = _validateCategory(_categoryController.text);
+  final priceValidation = _validatePrice(_priceController.text);
+  final costValidation = _validateCost(_costController.text);
+  final quantityValidation = _validateQuantity(_quantityController.text);
+  final lowStockValidation = _validateLowStock(_lowStockController.text);
+  final unitValidation = _validateUnit(_unitController.text);
+
+  // Set validation errors
+  bool hasErrors = false;
+  if (nameValidation != null) {
+    setState(() => _nameError = nameValidation);
+    hasErrors = true;
+  }
+  if (skuValidation != null) {
+    setState(() => _skuValidationError = skuValidation);
+    hasErrors = true;
+  }
+  if (categoryValidation != null) {
+    setState(() => _categoryError = categoryValidation);
+    hasErrors = true;
+  }
+  if (priceValidation != null) {
+    setState(() => _priceError = priceValidation);
+    hasErrors = true;
+  }
+  if (costValidation != null) {
+    setState(() => _costError = costValidation);
+    hasErrors = true;
+  }
+  if (quantityValidation != null) {
+    setState(() => _quantityError = quantityValidation);
+    hasErrors = true;
+  }
+  if (lowStockValidation != null) {
+    setState(() => _lowStockError = lowStockValidation);
+    hasErrors = true;
+  }
+  if (unitValidation != null) {
+    setState(() => _unitError = unitValidation);
+    hasErrors = true;
   }
 
-  // ============ SAVE METHOD WITH VALIDATION ============
-  Future<void> _saveItem() async {
-    // Clear previous errors
-    setState(() {
-      _nameError = null;
-      _skuValidationError = null;
-      _categoryError = null;
-      _priceError = null;
-      _costError = null;
-      _quantityError = null;
-      _lowStockError = null;
-      _unitError = null;
-    });
+  if (hasErrors) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Please fix all errors before saving'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return;
+  }
 
-    // Validate all fields
-    final nameValidation = _validateName(_nameController.text);
-    final skuValidation = _validateSKU(_skuController.text);
-    final categoryValidation = _validateCategory(_categoryController.text);
-    final priceValidation = _validatePrice(_priceController.text);
-    final costValidation = _validateCost(_costController.text);
-    final quantityValidation = _validateQuantity(_quantityController.text);
-    final lowStockValidation = _validateLowStock(_lowStockController.text);
-    final unitValidation = _validateUnit(_unitController.text);
-
-    // Check for SKU uniqueness
-    if (_skuError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_skuError!),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    // Set validation errors
-    bool hasErrors = false;
-    if (nameValidation != null) {
-      setState(() => _nameError = nameValidation);
-      hasErrors = true;
-    }
-    if (skuValidation != null) {
-      setState(() => _skuValidationError = skuValidation);
-      hasErrors = true;
-    }
-    if (categoryValidation != null) {
-      setState(() => _categoryError = categoryValidation);
-      hasErrors = true;
-    }
-    if (priceValidation != null) {
-      setState(() => _priceError = priceValidation);
-      hasErrors = true;
-    }
-    if (costValidation != null) {
-      setState(() => _costError = costValidation);
-      hasErrors = true;
-    }
-    if (quantityValidation != null) {
-      setState(() => _quantityError = quantityValidation);
-      hasErrors = true;
-    }
-    if (lowStockValidation != null) {
-      setState(() => _lowStockError = lowStockValidation);
-      hasErrors = true;
-    }
-    if (unitValidation != null) {
-      setState(() => _unitError = unitValidation);
-      hasErrors = true;
-    }
-
-    if (hasErrors) {
-      // Scroll to first error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please fix all errors before saving'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true);
+  
+  try {
+    // Parse values
+    final name = _nameController.text.trim();
+    final sku = widget.item != null ? widget.item!.sku : _skuController.text.trim();
+    final category = _categoryController.text.trim();
+    final unit = _unitController.text.trim();
+    final description = _descriptionController.text.trim();
+    final location = _locationController.text.trim();
+    final supplierName = _supplierController.text.trim();
     
-    try {
-      // Parse values
-      final name = _nameController.text.trim();
-      final sku = _skuController.text.trim();
-      final category = _categoryController.text.trim();
-      final unit = _unitController.text.trim();
-      final description = _descriptionController.text.trim();
-      final location = _locationController.text.trim();
-      final supplierName = _supplierController.text.trim();
-      
-      final price = double.parse(_priceController.text);
-      final cost = _costController.text.isNotEmpty ? double.parse(_costController.text) : 0.0;
-      final quantity = int.parse(_quantityController.text);
-      final lowStockThreshold = int.parse(_lowStockController.text);
+    final price = double.parse(_priceController.text);
+    final cost = _costController.text.isNotEmpty ? double.parse(_costController.text) : 0.0;
+    final quantity = int.parse(_quantityController.text);
+    final lowStockThreshold = int.parse(_lowStockController.text);
 
-      // Get supplier ID if supplier name is selected
-      String? supplierId;
-      if (supplierName.isNotEmpty) {
-        try {
-          final supplierDetails = await widget.inventoryService.getSupplierDetails(supplierName);
-          supplierId = supplierDetails?['id'] as String?;
-        } catch (e) {
-          print('⚠️ Could not find supplier ID for name: $supplierName');
-        }
+    // Get supplier ID if supplier name is selected
+    String? supplierId;
+    if (supplierName.isNotEmpty) {
+      try {
+        final supplierDetails = await widget.inventoryService.getSupplierDetails(supplierName);
+        supplierId = supplierDetails?['id'] as String?;
+      } catch (e) {
+        print('⚠️ Could not find supplier ID for name: $supplierName');
       }
+    }
 
+    if (widget.item == null) {
+      // Add new item - let Firestore generate the ID
       final item = InventoryItem(
-        id: widget.item?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: '', // Empty ID for new item
         name: name,
         description: description,
         sku: sku,
@@ -376,66 +337,71 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
         lowStockThreshold: lowStockThreshold,
         unit: unit,
         location: location.isNotEmpty ? location : null,
-        supplierId: supplierId ?? widget.item?.supplierId,
+        supplierId: supplierId,
         supplierName: supplierName.isNotEmpty ? supplierName : null,
         userMobile: widget.userMobile,
       );
-
-      if (widget.item == null) {
-        // Add new item
-        final id = await widget.inventoryService.addInventoryItem(item);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Item added successfully'),
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          );
-        }
-      } else {
-        // Update existing item
-        await widget.inventoryService.updateInventoryItem(item);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Item updated successfully'),
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          );
-        }
-      }
-
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
-    } catch (e, stackTrace) {
-      print('❌ Error saving item: $e');
-      print('Stack trace: $stackTrace');
+      
+      await widget.inventoryService.addInventoryItem(item);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
+            content: const Text('Item added successfully'),
+            backgroundColor: Theme.of(context).colorScheme.secondary,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 5),
           ),
         );
       }
-    } finally {
+    } else {
+      // Update existing item - use the existing ID
+      final updatedItem = widget.item!.copyWith(
+        name: name,
+        description: description,
+        category: category,
+        price: price,
+        cost: cost,
+        quantity: quantity,
+        lowStockThreshold: lowStockThreshold,
+        unit: unit,
+        location: location.isNotEmpty ? location : null,
+        supplierId: supplierId ?? widget.item!.supplierId,
+        supplierName: supplierName.isNotEmpty ? supplierName : widget.item!.supplierName,
+      );
+      
+      await widget.inventoryService.updateInventoryItem(updatedItem);
       if (mounted) {
-        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Item updated successfully'),
+            backgroundColor: Theme.of(context).colorScheme.secondary,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     }
-  }
 
+    if (mounted) {
+      Navigator.pop(context, true);
+    }
+  } catch (e, stackTrace) {
+    print('❌ Error saving item: $e');
+    print('Stack trace: $stackTrace');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+}
   // ============ BUILD METHOD ============
   @override
   Widget build(BuildContext context) {
@@ -488,9 +454,9 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                         
                         _buildInputField(
                           controller: _nameController,
-                          label: 'Product Name',
+                          label: 'Item Name',
                           icon: Icons.shopping_bag_outlined,
-                          hintText: 'Enter product name (e.g., iPhone 14 Pro)',
+                          hintText: 'Enter item name',
                           errorText: _nameError,
                           onChanged: (value) {
                             if (_nameError != null) {
@@ -526,30 +492,21 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                                 controller: _skuController,
                                 label: 'SKU Code',
                                 icon: Icons.tag_outlined,
-                                hintText: 'Enter unique SKU',
-                                errorText: _skuValidationError ?? _skuError,
-                                suffixIcon: _skuChecking
+                                hintText: widget.item == null ? 'Enter unique SKU' : 'SKU cannot be changed',
+                                errorText: _skuValidationError,
+                                // Make SKU read-only when editing
+                                readOnly: widget.item != null,
+                                // Add a hint that it's read-only
+                                suffixIcon: widget.item != null 
                                     ? Padding(
                                         padding: const EdgeInsets.only(right: 12),
-                                        child: SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: colorScheme.primary,
-                                          ),
+                                        child: Icon(
+                                          Icons.lock_outline,
+                                          color: colorScheme.onSurface.withOpacity(0.4),
+                                          size: 18,
                                         ),
                                       )
                                     : null,
-                                onChanged: (value) {
-                                  if (_skuValidationError != null) {
-                                    setState(() => _skuValidationError = null);
-                                  }
-                                  if (_skuError != null) {
-                                    setState(() => _skuError = null);
-                                  }
-                                  _checkSku();
-                                },
                               ),
                             ),
                             
@@ -882,6 +839,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     TextInputType? keyboardType,
     int maxLines = 1,
     bool optional = false,
+    bool readOnly = false,
     ValueChanged<String>? onChanged,
   }) {
     final theme = Theme.of(context);
@@ -918,6 +876,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
+          readOnly: readOnly,
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: TextStyle(
@@ -928,7 +887,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
               padding: const EdgeInsets.only(left: 16, right: 12),
               child: Icon(
                 icon,
-                color: colorScheme.primary,
+                color: readOnly ? colorScheme.onSurface.withOpacity(0.4) : colorScheme.primary,
                 size: 22,
               ),
             ),
@@ -936,27 +895,27 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
             prefixStyle: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w500,
-              color: colorScheme.onSurface,
+              color: readOnly ? colorScheme.onSurface.withOpacity(0.4) : colorScheme.onSurface,
             ),
             suffixIcon: suffixIcon,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: colorScheme.outline,
+                color: readOnly ? colorScheme.onSurface.withOpacity(0.2) : colorScheme.outline,
                 width: 1.5,
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: colorScheme.primary,
+                color: readOnly ? colorScheme.onSurface.withOpacity(0.2) : colorScheme.primary,
                 width: 2,
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: colorScheme.outline,
+                color: readOnly ? colorScheme.onSurface.withOpacity(0.2) : colorScheme.outline,
                 width: 1.5,
               ),
             ),
@@ -984,15 +943,17 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
               vertical: 18,
             ),
             filled: true,
-            fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+            fillColor: readOnly 
+                ? (isDark ? colorScheme.surfaceContainerHighest.withOpacity(0.5) : Colors.grey.shade100)
+                : (isDark ? colorScheme.surfaceContainerHighest : Colors.white),
           ),
           keyboardType: keyboardType,
           maxLines: maxLines,
-          onChanged: onChanged,
+          onChanged: readOnly ? null : onChanged,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
-            color: colorScheme.onSurface,
+            color: readOnly ? colorScheme.onSurface.withOpacity(0.6) : colorScheme.onSurface,
           ),
         ),
       ],
@@ -1031,7 +992,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
         ),
         const SizedBox(height: 8),
         Container(
-          height: 56, // Fixed height to prevent layout shift
+          height: 56,
           decoration: BoxDecoration(
             border: Border.all(
               color: _categoryError != null 
@@ -1089,7 +1050,6 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
               );
             },
             menuChildren: [
-              // "Add New Category" option first for better visibility
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: SizedBox(

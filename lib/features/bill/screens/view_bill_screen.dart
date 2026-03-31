@@ -675,7 +675,7 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text('Record Payment'),
+              child: const Text('Make Payment'),
             ),
           ],
         );

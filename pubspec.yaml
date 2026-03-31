@@ -43,6 +43,9 @@ dependencies:
   # PDF Export (Core packages)
   # printing: ^5.13.1  # For PDF printing
   
+  get: ^4.6.6  # Add this for GetX
+  http: ^1.1.0  # For API calls
+
   # Platform-specific (will be handled conditionally)
   path_provider: ^2.1.1  # For mobile file system
   open_file: ^3.2.1  

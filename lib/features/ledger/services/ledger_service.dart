@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/ledger_model.dart';
 import '../../reports/services/export_service.dart';
+import '../models/ledger_report_model.dart'; // ADD THIS IMPORT
+
 
 class LedgerService {
   final String userMobile;
@@ -80,7 +82,43 @@ class LedgerService {
       throw Exception('Failed to add ledger entries: $e');
     }
   }
-
+// Add this method to your LedgerService class
+Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5}) async {
+  try {
+    print('📊 Fetching ledger entries for party: $partyId');
+    
+    // Create query with filtering and sorting
+    Query query = _userLedgerCollection
+        .where('partyId', isEqualTo: partyId)
+        .orderBy('date', descending: true);
+    
+    // Apply limit at database level
+    if (limit > 0) {
+      query = query.limit(limit);
+    }
+    
+    final snapshot = await query.get();
+    
+    if (snapshot.docs.isEmpty) {
+      print('📭 No ledger entries found for party: $partyId');
+      return [];
+    }
+    
+    // Convert to LedgerEntry objects
+    final entries = snapshot.docs.map((doc) {
+      return LedgerEntry.fromMap(
+        doc.data() as Map<String, dynamic>,
+        doc.id,
+      );
+    }).toList();
+    
+    print('✅ Found ${entries.length} entries for party: $partyId');
+    return entries;
+  } catch (e) {
+    print('❌ Error getting party ledger entries: $e');
+    return [];
+  }
+}
   // ✅ GET PARTY BALANCE
   Future<double> getPartyBalance(String partyId) async {
     try {

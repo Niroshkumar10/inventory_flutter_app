@@ -233,7 +233,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final location = data['location']?.toString() ?? 'Not specified';
         final createdAt = data['createdAt'] as Timestamp?;
         final businessName = data['businessName']?.toString() ?? 'My Business';
-        final email = data['email']?.toString() ?? 'Not provided';
         final phone = data['phone']?.toString() ?? mobile;
 
         // Initialize controllers with current data
@@ -373,7 +372,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     : [
                         _buildInfoRow('Full Name', name, isSmallScreen),
                         _buildInfoRow('Mobile Number', phone, isSmallScreen),
-                        _buildInfoRow('Email', email, isSmallScreen),
                         _buildInfoRow('Location', location, isSmallScreen),
                         if (createdAt != null)
                           _buildInfoRow(
@@ -383,6 +381,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                       ],
               ),
+
 
               const SizedBox(height: 16),
 

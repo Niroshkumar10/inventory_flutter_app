@@ -62,4 +62,28 @@ class Category {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  // In Category class, add:
+
+Map<String, dynamic> toCacheMap() {
+  return {
+    'id': id,
+    'name': name,
+    'description': description,
+    'itemCount': itemCount,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
+}
+
+factory Category.fromCacheMap(Map<String, dynamic> map) {
+  return Category(
+    id: map['id'] ?? '',
+    name: map['name'] ?? '',
+    description: map['description'],
+    itemCount: map['itemCount'] ?? 0,
+    createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+    updatedAt: DateTime.parse(map['updatedAt'] ?? DateTime.now().toIso8601String()),
+  );
+}
 }

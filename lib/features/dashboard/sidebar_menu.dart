@@ -225,13 +225,6 @@ class _SidebarMenuState extends State<SidebarMenu> {
                     ),
                     
                     // Logout Menu Item
-                    _buildMenuItem(
-                      index: 7,
-                      icon: Icons.logout,
-                      title: _isLoggingOut ? 'Logging out...' : 'Logout',
-                      isSelected: false,
-                      onTap: _isLoggingOut ? null : _logout,
-                    ),
                     
                     // Add bottom padding for better scrolling
                     const SizedBox(height: 20),

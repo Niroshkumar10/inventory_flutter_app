@@ -711,6 +711,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
               );
             },
           ),
+
         ],
       ),
       body: _isLoading

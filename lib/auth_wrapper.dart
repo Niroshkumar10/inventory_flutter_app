@@ -1,11 +1,12 @@
-// lib/auth_wrapper.dart
-
+// lib/auth_wrapper.dart (updated)
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import './features/auth/screens/login_screen.dart';
 import '../features/session/session_service_new.dart';
-import '../core/providers/app_providers.dart'; // Add this import
+import '../core/providers/app_providers.dart';
 import '../features/inventory/services/inventory_repo_service.dart';
+import '../core/providers/ai_provider.dart'; // Add this import
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -50,13 +51,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (_userMobile == null || _userMobile!.isEmpty) {
       return LoginScreen(
         onLoginSuccess: () {
-          // Refresh the auth state after login
           _checkAuth();
         },
       );
     }
     
-    // ✅ UPDATED PART: Wrap DashboardScreen with AppProviders
+    // Initialize AI service after login
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final inventoryService = InventoryService(_userMobile!);
+      Provider.of<AIProvider>(context, listen: false)
+          .initialize(inventoryService);
+    });
+    
     return AppProviders(
       userMobile: _userMobile!,
       child: DashboardScreen(

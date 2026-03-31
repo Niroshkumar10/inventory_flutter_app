@@ -21,135 +21,484 @@ class ExportService {
   static final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
   static final _pdfCurrencyFormat = NumberFormat('#,##0.00', 'en_IN');
 
-  // ============ UPDATED: Export to PDF ============
-  Future<String> exportToPdf({
-    required String reportType,
-    required String userMobile,
-    required DateTime startDate,
-    required DateTime endDate,
-    required dynamic data,
-    required String title,
-  }) async {
-    try {
-      print('📄 Starting PDF export for $reportType...');
-      
-      List<Map<String, dynamic>> dataRows;
-      Map<String, dynamic> summary;
-      
-      // Handle specific report types with proper parsing
-      if (reportType == 'sales' && data is List) {
-        // Try to parse as SalesReport objects
-        dataRows = _parseSalesReports(data);
-        summary = _calculateSalesSummary(data);
-      } else if (reportType == 'purchase' && data is List) {
-        // Try to parse as PurchaseReport objects
-        dataRows = _parsePurchaseReports(data);
-        summary = _calculatePurchaseSummary(data);
-      } else {
-        // Fallback to generic parsing
-        dataRows = _parseDataToRows(data, reportType);
-        summary = _calculateSummary(dataRows, reportType);
-      }
-      
-      if (kIsWeb) {
-        // ============ WEB VERSION ============
-        final pdf = _generatePdfDocument(dataRows, summary, title, userMobile, startDate, endDate, reportType);
-        final bytes = await pdf.save();
-        final fileName = '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
-        final success = await _downloadPdfWeb(bytes, fileName);
-        
-        if (success) {
-          return '✅ PDF file downloaded! Check your downloads folder.';
-        } else {
-          return '❌ PDF download failed. Check browser console for details.';
-        }
-      } else {
-        // ============ MOBILE VERSION ============
-        return await _generateMobilePdf(
-          dataRows: dataRows,
-          summary: summary,
-          title: title,
-          userMobile: userMobile,
-          startDate: startDate,
-          endDate: endDate,
-          reportType: reportType,
-        );
-      }
-    } catch (e) {
-      print('❌ PDF Export Error: $e');
-      return 'Error exporting PDF: $e';
+  // User/Business details from profile
+  String? _userName;
+  String? _businessName;
+  String? _location;
+  String? _gstNumber;
+  String? _address;
+
+  // Method to set user details from profile data
+  void setUserDetailsFromProfile(Map<String, dynamic> userData) {
+    print('📋 Setting user details from profile: $userData');
+    
+    _userName = userData['name']?.toString();
+    _businessName = userData['businessName']?.toString() ?? 'My Business';
+    _location = userData['location']?.toString();
+    
+    print('✅ Set values:');
+    print('  - userName: $_userName');
+    print('  - businessName: $_businessName');
+    print('  - location: $_location');
+  }
+  
+  // Individual setter if needed
+  void setUserDetails({
+    String? userName,
+    String? businessName,
+    String? location,
+    String? gstNumber,
+    String? address,
+  }) {
+    _userName = userName;
+    _businessName = businessName;
+    _location = location;
+    _gstNumber = gstNumber;
+    _address = address;
+  }
+
+  // ============ NEW: Get dynamic table title based on report type ============
+  String _getTableTitle(String reportType) {
+    switch (reportType) {
+      case 'sales': return 'Sales Details';
+      case 'purchase': return 'Purchase Details';
+      case 'profit-loss': return 'Profit & Loss';
+      case 'inventory': return 'Inventory Details';
+      case 'customer': return 'Customer Reports';
+      case 'supplier': return 'Supplier Reports';
+      default: return 'Report Details';
     }
   }
 
-  // ============ UPDATED: Export to Excel/CSV ============
-  Future<String> exportToExcel({
-    required String reportType,
+  // ============ UPDATED: exportToPdf with user data ============
+Future<String> exportToPdf({
+  required String reportType,
+  required String userMobile,
+  required DateTime startDate,
+  required DateTime endDate,
+  required dynamic data,
+  required String title,
+  Map<String, dynamic>? userData,
+}) async {
+  try {
+    print('📄 Starting PDF export for $reportType...');
+    
+    // Set user details if provided
+    if (userData != null) {
+      print('📋 User data received in exportToPdf');
+      setUserDetailsFromProfile(userData);
+    } else {
+      print('⚠️ No user data provided to exportToPdf');
+    }
+
+    List<Map<String, dynamic>> dataRows;
+    Map<String, dynamic> summary = {};
+    
+    // Handle specific report types with proper parsing
+    if (reportType == 'sales' && data is List) {
+      dataRows = _parseSalesReports(data);
+      summary = _calculateSalesSummary(data);
+    } else if (reportType == 'purchase' && data is List) {
+      dataRows = _parsePurchaseReports(data);
+      summary = _calculatePurchaseSummary(data);
+    } else if (reportType == 'inventory' && data is List) {
+      dataRows = _parseInventoryReports(data);
+      // No summary for inventory in PDF
+    } else if (reportType == 'customer' && data is List) {
+      dataRows = _parseCustomerReports(data);
+      // No summary for customer in PDF
+    } else if (reportType == 'supplier' && data is List) {
+      dataRows = _parseSupplierReports(data);
+      // No summary for supplier in PDF
+    } else if (reportType == 'profit-loss' && data is List) {
+      dataRows = _parseDataToRows(data, reportType);
+      // No summary for P&L in PDF
+    } else {
+      // Fallback to generic parsing
+      dataRows = _parseDataToRows(data, reportType);
+      summary = _calculateSummary(dataRows, reportType);
+    }
+    
+    if (kIsWeb) {
+      // ============ WEB VERSION ============
+      final pdf = _generatePdfDocument(dataRows, summary, title, userMobile, startDate, endDate, reportType);
+      final bytes = await pdf.save();
+      final fileName = '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final success = await _downloadPdfWeb(bytes, fileName);
+      
+      if (success) {
+        return '✅ PDF file downloaded! Check your downloads folder.';
+      } else {
+        return '❌ PDF download failed. Check browser console for details.';
+      }
+    } else {
+      // ============ MOBILE VERSION ============
+      return await _generateMobilePdf(
+        dataRows: dataRows,
+        summary: summary,
+        title: title,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+        reportType: reportType,
+      );
+    }
+  } catch (e) {
+    print('❌ PDF Export Error: $e');
+    return 'Error exporting PDF: $e';
+  }
+}  // ============ NEW: Inventory Report Parsing ============
+  List<Map<String, dynamic>> _parseInventoryReports(List<dynamic> reports) {
+    final List<Map<String, dynamic>> rows = [];
+    
+    for (var report in reports) {
+      try {
+        final reportMap = _convertToMap(report);
+        
+        final name = _extractValue(reportMap, ['name', 'itemName']);
+        final sku = _extractValue(reportMap, ['sku', 'code']);
+        final category = _extractValue(reportMap, ['category']);
+        final quantity = _extractValue(reportMap, ['quantity', 'qty']);
+        final price = _extractAmountFromMap(reportMap, ['price']);
+        final totalValue = _extractAmountFromMap(reportMap, ['totalValue', 'total']);
+        final status = _extractValue(reportMap, ['status']);
+        
+        rows.add({
+          'Name': name,
+          'SKU': sku,
+          'Category': category,
+          'Quantity': quantity,
+          'Price': price,
+          'Total Value': totalValue,
+          'Status': status,
+        });
+      } catch (e) {
+        print('⚠️ Error parsing inventory report: $e');
+      }
+    }
+    return rows;
+  }
+
+  // ============ NEW: Customer Report Parsing ============
+  List<Map<String, dynamic>> _parseCustomerReports(List<dynamic> reports) {
+    final List<Map<String, dynamic>> rows = [];
+    
+    for (var report in reports) {
+      try {
+        final reportMap = _convertToMap(report);
+        
+        final name = _extractValue(reportMap, ['name']);
+        final mobile = _extractValue(reportMap, ['mobile', 'phone']);
+        final totalPurchases = _extractValue(reportMap, ['totalPurchases', 'purchaseCount']);
+        final totalSpent = _extractAmountFromMap(reportMap, ['totalSpent', 'revenue']);
+        final outstanding = _extractAmountFromMap(reportMap, ['outstandingBalance', 'due']);
+        
+        // Format totalSpent without ₹ symbol (just number)
+        final totalSpentNumber = NumberFormat('#,##0.00').format(totalSpent);
+        
+        rows.add({
+          'Name': name,
+          'Mobile': mobile,
+          'Total Purchases': totalPurchases,
+          'Total Spent': totalSpentNumber,   // no ₹
+          'Outstanding': outstanding,
+        });
+      } catch (e) {
+        print('⚠️ Error parsing customer report: $e');
+      }
+    }
+    return rows;
+  }
+
+// ============ NEW: Supplier Report Parsing ============
+List<Map<String, dynamic>> _parseSupplierReports(List<dynamic> reports) {
+  final List<Map<String, dynamic>> rows = [];
+  
+  for (var report in reports) {
+    try {
+      final reportMap = _convertToMap(report);
+      
+      final name = _extractValue(reportMap, ['name']);
+      final phone = _extractValue(reportMap, ['phone']);
+      final email = _extractValue(reportMap, ['email']);
+      final address = _extractValue(reportMap, ['address']);
+      final totalOrders = _extractValue(reportMap, ['totalOrders', 'orderCount']);
+      final totalPurchases = _extractAmountFromMap(reportMap, ['totalPurchases']);
+      final pendingPayment = _extractAmountFromMap(reportMap, ['pendingPayment']);
+      final lastOrderDate = _extractValue(reportMap, ['formattedLastOrder', 'lastOrderDate']);
+      
+      // Format totalOrders without ₹ symbol (just number)
+      final totalOrdersNumber = totalOrders;
+      
+      rows.add({
+        'Name': name,
+        'Phone': phone,
+        'Email': email,
+        'Address': address,
+        'Total Orders': totalOrdersNumber,   // no ₹
+        'Total Purchases': totalPurchases,
+        'Pending Payment': pendingPayment,
+        'Last Order': lastOrderDate,
+      });
+    } catch (e) {
+      print('⚠️ Error parsing supplier report: $e');
+    }
+  }
+  return rows;
+}
+  // ============ UPDATED: exportToExcel ============
+Future<String> exportToExcel({
+  required String reportType,
+  required String userMobile,
+  required DateTime startDate,
+  required DateTime endDate,
+  required dynamic data,
+}) async {
+  try {
+    print('📊 Starting Excel export for $reportType...');
+    
+    String csvContent;
+    
+    // Handle specific report types
+    if (reportType == 'sales' && data is List) {
+      csvContent = _createSalesCsvContent(
+        reports: data,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+      );
+    } else if (reportType == 'purchase' && data is List) {
+      csvContent = _createPurchaseCsvContent(
+        reports: data,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+      );
+    } else if (reportType == 'inventory' && data is List) {
+      csvContent = _createInventoryCsvContent(
+        reports: data,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+      );
+    } else if (reportType == 'customer' && data is List) {
+      csvContent = _createCustomerCsvContent(
+        reports: data,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+      );
+    } else if (reportType == 'supplier' && data is List) {
+      csvContent = _createSupplierCsvContent(
+        reports: data,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+      );
+    } else {
+      // Fallback to generic CSV creation
+      csvContent = _createCsvContent(
+        reportType: reportType,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+        data: data,
+      );
+    }
+    
+    if (kIsWeb) {
+      // ============ WEB VERSION ============
+      final fileName = '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final success = await _realWebDownload(csvContent, fileName, 'text/csv');
+      
+      if (success) {
+        return '✅ Excel (CSV) file downloaded! Check your downloads folder.';
+      } else {
+        return '❌ Download failed. Check browser console for details.';
+      }
+    } else {
+      // ============ MOBILE VERSION ============
+      return await _saveCsvToMobile(csvContent, reportType);
+    }
+  } catch (e) {
+    print('❌ Excel Export Error: $e');
+    return 'Error exporting Excel: $e';
+  }
+}
+  // ============ NEW: Inventory CSV Content ============
+  String _createInventoryCsvContent({
+    required List<dynamic> reports,
     required String userMobile,
     required DateTime startDate,
     required DateTime endDate,
-    required dynamic data,
-  }) async {
-    try {
-      print('📊 Starting Excel export for $reportType...');
-      
-      String csvContent;
-      
-      // Handle specific report types
-      if (reportType == 'sales' && data is List) {
-        csvContent = _createSalesCsvContent(
-          reports: data,
-          userMobile: userMobile,
-          startDate: startDate,
-          endDate: endDate,
-        );
-      } else if (reportType == 'purchase' && data is List) {
-        csvContent = _createPurchaseCsvContent(
-          reports: data,
-          userMobile: userMobile,
-          startDate: startDate,
-          endDate: endDate,
-        );
-      } else {
-        // Fallback to generic CSV creation
-        csvContent = _createCsvContent(
-          reportType: reportType,
-          userMobile: userMobile,
-          startDate: startDate,
-          endDate: endDate,
-          data: data,
-        );
-      }
-      
-      if (kIsWeb) {
-        // ============ WEB VERSION ============
-        final fileName = '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.csv';
-        final success = await _realWebDownload(csvContent, fileName, 'text/csv');
+  }) {
+    double totalValue = 0;
+    int lowStock = 0;
+    int outOfStock = 0;
+    
+    String csv = '"INVENTORY REPORT"\n\n';
+    
+    csv += '"METADATA"\n';
+    csv += '"User","$userMobile"\n';
+    csv += '"Period","${formatDate(startDate)} to ${formatDate(endDate)}"\n';
+    csv += '"Generated","${formatDate(DateTime.now())}"\n\n';
+    
+    csv += '"ITEM DETAILS"\n';
+    csv += '"Name","SKU","Category","Quantity","Price","Total Value","Status"\n';
+    
+    for (var report in reports) {
+      try {
+        final reportMap = _convertToMap(report);
+        final name = _extractValue(reportMap, ['name', 'itemName']);
+        final sku = _extractValue(reportMap, ['sku', 'code']);
+        final category = _extractValue(reportMap, ['category']);
+        final quantity = _extractValue(reportMap, ['quantity', 'qty']);
+        final price = _extractAmountFromMap(reportMap, ['price']);
+        final total = _extractAmountFromMap(reportMap, ['totalValue', 'total']);
+        final status = _extractValue(reportMap, ['status']);
         
-        if (success) {
-          return '✅ Excel (CSV) file downloaded! Check your downloads folder.';
-        } else {
-          return '❌ Download failed. Check browser console for details.';
-        }
-      } else {
-        // ============ MOBILE VERSION ============
-        return await _saveCsvToMobile(csvContent, reportType);
+        totalValue += total;
+        if (status.toLowerCase().contains('low')) lowStock++;
+        if (status.toLowerCase().contains('out')) outOfStock++;
+        
+        csv += '"$name","$sku","$category","$quantity","${_currencyFormat.format(price)}","${_currencyFormat.format(total)}","$status"\n';
+      } catch (e) {
+        print('⚠️ Error processing inventory for CSV: $e');
       }
-    } catch (e) {
-      print('❌ Excel Export Error: $e');
-      return 'Error exporting Excel: $e';
     }
+    
+    // Insert summary
+    final lines = csv.split('\n');
+    lines.insert(5, '"Total Value","${_currencyFormat.format(totalValue)}"');
+    lines.insert(6, '"Low Stock","$lowStock"');
+    lines.insert(7, '"Out of Stock","$outOfStock"');
+    csv = lines.join('\n');
+    
+    csv += '\n"Generated by Inventory Management System"';
+    
+    return csv;
   }
 
-  // ============ NEW: Sales Report Parsing ============
+  // ============ NEW: Customer CSV Content ============
+  String _createCustomerCsvContent({
+    required List<dynamic> reports,
+    required String userMobile,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    double totalRevenue = 0;
+    double totalOutstanding = 0;
+    
+    String csv = '"CUSTOMER REPORT"\n\n';
+    
+    csv += '"METADATA"\n';
+    csv += '"User","$userMobile"\n';
+    csv += '"Period","${formatDate(startDate)} to ${formatDate(endDate)}"\n';
+    csv += '"Generated","${formatDate(DateTime.now())}"\n\n';
+    
+    csv += '"CUSTOMER DETAILS"\n';
+    csv += '"Name","Mobile","Total Purchases","Total Spent","Outstanding"\n';
+    
+    for (var report in reports) {
+      try {
+        final reportMap = _convertToMap(report);
+        final name = _extractValue(reportMap, ['name']);
+        final mobile = _extractValue(reportMap, ['mobile', 'phone']);
+        final totalPurchases = _extractValue(reportMap, ['totalPurchases', 'purchaseCount']);
+        final totalSpent = _extractAmountFromMap(reportMap, ['totalSpent', 'revenue']);
+        final outstanding = _extractAmountFromMap(reportMap, ['outstandingBalance', 'due']);
+        
+        totalRevenue += totalSpent;
+        totalOutstanding += outstanding;
+        
+        csv += '"$name","$mobile","$totalPurchases","${NumberFormat('#,##0.00').format(totalSpent)}","${_currencyFormat.format(outstanding)}"\n';
+      } catch (e) {
+        print('⚠️ Error processing customer for CSV: $e');
+      }
+    }
+    
+    // Insert summary
+    final lines = csv.split('\n');
+    lines.insert(5, '"Total Customers","${reports.length}"');
+    lines.insert(6, '"Total Revenue","${_currencyFormat.format(totalRevenue)}"');
+    lines.insert(7, '"Total Outstanding","${_currencyFormat.format(totalOutstanding)}"');
+    csv = lines.join('\n');
+    
+    csv += '\n"Generated by Inventory Management System"';
+    
+    return csv;
+  }
+
+// ============ NEW: Supplier CSV Content ============
+// ============ NEW: Supplier CSV Content ============
+String _createSupplierCsvContent({
+  required List<dynamic> reports,
+  required String userMobile,
+  required DateTime startDate,
+  required DateTime endDate,
+}) {
+  double totalPurchases = 0;
+  double totalPending = 0;
+  
+  String csv = '"SUPPLIER REPORT"\n\n';
+  
+  csv += '"METADATA"\n';
+  csv += '"User","$userMobile"\n';
+  csv += '"Period","${formatDate(startDate)} to ${formatDate(endDate)}"\n';
+  csv += '"Generated","${formatDate(DateTime.now())}"\n\n';
+  
+  csv += '"SUPPLIER DETAILS"\n';
+  csv += '"Name","Phone","Email","Address","Total Orders","Total Purchases","Pending Payment","Last Order"\n';
+  
+  for (var report in reports) {
+    try {
+      final reportMap = _convertToMap(report);
+      final name = _extractValue(reportMap, ['name']);
+      final phone = _extractValue(reportMap, ['phone']);
+      final email = _extractValue(reportMap, ['email']);
+      final address = _extractValue(reportMap, ['address']);
+      final totalOrders = _extractValue(reportMap, ['totalOrders', 'orderCount']);
+      final totalPurchasesValue = _extractAmountFromMap(reportMap, ['totalPurchases']);
+      final pendingPayment = _extractAmountFromMap(reportMap, ['pendingPayment']);
+      final lastOrderDate = _extractValue(reportMap, ['formattedLastOrder', 'lastOrderDate']);
+      
+      totalPurchases += totalPurchasesValue;
+      totalPending += pendingPayment;
+      
+      csv += '"$name",'
+             '"$phone",'
+             '"$email",'
+             '"$address",'
+             '"$totalOrders",'
+             '"${_currencyFormat.format(totalPurchasesValue)}",'
+             '"${_currencyFormat.format(pendingPayment)}",'
+             '"$lastOrderDate"\n';
+    } catch (e) {
+      print('⚠️ Error processing supplier for CSV: $e');
+    }
+  }
+  
+  // Insert summary
+  final lines = csv.split('\n');
+  lines.insert(5, '"Total Suppliers","${reports.length}"');
+  lines.insert(6, '"Total Purchases","${_currencyFormat.format(totalPurchases)}"');
+  lines.insert(7, '"Total Pending","${_currencyFormat.format(totalPending)}"');
+  csv = lines.join('\n');
+  
+  csv += '\n"Generated by Inventory Management System"';
+  
+  return csv;
+} 
+  // ============ EXISTING METHODS (unchanged) ============
+  
+  // Sales Report Parsing
   List<Map<String, dynamic>> _parseSalesReports(List<dynamic> reports) {
     final List<Map<String, dynamic>> rows = [];
     
     for (var report in reports) {
       try {
-        // Extract data from report object - convert to Map<String, dynamic>
         final reportMap = _convertToMap(report);
         
-        // Try to extract data based on common field names
         final invoiceNumber = _extractValue(reportMap, ['invoiceNumber', 'invoiceNo', 'invoice_id']);
         final customerName = _extractValue(reportMap, ['customerName', 'customer', 'clientName']);
         final customerMobile = _extractValue(reportMap, ['customerMobile', 'mobile', 'phone', 'contact']);
@@ -161,7 +510,6 @@ class ExportService {
         final amountDue = _extractAmountFromMap(reportMap, ['amountDue', 'dueAmount', 'balance']);
         final paymentStatus = _extractValue(reportMap, ['paymentStatus', 'status', 'payment_state']);
         
-        // Create a summary row for each report (matching your UI columns)
         rows.add({
           'Invoice No.': invoiceNumber,
           'Customer': customerName,
@@ -183,7 +531,7 @@ class ExportService {
     return rows;
   }
 
-  // ============ NEW: Purchase Report Parsing ============
+  // Purchase Report Parsing
   List<Map<String, dynamic>> _parsePurchaseReports(List<dynamic> reports) {
     final List<Map<String, dynamic>> rows = [];
     
@@ -221,7 +569,7 @@ class ExportService {
     return rows;
   }
 
-  // ============ NEW: Helper method to safely convert to Map<String, dynamic> ============
+  // Helper method to safely convert to Map<String, dynamic>
   Map<String, dynamic> _convertToMap(dynamic data) {
     if (data == null) return {};
     
@@ -230,7 +578,6 @@ class ExportService {
     }
     
     if (data is Map<dynamic, dynamic>) {
-      // Convert Map<dynamic, dynamic> to Map<String, dynamic>
       final Map<String, dynamic> result = {};
       data.forEach((key, value) {
         if (key != null) {
@@ -240,20 +587,18 @@ class ExportService {
       return result;
     }
     
-    // Try to convert object to map using toMap() method if available
     try {
       if (data is Map) {
-        // Already a Map, cast it
         return Map<String, dynamic>.from(data);
       }
     } catch (e) {
-      // Ignore and return empty map
+      // Ignore
     }
     
     return {};
   }
 
-  // ============ UPDATED: Helper methods for data extraction (now accepts Map<String, dynamic>) ============
+  // Helper methods for data extraction
   String _extractValue(Map<String, dynamic> data, List<String> possibleKeys) {
     for (var key in possibleKeys) {
       if (data.containsKey(key) && data[key] != null) {
@@ -263,7 +608,6 @@ class ExportService {
     return '';
   }
 
-  // CHANGED NAME: _extractAmountFromMap (was _extractAmount)
   double _extractAmountFromMap(Map<String, dynamic> data, List<String> possibleKeys) {
     for (var key in possibleKeys) {
       if (data.containsKey(key) && data[key] != null) {
@@ -282,7 +626,6 @@ class ExportService {
   }
 
   List<dynamic> _extractItems(Map<String, dynamic> data) {
-    // Try to extract items list
     final itemKeys = ['items', 'products', 'itemList', 'lineItems'];
     
     for (var key in itemKeys) {
@@ -291,7 +634,6 @@ class ExportService {
       }
     }
     
-    // If items not found directly, check for nested structure
     if (data.containsKey('invoice') && data['invoice'] is Map) {
       final invoice = data['invoice'] as Map<String, dynamic>;
       for (var key in itemKeys) {
@@ -318,7 +660,6 @@ class ExportService {
     }
     
     if (categories.isEmpty) return 'No categories';
-    
     return categories.join(', ');
   }
 
@@ -338,8 +679,6 @@ class ExportService {
     if (summaries.isEmpty) return '${items.length} item(s)';
     
     final summary = summaries.join(', ');
-    
-    // Truncate if too long
     if (summary.length > 50) {
       return '${summary.substring(0, 47)}...';
     }
@@ -347,7 +686,7 @@ class ExportService {
     return summary;
   }
 
-  // ============ NEW: Sales CSV Content ============
+  // Sales CSV Content
   String _createSalesCsvContent({
     required List<dynamic> reports,
     required String userMobile,
@@ -361,13 +700,11 @@ class ExportService {
     
     String csv = '"SALES REPORT"\n\n';
     
-    // Metadata (matching your UI summary)
     csv += '"METADATA"\n';
     csv += '"User","$userMobile"\n';
     csv += '"Period","${formatDate(startDate)} to ${formatDate(endDate)}"\n';
     csv += '"Generated","${formatDate(DateTime.now())}"\n';
     
-    // Invoice Summary (matching your UI columns)
     csv += '\n"INVOICE SUMMARY"\n';
     csv += '"Invoice No.","Customer","Mobile","Date","Categories","Items","Total Amount","Amount Paid","Amount Due","Status"\n';
     
@@ -405,7 +742,6 @@ class ExportService {
       }
     }
     
-    // Update metadata with calculated totals
     final csvLines = csv.split('\n');
     csvLines.insert(5, '"Total Invoices","$invoiceCount"');
     csvLines.insert(6, '"Total Sales","${_currencyFormat.format(totalSales)}"');
@@ -413,7 +749,6 @@ class ExportService {
     csvLines.insert(8, '"Total Due","${_currencyFormat.format(totalDue)}"');
     csv = csvLines.join('\n');
     
-    // Item Details section
     csv += '\n"ITEM DETAILS"\n';
     csv += '"Invoice No.","Item Name","Category","Quantity","Unit","Price","Total"\n';
     
@@ -450,7 +785,7 @@ class ExportService {
     return csv;
   }
 
-  // ============ NEW: Purchase CSV Content ============
+  // Purchase CSV Content
   String _createPurchaseCsvContent({
     required List<dynamic> reports,
     required String userMobile,
@@ -549,7 +884,7 @@ class ExportService {
     return csv;
   }
 
-  // ============ NEW: Sales Summary Calculation ============
+  // Sales Summary Calculation
   Map<String, dynamic> _calculateSalesSummary(List<dynamic> reports) {
     double totalAmount = 0;
     double paidAmount = 0;
@@ -588,7 +923,7 @@ class ExportService {
     };
   }
 
-  // ============ NEW: Purchase Summary Calculation ============
+  // Purchase Summary Calculation
   Map<String, dynamic> _calculatePurchaseSummary(List<dynamic> reports) {
     double totalAmount = 0;
     double paidAmount = 0;
@@ -627,8 +962,6 @@ class ExportService {
     };
   }
 
-  // ============ KEEP ALL YOUR EXISTING METHODS BELOW (PDF GENERATION, FILE OPERATIONS, ETC.) ============
-  
   // ============ PDF GENERATION ============
 
   pw.Document _generatePdfDocument(
@@ -641,32 +974,30 @@ class ExportService {
     String reportType,
   ) {
     final pdf = pw.Document();
-    
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: pw.EdgeInsets.all(10),
         build: (pw.Context context) {
-          return [
-            // Header
+          final widgets = <pw.Widget>[
             _buildPdfHeader(title, userMobile, startDate, endDate, reportType, dataRows.length),
-            
-            // Summary
-            pw.SizedBox(height: 12),
-            _buildPdfSummary(summary, reportType),
-            
-            // Data table
-            pw.SizedBox(height: 12),
-            _buildPdfDataTable(dataRows, reportType, context),
-            
-            // Footer
-            pw.SizedBox(height: 20),
-            _buildPdfFooter(),
           ];
+
+          // Add summary only for sales and purchase reports
+          if (reportType == 'sales' || reportType == 'purchase') {
+            widgets.add(pw.SizedBox(height: 12));
+            widgets.add(_buildPdfSummary(summary, reportType));
+          }
+
+          widgets.add(pw.SizedBox(height: 12));
+          widgets.add(_buildPdfDataTable(dataRows, reportType, context));
+          widgets.add(pw.SizedBox(height: 20));
+          widgets.add(_buildPdfFooter());
+
+          return widgets;
         },
       ),
     );
-    
     return pdf;
   }
 
@@ -679,36 +1010,106 @@ class ExportService {
     int recordCount,
   ) {
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(
-          title,
-          style: pw.TextStyle(
-            fontSize: 18,
-            fontWeight: pw.FontWeight.bold,
-          ),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              flex: 3,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    _businessName ?? 'My Business',
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  if (_userName != null && _userName!.isNotEmpty)
+                    pw.Text(
+                      _userName!,
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  pw.SizedBox(height: 2),
+                  if (_location != null && _location!.isNotEmpty)
+                    pw.Text(
+                      _location!,
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        color: PdfColors.grey700,
+                      ),
+                      maxLines: 2,
+                    ),
+                  pw.SizedBox(height: 4),
+                  pw.Row(
+                    children: [
+                      pw.Text(
+                        'Phone: ',
+                        style: pw.TextStyle(
+                          fontSize: 10,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.Text(
+                        userMobile,
+                        style: pw.TextStyle(fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(width: 16),
+            pw.Expanded(
+              flex: 7,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Text(
+                    title,
+                    style: pw.TextStyle(
+                      fontSize: 20,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue800,
+                    ),
+                    textAlign: pw.TextAlign.right,
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Inventory Management System',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      color: PdfColors.grey600,
+                    ),
+                    textAlign: pw.TextAlign.right,
+                  ),
+                  pw.Text(
+                    'Generated: ${formatDate(DateTime.now())} ${DateFormat('HH:mm').format(DateTime.now())}',
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      color: PdfColors.grey500,
+                    ),
+                    textAlign: pw.TextAlign.right,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        pw.SizedBox(height: 3),
-        pw.Text(
-          'Inventory Management System',
-          style: pw.TextStyle(
-            fontSize: 8,
-            color: PdfColors.grey600,
-          ),
-        ),
-        pw.Text(
-          'Generated on: ${formatDate(DateTime.now())} at ${DateFormat('HH:mm').format(DateTime.now())}',
-          style: pw.TextStyle(
-            fontSize: 8,
-            color: PdfColors.grey600,
-          ),
-        ),
-        pw.SizedBox(height: 12),
+        pw.SizedBox(height: 16),
         pw.Container(
-          padding: const pw.EdgeInsets.all(8),
+          width: double.infinity,
+          padding: const pw.EdgeInsets.all(12),
           decoration: pw.BoxDecoration(
-            color: PdfColors.grey100,
-            borderRadius: pw.BorderRadius.circular(4),
+            color: PdfColors.blue50,
+            borderRadius: pw.BorderRadius.circular(6),
+            border: pw.Border.all(color: PdfColors.blue200, width: 0.8),
           ),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -716,41 +1117,45 @@ class ExportService {
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  _buildInfoRow('User ID:', userMobile),
+                  _buildInfoRow('Report Type:', reportType.toUpperCase()),
                   _buildInfoRow('Period:', '${formatDate(startDate)} to ${formatDate(endDate)}'),
                 ],
               ),
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  _buildInfoRow('Type:', reportType.toUpperCase()),
                   _buildInfoRow('Records:', recordCount.toString()),
+                  _buildInfoRow('Report ID:', 'RPT-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}'),
                 ],
               ),
             ],
           ),
         ),
+        pw.SizedBox(height: 16),
       ],
     );
   }
 
   pw.Widget _buildInfoRow(String label, String value) {
-    return pw.Row(
-      children: [
-        pw.Text(
-          label,
-          style: pw.TextStyle(
-            fontSize: 8,
-            fontWeight: pw.FontWeight.bold,
-            color: PdfColors.grey700,
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey700,
+            ),
           ),
-        ),
-        pw.SizedBox(width: 3),
-        pw.Text(
-          value,
-          style: pw.TextStyle(fontSize: 8),
-        ),
-      ],
+          pw.SizedBox(width: 4),
+          pw.Text(
+            value,
+            style: pw.TextStyle(fontSize: 10),
+          ),
+        ],
+      ),
     );
   }
 
@@ -863,7 +1268,6 @@ class ExportService {
     return 'Rs. ${_pdfCurrencyFormat.format(amount)}';
   }
 
-  // ============ UPDATED: Column widths for sales/purchase data ============
   Map<int, pw.TableColumnWidth> _getMobileColumnWidths(List<String> columns) {
     final widths = <int, pw.TableColumnWidth>{};
     
@@ -923,7 +1327,7 @@ class ExportService {
     return pw.Column(
       children: [
         pw.Text(
-          '${reportType == 'sales' ? 'Sales' : 'Purchase'} Details',
+          _getTableTitle(reportType),
           style: pw.TextStyle(
             fontSize: 13,
             fontWeight: pw.FontWeight.bold,
@@ -1027,38 +1431,77 @@ class ExportService {
     return pw.Container(
       padding: const pw.EdgeInsets.all(8),
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        borderRadius: pw.BorderRadius.circular(4),
       ),
       child: pw.Column(
         children: [
-          pw.Text(
-            'Note: Computer-generated report. No signature required.',
-            style: pw.TextStyle(
-              fontSize: 7,
-              color: PdfColors.grey600,
-            ),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Note: Computer-generated report.',
+                style: pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColors.grey600,
+                ),
+              ),
+              pw.Text(
+                'Authorized Signature: _________________',
+                style: pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColors.grey600,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
           ),
           pw.SizedBox(height: 3),
-          pw.Text(
-            'Generated by Inventory Management System',
-            style: pw.TextStyle(
-              fontSize: 7,
-              color: PdfColors.grey600,
-            ),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Generated by Inventory Management System',
+                style: pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColors.grey600,
+                ),
+              ),
+              pw.Text(
+                '(Authorized Person)',
+                style: pw.TextStyle(
+                  fontSize: 6,
+                  color: PdfColors.grey500,
+                  fontStyle: pw.FontStyle.italic,
+                ),
+              ),
+            ],
           ),
           pw.SizedBox(height: 3),
-          pw.Text(
-            '${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())} | Page 1/1',
-            style: pw.TextStyle(
-              fontSize: 7,
-              color: PdfColors.grey500,
-            ),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                '${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
+                style: pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColors.grey500,
+                ),
+              ),
+              pw.Text(
+                'Page 1/1',
+                style: pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColors.grey500,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
+  // Mobile PDF Generation
   Future<String> _generateMobilePdf({
     required List<Map<String, dynamic>> dataRows,
     required Map<String, dynamic> summary,
@@ -1089,6 +1532,7 @@ class ExportService {
     }
   }
 
+  // File Operations
   Future<void> openFile(String filePath) async {
     if (!kIsWeb) {
       final result = await OpenFile.open(filePath);
@@ -1115,6 +1559,7 @@ class ExportService {
     }
   }
 
+  // Web Download Methods
   Future<bool> _downloadPdfWeb(Uint8List pdfBytes, String fileName) async {
     try {
       if (!kIsWeb) return false;
@@ -1219,8 +1664,7 @@ class ExportService {
     }
   }
 
-  // ============ GENERIC CSV CONTENT CREATION (for fallback) ============
-  
+  // Generic CSV Content Creation (fallback)
   String _createCsvContent({
     required String reportType,
     required String userMobile,
@@ -1258,8 +1702,7 @@ class ExportService {
     return csv;
   }
 
-  // ============ HELPER METHODS ============
-  
+  // Helper Methods
   List<Map<String, dynamic>> _parseDataToRows(dynamic data, String reportType) {
     final List<Map<String, dynamic>> rows = [];
     
@@ -1291,7 +1734,7 @@ class ExportService {
     
     for (var row in rows) {
       try {
-        final amount = _extractAmountFromRow(row); // CHANGED: Now calls _extractAmountFromRow
+        final amount = _extractAmountFromRow(row);
         totalAmount += amount;
         
         final status = _extractStatusFromRow(row);
@@ -1317,7 +1760,6 @@ class ExportService {
     };
   }
 
-  // CHANGED NAME: _extractAmountFromRow (was _extractAmount)
   double _extractAmountFromRow(Map<String, dynamic> row) {
     final amountFields = ['amount', 'total', 'value', 'price', 'grandTotal', 'netAmount', 'totalAmount'];
     

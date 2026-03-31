@@ -52,12 +52,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     try {
       final categories = await _inventoryService.getCategoriesWithCount();
       final allItems = await _getAllItems();
-      
+
       // Calculate statistics
       int totalItems = 0;
       int lowStockItems = 0;
       int outOfStockItems = 0;
-      
+
       for (final item in allItems) {
         totalItems++;
         if (item.quantity <= 0) {
@@ -66,7 +66,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           lowStockItems++;
         }
       }
-      
+
       setState(() {
         _categories = categories;
         _allItems = allItems;
@@ -109,7 +109,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
+      backgroundColor:
+          isDark ? colorScheme.background : const Color(0xffF5F6FA),
       appBar: AppBar(
         title: Text(
           'Categories',
@@ -134,7 +135,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           ),
           // View toggle
           IconButton(
-            icon: Icon(_isGridView ? Icons.list : Icons.grid_view, color: colorScheme.onSurface),
+            icon: Icon(_isGridView ? Icons.list : Icons.grid_view,
+                color: colorScheme.onSurface),
             onPressed: () {
               setState(() {
                 _isGridView = !_isGridView;
@@ -193,7 +195,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      
+
                       // Stats Cards
                       Row(
                         children: [
@@ -238,11 +240,15 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     style: TextStyle(color: colorScheme.onSurface),
                     decoration: InputDecoration(
                       hintText: 'Search categories...',
-                      hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
-                      prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.5)),
+                      hintStyle: TextStyle(
+                          color: colorScheme.onSurface.withOpacity(0.5)),
+                      prefixIcon: Icon(Icons.search,
+                          color: colorScheme.onSurface.withOpacity(0.5)),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: Icon(Icons.clear, color: colorScheme.onSurface.withOpacity(0.5)),
+                              icon: Icon(Icons.clear,
+                                  color:
+                                      colorScheme.onSurface.withOpacity(0.5)),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() => _searchQuery = '');
@@ -250,14 +256,17 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                             )
                           : null,
                       filled: true,
-                      fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+                      fillColor: isDark
+                          ? colorScheme.surfaceContainerHighest
+                          : Colors.grey.shade50,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+                        borderSide:
+                            BorderSide(color: colorScheme.primary, width: 1.5),
                       ),
                     ),
                     onChanged: (value) {
@@ -281,7 +290,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: colorScheme.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
@@ -307,9 +317,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                           onRefresh: _loadData,
                           color: colorScheme.primary,
                           backgroundColor: colorScheme.surface,
-                          child: _isGridView
-                              ? _buildGridView()
-                              : _buildListView(),
+                          child:
+                              _isGridView ? _buildGridView() : _buildListView(),
                         ),
                 ),
               ],
@@ -330,7 +339,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  Widget _buildCompactStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildCompactStatCard(
+      String label, String value, IconData icon, Color color) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
@@ -340,7 +350,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       decoration: BoxDecoration(
         color: color.withOpacity(isDark ? 0.15 : 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(isDark ? 0.3 : 0.2), width: 1),
+        border:
+            Border.all(color: color.withOpacity(isDark ? 0.3 : 0.2), width: 1),
       ),
       child: Column(
         children: [
@@ -401,7 +412,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final color = _generateColorFromString(category.name);
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: isDark ? 4 : 2,
@@ -451,7 +462,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              
+
               // Category Details
               Expanded(
                 child: Column(
@@ -488,10 +499,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   ],
                 ),
               ),
-              
+
               // Options Button
               PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: colorScheme.onSurface.withOpacity(0.6), size: 20),
+                icon: Icon(Icons.more_vert,
+                    color: colorScheme.onSurface.withOpacity(0.6), size: 20),
                 color: colorScheme.surface,
                 elevation: isDark ? 8 : 4,
                 shape: RoundedRectangleBorder(
@@ -511,7 +523,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       children: [
                         Icon(Icons.edit, size: 18, color: colorScheme.primary),
                         const SizedBox(width: 8),
-                        Text('Edit', style: TextStyle(color: colorScheme.onSurface)),
+                        Text('Edit',
+                            style: TextStyle(color: colorScheme.onSurface)),
                       ],
                     ),
                   ),
@@ -521,7 +534,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       children: [
                         Icon(Icons.delete, size: 18, color: colorScheme.error),
                         const SizedBox(width: 8),
-                        Text('Delete', style: TextStyle(color: colorScheme.onSurface)),
+                        Text('Delete',
+                            style: TextStyle(color: colorScheme.onSurface)),
                       ],
                     ),
                   ),
@@ -539,7 +553,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final color = _generateColorFromString(category.name);
-    
+
     return Card(
       elevation: isDark ? 4 : 2,
       color: colorScheme.surface,
@@ -603,14 +617,18 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade100,
+                  color: isDark
+                      ? colorScheme.surfaceContainerHighest
+                      : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '${category.itemCount} items',
                   style: TextStyle(
                     fontSize: 10,
-                    color: isDark ? colorScheme.onSurface.withOpacity(0.7) : Colors.grey.shade700,
+                    color: isDark
+                        ? colorScheme.onSurface.withOpacity(0.7)
+                        : Colors.grey.shade700,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -674,7 +692,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorScheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -689,7 +708,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   setState(() => _searchQuery = '');
                 },
                 icon: Icon(Icons.clear, color: colorScheme.primary),
-                label: Text('Clear Search', style: TextStyle(color: colorScheme.primary)),
+                label: Text('Clear Search',
+                    style: TextStyle(color: colorScheme.primary)),
               ),
             ],
           ],
@@ -700,7 +720,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   IconData _getCategoryIcon(String categoryName) {
     final lowerName = categoryName.toLowerCase();
-    
+
     if (lowerName.contains('grocery') || lowerName.contains('food')) {
       return Icons.shopping_basket;
     } else if (lowerName.contains('beverage') || lowerName.contains('drink')) {
@@ -711,7 +731,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       return Icons.spa;
     } else if (lowerName.contains('electronic')) {
       return Icons.electrical_services;
-    } else if (lowerName.contains('clothing') || lowerName.contains('apparel')) {
+    } else if (lowerName.contains('clothing') ||
+        lowerName.contains('apparel')) {
       return Icons.checkroom;
     } else if (lowerName.contains('book') || lowerName.contains('stationery')) {
       return Icons.menu_book;
@@ -722,7 +743,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     } else if (lowerName.contains('office')) {
       return Icons.work;
     }
-    
+
     return Icons.category;
   }
 
@@ -739,7 +760,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       Colors.amber,
       Colors.cyan,
     ];
-    
+
     final index = text.hashCode.abs() % colors.length;
     return colors[index];
   }
@@ -798,9 +819,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       color: colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.edit, color: colorScheme.primary, size: 20),
+                    child:
+                        Icon(Icons.edit, color: colorScheme.primary, size: 20),
                   ),
-                  title: Text('Edit Category', style: TextStyle(color: colorScheme.onSurface)),
+                  title: Text('Edit Category',
+                      style: TextStyle(color: colorScheme.onSurface)),
                   onTap: () {
                     Navigator.pop(context);
                     _editCategory(category);
@@ -813,9 +836,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       color: colorScheme.error.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.delete, color: colorScheme.error, size: 20),
+                    child:
+                        Icon(Icons.delete, color: colorScheme.error, size: 20),
                   ),
-                  title: Text('Delete Category', style: TextStyle(color: colorScheme.onSurface)),
+                  title: Text('Delete Category',
+                      style: TextStyle(color: colorScheme.onSurface)),
                   onTap: () {
                     Navigator.pop(context);
                     _deleteCategory(category);
@@ -867,6 +892,14 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // First check if category has items
+    if (category.itemCount > 0) {
+      // Show warning dialog instead of error
+      _showCannotDeleteDialog(category);
+      return;
+    }
+
+    // If no items, proceed with normal delete confirmation
     final confirmed = await showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -953,7 +986,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
     if (confirmed == true) {
       try {
-        await widget.inventoryService.deleteCategory(category.id, category.name);
+        await widget.inventoryService
+            .deleteCategory(category.id, category.name);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -982,5 +1016,109 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         }
       }
     }
+  }
+
+// Add this new method for showing "Cannot Delete" warning
+  void _showCannotDeleteDialog(Category category) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.tertiary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.info_outline,
+                  size: 48,
+                  color: colorScheme.tertiary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Cannot Delete Category',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '"${category.name}" has ${category.itemCount} item${category.itemCount > 1 ? 's' : ''}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: colorScheme.tertiary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please move or delete all items in this category before deleting it.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: colorScheme.onSurface.withOpacity(0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.tertiary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: theme.brightness == Brightness.dark ? 4 : 2,
+                  ),
+                  child: const Text('Got It'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Navigate to view items in this category
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CategoryDashboardScreen(
+                        inventoryService: widget.inventoryService,
+                        category: category,
+                        userMobile: widget.userMobile,
+                      ),
+                    ),
+                  );
+                },
+                child: Text(
+                  'View Items in "${category.name}"',
+                  style: TextStyle(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

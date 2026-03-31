@@ -16,6 +16,9 @@ import '../inventory/screens/inventory_dashboard.dart';
 import '../bill/screens/bill_home_screen.dart';
 import '../bill/screens/view_bill_screen.dart';
 
+import '../../core/providers/ai_provider.dart';
+import '../../features/ai/screens/ai_chat_screen.dart';
+
 // ============ TIME FILTER ENUM (TOP LEVEL) ============
 enum TimeFilter { day, week, month, year }
 
@@ -54,8 +57,29 @@ class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-     
-      body: _currentScreen, // Just show the current screen without sidebar
+      body: _currentScreen,
+      // Add AI FAB at bottom right
+      floatingActionButton: Consumer<AIProvider>(
+        builder: (context, aiProvider, child) {
+          if (aiProvider.isAvailable) {
+            return FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AiChatScreen(),
+                  ),
+                );
+              },
+              child: const Icon(Icons.chat),
+              tooltip: 'AI Assistant',
+              backgroundColor: Theme.of(context).primaryColor,
+              elevation: 4,
+            );
+          }
+          return const SizedBox.shrink();
+        },
+      ),
     );
   }
 

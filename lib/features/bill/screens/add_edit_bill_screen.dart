@@ -69,20 +69,23 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
   // Add InventoryService variable
   late InventoryService _inventoryService;
 
-  @override
-  void initState() {
-    super.initState();
-    // Initialize inventory service from Provider
-    _inventoryService = Provider.of<InventoryService>(context, listen: false);
-    _initializeData();
-    _loadSuppliersAndCustomers();
-    _loadInventoryData();
-    
-    // Initialize search controller listener
-    _searchController.addListener(() {
-      _filterItems();
-    });
-  }
+ @override
+void initState() {
+  super.initState();
+  // Initialize inventory service from Provider
+  _inventoryService = Provider.of<InventoryService>(context, listen: false);
+  _initializeData();
+  _loadSuppliersAndCustomers();
+  _loadInventoryData();
+  
+  // Initialize search controller listener
+  _searchController.addListener(() {
+    _filterItems();
+  });
+  
+  // Always force inventory selection mode
+  _isSelectingFromInventory = true;
+}
 
   Future<void> _initializeData() async {
     if (widget.billToEdit != null) {
@@ -92,23 +95,26 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
       _addEmptyItem();
     }
   }
-
-  Future<void> _loadInventoryData() async {
-    try {
-      _categories = await _inventoryService.getCategories();
-      if (_categories.isNotEmpty) {
-        _selectedCategory = _categories.first;
-      }
-      
-      _inventoryItems = await _inventoryService.getAllInventoryItems();
-      _filterItems();
-      
-      if (mounted) setState(() {});
-    } catch (e) {
-      print('❌ Error loading inventory data: $e');
+Future<void> _loadInventoryData() async {
+  try {
+    print('🔄 Loading inventory data...');
+    _categories = await _inventoryService.getCategories();
+    print('✅ Loaded ${_categories.length} categories');
+    
+    _inventoryItems = await _inventoryService.getAllInventoryItems();
+    print('✅ Loaded ${_inventoryItems.length} inventory items');
+    
+    if (_categories.isNotEmpty && _selectedCategory == null) {
+      _selectedCategory = 'All';
     }
+    
+    _filterItems();
+    
+    if (mounted) setState(() {});
+  } catch (e) {
+    print('❌ Error loading inventory data: $e');
   }
-
+}
   /// Handle inventory updates for NEW bills
   Future<void> _handleInventoryUpdatesForNewBill(Bill bill) async {
     print('🔄 Handling inventory updates for new ${bill.type} bill');
@@ -212,30 +218,28 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
       }
     }
   }
-
-  void _filterItems() {
+void _filterItems() {
+  print('🔍 Filtering items with search: "${_searchController.text}", category: $_selectedCategory');
+  
+  setState(() {
     if (_searchController.text.isNotEmpty) {
       final query = _searchController.text.toLowerCase();
-      setState(() {
-        _filteredItems = _inventoryItems.where((item) {
-          return item.name.toLowerCase().contains(query) ||
-                 item.sku.toLowerCase().contains(query) ||
-                 item.category.toLowerCase().contains(query);
-        }).toList();
-      });
+      _filteredItems = _inventoryItems.where((item) {
+        return item.name.toLowerCase().contains(query) ||
+               item.sku.toLowerCase().contains(query) ||
+               item.category.toLowerCase().contains(query);
+      }).toList();
     } else if (_selectedCategory != null && _selectedCategory != 'All') {
-      setState(() {
-        _filteredItems = _inventoryItems
-            .where((item) => item.category == _selectedCategory)
-            .toList();
-      });
+      _filteredItems = _inventoryItems
+          .where((item) => item.category == _selectedCategory)
+          .toList();
     } else {
-      setState(() {
-        _filteredItems = List.from(_inventoryItems);
-      });
+      _filteredItems = List.from(_inventoryItems);
     }
-  }
-
+  });
+  
+  print('✅ Filtered to ${_filteredItems.length} items');
+}
   Future<void> _loadSuppliersAndCustomers() async {
     try {
       if (widget.type == 'purchase') {
@@ -510,249 +514,458 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
       },
     );
   }
+void _showInventorySelectionDialog(int itemIndex) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final isDark = theme.brightness == Brightness.dark;
 
-  void _showInventorySelectionDialog(int itemIndex) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+  // Make sure we have fresh data
+  _loadInventoryData();
+  
+  // Create local state for dialog
+  String localSearchQuery = '';
+  String? localSelectedCategory = _selectedCategory;
+  List<InventoryItem> localFilteredItems = _filteredItems;
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Dialog(
-              insetPadding: EdgeInsets.all(16),
-              backgroundColor: colorScheme.surface,
-              child: Container(
-                width: double.infinity,
-                constraints: BoxConstraints(maxHeight: 500),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'Select Item from Inventory',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true, // This is important for keyboard handling
+    backgroundColor: Colors.transparent,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.9, // Take 90% of screen height
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                // Header with drag handle
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Drag handle
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colorScheme.onSurface.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                    ),
-                    
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextField(
-                        controller: _searchController,
-                        style: TextStyle(color: colorScheme.onSurface),
-                        decoration: InputDecoration(
-                          hintText: 'Search items...',
-                          hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
-                          prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.5)),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: colorScheme.outline),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: colorScheme.outline),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                          ),
-                          filled: true,
-                          fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
-                        ),
-                        onChanged: (value) {
-                          _filterItems();
-                        },
-                      ),
-                    ),
-                    
-                    SizedBox(height: 12),
-                    
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedCategory,
-                        dropdownColor: colorScheme.surface,
-                        style: TextStyle(color: colorScheme.onSurface),
-                        decoration: InputDecoration(
-                          labelText: 'Filter by Category',
-                          labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: colorScheme.outline),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                          ),
-                          filled: true,
-                          fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
-                        ),
-                        items: [
-                          DropdownMenuItem(
-                            value: 'All', 
-                            child: Text('All Categories', style: TextStyle(color: colorScheme.onSurface)),
-                          ),
-                          ..._categories.map((category) {
-                            return DropdownMenuItem(
-                              value: category,
-                              child: Text(category, style: TextStyle(color: colorScheme.onSurface)),
-                            );
-                          }),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCategory = value;
-                            _filterItems();
-                          });
-                        },
-                      ),
-                    ),
-                    
-                    SizedBox(height: 12),
-                    
-                    Expanded(
-                      child: _filteredItems.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No items found',
-                                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
-                              ),
-                            )
-                          : Container(
-                              color: colorScheme.background,
-                              child: ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: _filteredItems.length,
-                                itemBuilder: (context, index) {
-                                  final inventoryItem = _filteredItems[index];
-                                  return Card(
-                                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    color: colorScheme.surface,
-                                    child: ListTile(
-                                      title: Text(
-                                        inventoryItem.name,
-                                        style: TextStyle(color: colorScheme.onSurface),
-                                      ),
-                                      subtitle: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Selling Price: ₹${inventoryItem.price.toStringAsFixed(2)}',
-                                            style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                                          ),
-                                          Text(
-                                            'Stock: ${inventoryItem.quantity} ${inventoryItem.unit}',
-                                            style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                                          ),
-                                          Text(
-                                            'Category: ${inventoryItem.category}',
-                                            style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                                          ),
-                                        ],
-                                      ),
-                                      trailing: ElevatedButton(
-                                        onPressed: () {
-                                          _addInventoryItemToBill(itemIndex, inventoryItem);
-                                          Navigator.pop(context);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: colorScheme.primary,
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        child: Text('Select'),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                    ),
-                    
-                    SizedBox(height: 16),
-                    
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      const SizedBox(height: 12),
+                      // Title
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(color: colorScheme.primary),
+                          Text(
+                            'Select Item from Inventory',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close, color: colorScheme.onSurface),
+                            onPressed: () => Navigator.pop(context),
                           ),
                         ],
                       ),
+                    ],
+                  ),
+                ),
+                
+                // Search Field
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    style: TextStyle(color: colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      hintText: 'Search items by name, SKU, category...',
+                      hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                      prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.5)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.outline),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.outline),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                      ),
+                      filled: true,
+                      fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                     ),
+                    onChanged: (value) {
+                      setState(() {
+                        localSearchQuery = value;
+                        // Filter items based on search
+                        if (value.isEmpty) {
+                          localFilteredItems = _inventoryItems;
+                        } else {
+                          final query = value.toLowerCase();
+                          localFilteredItems = _inventoryItems.where((item) {
+                            return item.name.toLowerCase().contains(query) ||
+                                   item.sku.toLowerCase().contains(query) ||
+                                   item.category.toLowerCase().contains(query);
+                          }).toList();
+                        }
+                      });
+                    },
+                  ),
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Category Filter
+                if (_categories.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: DropdownButtonFormField<String>(
+                      value: localSelectedCategory,
+                      dropdownColor: colorScheme.surface,
+                      style: TextStyle(color: colorScheme.onSurface),
+                      decoration: InputDecoration(
+                        labelText: 'Filter by Category',
+                        labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                        ),
+                        filled: true,
+                        fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'All', 
+                          child: Text('All Categories', style: TextStyle(color: colorScheme.onSurface)),
+                        ),
+                        ..._categories.map((category) {
+                          return DropdownMenuItem(
+                            value: category,
+                            child: Text(category, style: TextStyle(color: colorScheme.onSurface)),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          localSelectedCategory = value;
+                          // Filter items based on category
+                          if (value == null || value == 'All') {
+                            localFilteredItems = _inventoryItems;
+                          } else {
+                            localFilteredItems = _inventoryItems
+                                .where((item) => item.category == value)
+                                .toList();
+                          }
+                          
+                          // Apply search filter on top of category filter
+                          if (localSearchQuery.isNotEmpty) {
+                            final query = localSearchQuery.toLowerCase();
+                            localFilteredItems = localFilteredItems.where((item) {
+                              return item.name.toLowerCase().contains(query) ||
+                                     item.sku.toLowerCase().contains(query) ||
+                                     item.category.toLowerCase().contains(query);
+                            }).toList();
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                
+                const SizedBox(height: 12),
+                
+                // Items Count
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Text(
+                        '${localFilteredItems.length} items found',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Items List - This will expand to fill remaining space
+                Expanded(
+                  child: localFilteredItems.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inventory_2_outlined,
+                                size: 48,
+                                color: colorScheme.onSurface.withOpacity(0.3),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                localSearchQuery.isNotEmpty 
+                                    ? 'No items match your search'
+                                    : 'No items in inventory',
+                                style: TextStyle(
+                                  color: colorScheme.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                              if (localSearchQuery.isNotEmpty)
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      localSearchQuery = '';
+                                      localFilteredItems = _inventoryItems;
+                                    });
+                                  },
+                                  child: Text('Clear Search'),
+                                ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: localFilteredItems.length,
+                          itemBuilder: (context, index) {
+                            final inventoryItem = localFilteredItems[index];
+                            return 
+                         // Update the ListView.builder section inside _showInventorySelectionDialog
+// Replace the Card widget with this more compact version:
+
+Card(
+  margin: const EdgeInsets.only(bottom: 6),
+  color: colorScheme.surface,
+  elevation: 0,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(8),
+    side: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
+  ),
+  child: InkWell(
+    onTap: () {
+      _addInventoryItemToBill(itemIndex, inventoryItem);
+      Navigator.pop(context);
+    },
+    borderRadius: BorderRadius.circular(8),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          // Compact leading icon
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              Icons.inventory_2_outlined,
+              color: colorScheme.primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          
+          // Item details - 2 lines max
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  inventoryItem.name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    // SKU badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'SKU: ${inventoryItem.sku.substring(0, inventoryItem.sku.length > 6 ? 6 : inventoryItem.sku.length)}${inventoryItem.sku.length > 6 ? '..' : ''}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    // Stock badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: inventoryItem.quantity < inventoryItem.lowStockThreshold
+                            ? colorScheme.error.withOpacity(0.1)
+                            : colorScheme.secondary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '${inventoryItem.quantity} ${inventoryItem.unit}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: inventoryItem.quantity < inventoryItem.lowStockThreshold
+                              ? colorScheme.error
+                              : colorScheme.secondary,
+                        ),
+                      ),
+                    ),
+                    // Category badge (optional, remove if too crowded)
+                    if (inventoryItem.category.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: colorScheme.tertiary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          inventoryItem.category.length > 8 
+                              ? '${inventoryItem.category.substring(0, 8)}..' 
+                              : inventoryItem.category,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: colorScheme.tertiary,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
+              ],
+            ),
+          ),
+          
+          // Price and status - right side
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '₹${inventoryItem.price.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: colorScheme.primary,
+                ),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: inventoryItem.quantity < inventoryItem.lowStockThreshold
+                      ? colorScheme.error.withOpacity(0.1)
+                      : colorScheme.secondary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  inventoryItem.quantity < inventoryItem.lowStockThreshold
+                      ? 'Low Stock'
+                      : 'In Stock',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                    color: inventoryItem.quantity < inventoryItem.lowStockThreshold
+                        ? colorScheme.error
+                        : colorScheme.secondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  ),
+);
+ },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
 
-  void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
-    print('🔄 Adding inventory item to bill at index $itemIndex');
-    print('  Item name: ${inventoryItem.name}');
-    print('  Inventory ID: ${inventoryItem.id}');
-    print('  Unit: ${inventoryItem.unit}');
-    print('  Price: ${inventoryItem.price}');
+void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
+  print('🔄 Adding inventory item to bill at index $itemIndex');
+  print('  Item name: ${inventoryItem.name}');
+  print('  Inventory ID: ${inventoryItem.id}');
+  print('  Unit: ${inventoryItem.unit}');
+  print('  Price: ${inventoryItem.price}');
+  
+  // Create a new BillItem with ALL properties
+  final newBillItem = BillItem.create(
+    description: inventoryItem.name,
+    quantity: 1.0,
+    price: inventoryItem.price,
+    inventoryItemId: inventoryItem.id,
+    unit: inventoryItem.unit,
+    category: inventoryItem.category,
+    name: inventoryItem.name,
+  );
+  
+  print('  Created new BillItem:');
+  print('    Inventory ID in newBillItem: ${newBillItem.inventoryItemId}');
+  print('    Unit in newBillItem: ${newBillItem.unit}');
+  
+  // Update the items array FIRST
+  final List<BillItem> updatedItems = List.from(_items);
+  updatedItems[itemIndex] = newBillItem;
+  
+  setState(() {
+    // Update the main items array
+    _items = updatedItems;
     
-    // Create a new BillItem with ALL properties
-    final newBillItem = BillItem.create(
-      description: inventoryItem.name,
-      quantity: 1.0,
-      price: inventoryItem.price,
-      inventoryItemId: inventoryItem.id,
-      unit: inventoryItem.unit,
-      category: inventoryItem.category,
-      name: inventoryItem.name,
-    );
+    // Update controllers
+    _descControllers[itemIndex].text = inventoryItem.name;
+    _qtyControllers[itemIndex].text = '1';
+    _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
     
-    print('  Created new BillItem:');
-    print('    Inventory ID in newBillItem: ${newBillItem.inventoryItemId}');
-    print('    Unit in newBillItem: ${newBillItem.unit}');
-    
-    // Update the items array FIRST
-    final List<BillItem> updatedItems = List.from(_items);
-    updatedItems[itemIndex] = newBillItem;
-    
-    setState(() {
-      // Update the main items array
-      _items = updatedItems;
-      
-      // Update controllers
-      _descControllers[itemIndex].text = inventoryItem.name;
-      _qtyControllers[itemIndex].text = '1';
-      _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
-      
-      _calculateTotals();
-    });
-    
-    // Verify after setState
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('✅ Verification after setState:');
-      print('  Description in _items: ${_items[itemIndex].description}');
-      print('  Inventory ID in _items: ${_items[itemIndex].inventoryItemId}');
-      print('  Unit in _items: ${_items[itemIndex].unit}');
-      print('  Price in _items: ${_items[itemIndex].price}');
-    });
-  }
-
+    _calculateTotals();
+  });
+  
+  // Verify after setState
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    print('✅ Verification after setState:');
+    print('  Description in _items: ${_items[itemIndex].description}');
+    print('  Inventory ID in _items: ${_items[itemIndex].inventoryItemId}');
+    print('  Unit in _items: ${_items[itemIndex].unit}');
+    print('  Price in _items: ${_items[itemIndex].price}');
+  });
+}
   Future<InventoryItem?> _getInventoryItemById(String id) async {
     try {
       return await _inventoryService.getInventoryItem(id);
@@ -1167,29 +1380,43 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                             color: colorScheme.onSurface,
                           ),
                         ),
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _isSelectingFromInventory = !_isSelectingFromInventory;
-                                });
-                              },
-                              icon: Icon(
-                                _isSelectingFromInventory ? Icons.list : Icons.inventory,
-                                color: _isSelectingFromInventory ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
-                              ),
-                              tooltip: _isSelectingFromInventory 
-                                  ? 'Manual Entry' 
-                                  : 'Select from Inventory',
-                            ),
-                            IconButton(
-                              onPressed: _addItem,
-                              icon: Icon(Icons.add_circle, color: colorScheme.primary),
-                              tooltip: 'Add Item',
-                            ),
-                          ],
-                        ),
+                       Row(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    Text(
+      'Items',
+      style: TextStyle(
+        fontSize: 16, 
+        fontWeight: FontWeight.bold,
+        color: colorScheme.onSurface,
+      ),
+    ),
+    Row(
+      children: [
+        // REMOVE THIS ICON BUTTON
+        // IconButton(
+        //   onPressed: () {
+        //     setState(() {
+        //       _isSelectingFromInventory = !_isSelectingFromInventory;
+        //     });
+        //   },
+        //   icon: Icon(
+        //     _isSelectingFromInventory ? Icons.list : Icons.inventory,
+        //     color: _isSelectingFromInventory ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
+        //   ),
+        //   tooltip: _isSelectingFromInventory 
+        //       ? 'Manual Entry' 
+        //       : 'Select from Inventory',
+        // ),
+        IconButton(
+          onPressed: _addItem,
+          icon: Icon(Icons.add_circle, color: colorScheme.primary),
+          tooltip: 'Add Item',
+        ),
+      ],
+    ),
+  ],
+),
                       ],
                     ),
                     
@@ -1388,198 +1615,143 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
             ),
     );
   }
-
-  Widget _buildItemRow(int index) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    
-    final item = _items[index];
-    final isFromInventory = item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty;
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12.0),
-      color: colorScheme.surface,
-      elevation: isDark ? 4 : 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: TextFormField(
-                    controller: _descControllers[index],
-                    readOnly: isFromInventory,
-                    style: TextStyle(color: colorScheme.onSurface),
-                    decoration: InputDecoration(
-                      labelText: 'Description',
-                      labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: colorScheme.outline),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                      suffixIcon: isFromInventory
-                          ? Tooltip(
-                              message: 'From Inventory',
-                              child: Icon(Icons.inventory, color: colorScheme.secondary, size: 16),
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+Widget _buildItemRow(int index) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final isDark = theme.brightness == Brightness.dark;
+  
+  final item = _items[index];
+  final isFromInventory = item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty;
+  
+  return Card(
+    margin: const EdgeInsets.only(bottom: 12.0),
+    color: colorScheme.surface,
+    elevation: isDark ? 4 : 2,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: TextFormField(
+                  controller: _descControllers[index],
+                  readOnly: true, // Always read-only
+                  style: TextStyle(color: colorScheme.onSurface),
+                  decoration: InputDecoration(
+                    labelText: 'Description',
+                    labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onChanged: (value) {
-                      if (!isFromInventory) {
-                        setState(() {
-                          _items[index] = item.copyWith(description: value);
-                        });
-                        _calculateTotals();
-                      }
-                    },
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                    suffixIcon: Tooltip(
+                      message: 'From Inventory',
+                      child: Icon(Icons.inventory, color: colorScheme.secondary, size: 16),
+                    ),
+                    filled: true,
+                    fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                   ),
                 ),
-                const SizedBox(width: 8),
-                
-                if (_isSelectingFromInventory && !isFromInventory)
-                  IconButton(
-                    onPressed: () => _showInventorySelectionDialog(index),
-                    icon: Icon(Icons.search, color: colorScheme.primary),
-                    tooltip: 'Select from Inventory',
-                  ),
-                
-                if (_items.length > 1)
-                  IconButton(
-                    onPressed: () => _removeItem(index),
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    tooltip: 'Remove Item',
-                  ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _qtyControllers[index],
-                    style: TextStyle(color: colorScheme.onSurface),
-                    decoration: InputDecoration(
-                      labelText: 'Qty',
-                      labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: colorScheme.outline),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                      filled: true,
-                      fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+              ),
+              const SizedBox(width: 8),
+              
+              // Always show inventory selection button
+              IconButton(
+                onPressed: () => _showInventorySelectionDialog(index),
+                icon: Icon(Icons.search, color: colorScheme.primary),
+                tooltip: 'Select from Inventory',
+              ),
+              
+              if (_items.length > 1)
+                IconButton(
+                  onPressed: () => _removeItem(index),
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  tooltip: 'Remove Item',
+                ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _qtyControllers[index],
+                  style: TextStyle(color: colorScheme.onSurface),
+                  decoration: InputDecoration(
+                    labelText: 'Quantity',
+                    labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      final qty = double.tryParse(value) ?? 1.0;
-                      setState(() {
-                        _items[index] = item.copyWith(quantity: qty);
-                      });
-                      _calculateTotals();
-                    },
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                    filled: true,
+                    fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    final qty = double.tryParse(value) ?? 1.0;
+                    setState(() {
+                      _items[index] = item.copyWith(quantity: qty);
+                    });
+                    _calculateTotals();
+                  },
+                ),
+              ),
+              
+              const SizedBox(width: 8),
+              
+              // Price field - hidden, showing only total
+              Expanded(
+                child: Card(
+                  color: colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(
+                      'Qty × Price',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
-                
-                const SizedBox(width: 8),
-                
-                Expanded(
-                  child: TextFormField(
-                    controller: _priceControllers[index],
-                    readOnly: isFromInventory,
-                    style: TextStyle(color: colorScheme.onSurface),
-                    decoration: InputDecoration(
-                      labelText: 'Price',
-                      labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: colorScheme.outline),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                      ),
-                      prefixText: '₹ ',
-                      prefixStyle: TextStyle(color: colorScheme.onSurface),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                      suffixIcon: isFromInventory
-                          ? Tooltip(
-                              message: 'Price from inventory',
-                              child: Icon(Icons.lock, color: colorScheme.primary, size: 16),
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: isFromInventory ? null : (value) {
-                      final price = double.tryParse(value) ?? 0.0;
-                      setState(() {
-                        _items[index] = item.copyWith(price: price);
-                      });
-                      _calculateTotals();
-                    },
-                  ),
-                ),
-                
-                const SizedBox(width: 8),
-                
-                if (item.unit != null && item.unit!.isNotEmpty)
-                  Expanded(
-                    child: Card(
-                      color: colorScheme.surfaceContainerHighest,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Text(
-                          item.unit!,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: colorScheme.onSurface,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  ),
-                
-                const SizedBox(width: 8),
-                
+              ),
+              
+              const SizedBox(width: 8),
+              
+              if (item.unit != null && item.unit!.isNotEmpty)
                 Expanded(
                   child: Card(
                     color: colorScheme.surfaceContainerHighest,
                     child: Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: Text(
-                        '₹${(item.quantity * item.price).toStringAsFixed(2)}',
+                        item.unit!,
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
                           fontSize: 14,
                           color: colorScheme.onSurface,
                         ),
@@ -1588,42 +1760,61 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
                     ),
                   ),
                 ),
-              ],
-            ),
-            
-            if (isFromInventory)
-              FutureBuilder<InventoryItem?>(
-                future: _getInventoryItemById(item.inventoryItemId!),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData && snapshot.data != null) {
-                    final inventoryItem = snapshot.data!;
-                    if (item.quantity > inventoryItem.quantity) {
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          '⚠️ Insufficient stock! Available: ${inventoryItem.quantity}',
-                          style: TextStyle(color: colorScheme.error, fontSize: 12),
-                        ),
-                      );
-                    } else if (inventoryItem.quantity < 10) {
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          '⚠️ Low stock! Available: ${inventoryItem.quantity}',
-                          style: TextStyle(color: colorScheme.tertiary, fontSize: 12),
-                        ),
-                      );
-                    }
-                  }
-                  return const SizedBox.shrink();
-                },
+              
+              const SizedBox(width: 8),
+              
+              Expanded(
+                child: Card(
+                  color: colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(
+                      '₹${(item.quantity * item.price).toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: colorScheme.onSurface,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
               ),
-          ],
-        ),
+            ],
+          ),
+          
+          if (isFromInventory)
+            FutureBuilder<InventoryItem?>(
+              future: _getInventoryItemById(item.inventoryItemId!),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data != null) {
+                  final inventoryItem = snapshot.data!;
+                  if (item.quantity > inventoryItem.quantity) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        '⚠️ Insufficient stock! Available: ${inventoryItem.quantity}',
+                        style: TextStyle(color: colorScheme.error, fontSize: 12),
+                      ),
+                    );
+                  } else if (inventoryItem.quantity < 10) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        '⚠️ Low stock! Available: ${inventoryItem.quantity}',
+                        style: TextStyle(color: colorScheme.tertiary, fontSize: 12),
+                      ),
+                    );
+                  }
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+        ],
       ),
-    );
-  }
- 
+    ),
+  );
+}
   Widget _buildTotalRow(String label, double amount, {bool isTotal = false}) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -1679,44 +1870,21 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
       return;
     }
     
-    // Validate items
-    for (int i = 0; i < _items.length; i++) {
-      final item = _items[i];
-      if (item.description.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Please enter item description'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
-        }
-        return;
-      }
-      if (item.price <= 0) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Item price must be greater than 0'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
-        }
-        return;
-      }
-      if (item.quantity <= 0) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Item quantity must be greater than 0'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
-        }
-        return;
-      }
+  // Validate that all items are selected from inventory
+for (int i = 0; i < _items.length; i++) {
+  final item = _items[i];
+  if (item.inventoryItemId == null || item.inventoryItemId!.isEmpty) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select all items from inventory'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
-    
+    return;
+  }
+}  
     // Validate inventory stock for sales bills
     if (widget.type == 'sales') {
       bool hasInsufficientStock = false;
@@ -1942,22 +2110,22 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
   }
   
   void _addItem() {
-    setState(() {
-      _items.add(BillItem.create(
-        description: '',
-        quantity: 1.0,
-        price: 0.0,
-        inventoryItemId: '',
-        unit: '',
-      ));
-      
-      _descControllers.add(TextEditingController());
-      _qtyControllers.add(TextEditingController(text: '1'));
-      _priceControllers.add(TextEditingController(text: '0.00'));
-      
-      _calculateTotals();
-    });
-  }
+  setState(() {
+    _items.add(BillItem.create(
+      description: 'Tap to select item',
+      quantity: 1.0,
+      price: 0.0,
+      inventoryItemId: '',
+      unit: '',
+    ));
+    
+    _descControllers.add(TextEditingController(text: 'Tap to select item'));
+    _qtyControllers.add(TextEditingController(text: '1'));
+    _priceControllers.add(TextEditingController(text: '0.00'));
+    
+    _calculateTotals();
+  });
+}
 
   void _removeItem(int index) {
     if (_items.length > 1) {
@@ -1977,25 +2145,25 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
     }
   }
 
-  void _addEmptyItem() {
-    setState(() {
-      _items.add(BillItem.create(
-        description: '',
-        quantity: 1.0,
-        price: 0.0,
-        inventoryItemId: '',
-        unit: '',
-      ));
-      
-      _descControllers.add(TextEditingController());
-      _qtyControllers.add(TextEditingController(text: '1'));
-      _priceControllers.add(TextEditingController(text: '0.00'));
-    });
+void _addEmptyItem() {
+  setState(() {
+    _items.add(BillItem.create(
+      description: 'Tap to select item',
+      quantity: 1.0,
+      price: 0.0,
+      inventoryItemId: '',
+      unit: '',
+    ));
     
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _calculateTotals();
-    });
-  }
+    _descControllers.add(TextEditingController(text: 'Tap to select item'));
+    _qtyControllers.add(TextEditingController(text: '1'));
+    _priceControllers.add(TextEditingController(text: '0.00'));
+  });
+  
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _calculateTotals();
+  });
+}
 
   @override
   void dispose() {

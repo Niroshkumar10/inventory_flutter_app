@@ -516,7 +516,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildInfoTile(
                 icon: Icons.copyright_outlined,
                 title: 'Copyright',
-                subtitle: '© 2024 Inventory Manager',
+                subtitle: '© 2026 Inventory Manager',
               ),
             ],
           ),

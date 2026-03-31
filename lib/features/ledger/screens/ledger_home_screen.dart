@@ -330,113 +330,272 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
     }
   }
 
-  Widget _buildPartyListView(AsyncSnapshot snapshot, String partyType) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final isCustomer = partyType == 'customer';
+Widget _buildPartyListView(AsyncSnapshot snapshot, String partyType) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final isDark = theme.brightness == Brightness.dark;
+  final isCustomer = partyType == 'customer';
 
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return Center(child: CircularProgressIndicator(color: colorScheme.primary));
-    }
-    
-    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-      return _emptyPartyState(partyType);
-    }
-    
-    final parties = snapshot.data!;
-    
-    return RefreshIndicator(
-      onRefresh: () async {
-        setState(() {});
-      },
-      color: colorScheme.primary,
-      backgroundColor: colorScheme.surface,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: parties.length,
-        itemBuilder: (context, index) {
-          final party = parties[index];
-          late String partyId;
-          late String partyName;
-          late String contact;
-          
-          if (isCustomer) {
-            final customer = party as Customer;
-            partyId = customer.id;
-            partyName = customer.name;
-            contact = customer.mobile;
-          } else {
-            final supplier = party as Supplier;
-            partyId = supplier.id;
-            partyName = supplier.name;
-            contact = supplier.phone;
-          }
-          
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            elevation: isDark ? 4 : 2,
-            color: colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: (isCustomer ? colorScheme.secondary : colorScheme.tertiary).withOpacity(0.2),
-                child: Icon(
-                  isCustomer ? Icons.person : Icons.store,
-                  color: isCustomer ? colorScheme.secondary : colorScheme.tertiary,
+  if (snapshot.connectionState == ConnectionState.waiting) {
+    return Center(child: CircularProgressIndicator(color: colorScheme.primary));
+  }
+  
+  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+    return _emptyPartyState(partyType);
+  }
+  
+  final parties = snapshot.data!;
+  
+  return RefreshIndicator(
+    onRefresh: () async {
+      setState(() {});
+    },
+    color: colorScheme.primary,
+    backgroundColor: colorScheme.surface,
+    child: ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: parties.length,
+      itemBuilder: (context, index) {
+        final party = parties[index];
+        late String partyId;
+        late String partyName;
+        late String contact;
+        
+        if (isCustomer) {
+          final customer = party as Customer;
+          partyId = customer.id;
+          partyName = customer.name;
+          contact = customer.mobile;
+        } else {
+          final supplier = party as Supplier;
+          partyId = supplier.id;
+          partyName = supplier.name;
+          contact = supplier.phone;
+        }
+        
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: isDark ? 4 : 2,
+          color: colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              // Party header - always visible
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: (isCustomer ? colorScheme.secondary : colorScheme.tertiary).withOpacity(0.2),
+                  child: Icon(
+                    isCustomer ? Icons.person : Icons.store,
+                    color: isCustomer ? colorScheme.secondary : colorScheme.tertiary,
+                  ),
                 ),
-              ),
-              title: Text(
-                partyName,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
+                title: Text(
+                  partyName,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
+                subtitle: FutureBuilder<double>(
+                  future: _ledgerService.getPartyBalance(partyId),
+                  builder: (context, balanceSnapshot) {
+                    if (balanceSnapshot.connectionState == ConnectionState.waiting) {
+                      return Text(contact, style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)));
+                    }
+                    
+                    final balance = balanceSnapshot.data ?? 0;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          contact,
+                          style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          balance >= 0 
+                              ? 'Owes you: ${_currencyFormat.format(balance)}' 
+                              : 'You owe: ${_currencyFormat.format(balance.abs())}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: balance >= 0 ? colorScheme.secondary : colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                trailing: Icon(
+                  Icons.chevron_right,
+                  color: colorScheme.onSurface.withOpacity(0.5),
+                ),
+                onTap: () => _viewPartyLedger(party, partyType),
               ),
-              subtitle: FutureBuilder<double>(
-                future: _ledgerService.getPartyBalance(partyId),
-                builder: (context, balanceSnapshot) {
-                  if (balanceSnapshot.connectionState == ConnectionState.waiting) {
-                    return Text(contact, style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)));
+              
+              // Recent transactions with payment status
+              FutureBuilder<List<LedgerEntry>>(
+                future: _ledgerService.getPartyLedgerEntries(partyId, limit: 2),
+                builder: (context, entriesSnapshot) {
+                  if (entriesSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                    );
                   }
                   
-                  final balance = balanceSnapshot.data ?? 0;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        contact,
-                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        balance >= 0 
-                            ? 'Owes you: ${_currencyFormat.format(balance)}' 
-                            : 'You owe: ${_currencyFormat.format(balance.abs())}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: balance >= 0 ? colorScheme.secondary : colorScheme.error,
+                  final entries = entriesSnapshot.data ?? [];
+                  if (entries.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  
+                  return Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color: colorScheme.outline.withOpacity(0.2),
+                          width: 1,
                         ),
                       ),
-                    ],
+                    ),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                          child: Row(
+                            children: [
+                              Text(
+                                'Recent Transactions',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ...entries.map((entry) => _buildCompactTransactionItem(entry, partyType)).toList(),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: TextButton(
+                            onPressed: () => _viewPartyLedger(party, partyType),
+                            child: Text(
+                              'View All',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
-              trailing: Icon(
-                Icons.chevron_right,
-                color: colorScheme.onSurface.withOpacity(0.5),
-              ),
-              onTap: () => _viewPartyLedger(party, partyType),
-            ),
-          );
-        },
-      ),
-    );
-  }
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+Widget _buildCompactTransactionItem(LedgerEntry entry, String partyType) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
 
+  // Get status color from model (should now work correctly)
+  final statusColor = entry.statusColor;
+  final statusLabel = entry.statusLabel;
+
+  return InkWell(
+    onTap: () => _showSimpleDetails(entry),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // Icon
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: entry.typeColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              entry.typeIcon,
+              color: entry.typeColor,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 12),
+          
+          // Description and date
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.description,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  _dateFormat.format(entry.date),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurface.withOpacity(0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Amount and status
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _currencyFormat.format(entry.amount),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
+                ),
+              ),
+              const SizedBox(height: 2),
+              // Status badge with explicit colors for paid/pending
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: statusColor.withOpacity(0.3)),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
   Widget _simpleStatCard(String title, double value, Color color, IconData icon) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -527,99 +686,131 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen> {
       ),
     );
   }
+Widget _simpleTransactionItem(LedgerEntry entry) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final isDark = theme.brightness == Brightness.dark;
 
-  Widget _simpleTransactionItem(LedgerEntry entry) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      elevation: isDark ? 4 : 1,
-      color: colorScheme.surface,
-      child: ListTile(
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: entry.typeColor.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            entry.typeIcon,
-            color: entry.typeColor,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          entry.partyName,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 15,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              entry.description,
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onSurface.withOpacity(0.7),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _dateFormat.format(entry.date),
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withOpacity(0.5),
-              ),
-            ),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              _currencyFormat.format(entry.amount),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              margin: const EdgeInsets.only(top: 4),
-              decoration: BoxDecoration(
-                color: entry.statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-    border: Border.all(color: entry.statusColor.withOpacity(0.3)), // Fixed: Use Border.all()
-              ),
-              child: Text(
-                entry.statusLabel,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: entry.statusColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-        onTap: () => _showSimpleDetails(entry),
-      ),
-    );
+  // Determine status color and label based on entry status
+  Color getStatusColor() {
+    final status = entry.status.toLowerCase();
+    if (status == 'paid' || status == 'completed') {
+      return Colors.green;
+    } else if (status == 'pending' || status == 'due') {
+      return Colors.orange;
+    } else if (status == 'overdue') {
+      return Colors.red;
+    } else if (status == 'cancelled') {
+      return Colors.grey;
+    }
+    return Colors.grey;
   }
 
+  String getStatusLabel() {
+    final status = entry.status.toLowerCase();
+    if (status == 'paid' || status == 'completed') {
+      return 'Paid';
+    } else if (status == 'pending' || status == 'due') {
+      return 'Pending';
+    } else if (status == 'overdue') {
+      return 'Overdue';
+    } else if (status == 'cancelled') {
+      return 'Cancelled';
+    }
+    // Capitalize first letter
+    if (entry.status.isEmpty) return '';
+    return entry.status[0].toUpperCase() + entry.status.substring(1);
+  }
+
+  final statusColor = getStatusColor();
+  final statusLabel = getStatusLabel();
+
+  return Card(
+    margin: const EdgeInsets.only(bottom: 10),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    elevation: isDark ? 4 : 1,
+    color: colorScheme.surface,
+    child: ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: entry.typeColor.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          entry.typeIcon,
+          color: entry.typeColor,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        entry.partyName,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: colorScheme.onSurface,
+        ),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entry.description,
+            style: TextStyle(
+              fontSize: 13,
+              color: colorScheme.onSurface.withOpacity(0.7),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _dateFormat.format(entry.date),
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            _currencyFormat.format(entry.amount),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: statusColor.withOpacity(0.3)),
+            ),
+            child: Text(
+              statusLabel,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: statusColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+      onTap: () => _showSimpleDetails(entry),
+    ),
+  );
+}
   Widget _simpleEmptyState() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
