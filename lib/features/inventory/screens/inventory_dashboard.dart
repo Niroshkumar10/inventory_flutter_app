@@ -27,8 +27,13 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   String? _selectedCategory;
   Map<String, dynamic> _stats = {};
   bool _isLoading = true;
+  bool _hasShownLowStockAlert = false;
+  bool _hasShownExpiredAlert = false;
 
-  final List<String> _filters = ['All Items', 'Low Stock', 'Out of Stock'];
+  List<InventoryItem> _lowStockItems = [];
+  List<InventoryItem> _expiredItems = [];
+
+  final List<String> _filters = ['All Items', 'Low Stock', 'Out of Stock', 'Expired'];
   List<String> _categories = ['All Categories'];
 
   @override
@@ -48,12 +53,38 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     try {
       final categories = await _inventoryService.getCategories();
       final stats = await _inventoryService.getInventoryStats();
+
+      // Get low stock items
+      final lowStock = await _inventoryService.getLowStockItems().first;
       
+      // Get all items and filter expired ones
+      final allItems = await _inventoryService.getInventoryItems().first;
+      final expiredItems = allItems.where((item) => item.isExpired).toList();
+
       setState(() {
         _categories = ['All Categories', ...categories];
         _stats = stats;
+        _lowStockItems = lowStock;
+        _expiredItems = expiredItems;
         _isLoading = false;
       });
+
+      // Show low stock modal if needed
+      if (lowStock.isNotEmpty && !_hasShownLowStockAlert) {
+        _hasShownLowStockAlert = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showLowStockModal();
+        });
+      }
+      
+      // Show expired items modal if there are expired items
+      if (expiredItems.isNotEmpty && !_hasShownExpiredAlert) {
+        _hasShownExpiredAlert = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showExpiredItemsModal(expiredItems);
+        });
+      }
+
     } catch (e) {
       print('Error loading data: $e');
       setState(() {
@@ -92,7 +123,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 4,
+              crossAxisCount: 5,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
               childAspectRatio: 0.75,
@@ -101,6 +132,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                 _statItem('In Stock', _stats['inStockItems']?.toString() ?? '0', colorScheme.secondary),
                 _statItem('Low', _stats['lowStockItems']?.toString() ?? '0', colorScheme.tertiary),
                 _statItem('Out', _stats['outOfStockItems']?.toString() ?? '0', colorScheme.error),
+                _statItem('Expired', _stats['expiredItems']?.toString() ?? _expiredItems.length.toString(), Colors.red),
               ],
             ),
           ],
@@ -147,7 +179,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
       color: colorScheme.surface,
       child: Row(
         children: [
-          /// 🔹 STATUS DROPDOWN - Mobile Optimized
+          /// STATUS DROPDOWN
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,7 +195,6 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                 ),
                 const SizedBox(height: 6),
 
-                // Enhanced dropdown container
                 Container(
                   height: 48,
                   decoration: BoxDecoration(
@@ -200,16 +231,6 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                         fontWeight: FontWeight.w500,
                         color: colorScheme.onSurface,
                       ),
-                      hint: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'Select Status',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: colorScheme.onSurface.withOpacity(0.4),
-                          ),
-                        ),
-                      ),
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       items: _filters.map((filter) {
                         return DropdownMenuItem<String>(
@@ -233,6 +254,12 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                                   Icons.block_rounded,
                                   size: 18,
                                   color: colorScheme.error,
+                                )
+                              else if (filter == 'Expired')
+                                Icon(
+                                  Icons.event_busy,
+                                  size: 18,
+                                  color: Colors.red,
                                 ),
                               const SizedBox(width: 10),
                               Expanded(
@@ -267,7 +294,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
 
           const SizedBox(width: 10),
 
-          /// 🔹 CATEGORY DROPDOWN - Mobile Optimized
+          /// CATEGORY DROPDOWN
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,7 +310,6 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                 ),
                 const SizedBox(height: 6),
 
-                // Enhanced dropdown container
                 Container(
                   height: 48,
                   decoration: BoxDecoration(
@@ -319,16 +345,6 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                         color: colorScheme.onSurface,
-                      ),
-                      hint: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'Select Category',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: colorScheme.onSurface.withOpacity(0.4),
-                          ),
-                        ),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       items: _categories.map((category) {
@@ -470,6 +486,10 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     );
   }
 
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
   Widget _buildCompactInventoryCard(InventoryItem item) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -478,7 +498,11 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     Color statusColor;
     String statusText;
     
-    if (item.quantity <= 0) {
+    // Priority: Expired > Out of Stock > Low Stock > In Stock
+    if (item.isExpired) {
+      statusColor = Colors.red;
+      statusText = 'Expired';
+    } else if (item.quantity <= 0) {
       statusColor = colorScheme.error;
       statusText = 'Out';
     } else if (item.isLowStock) {
@@ -495,7 +519,12 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
       color: colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: colorScheme.outline, width: 0.5),
+        side: BorderSide(
+          color: item.isExpired 
+              ? Colors.red.withOpacity(0.5) 
+              : colorScheme.outline, 
+          width: item.isExpired ? 1.5 : 0.5,
+        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -521,6 +550,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                   ),
                 ),
               );
+              _loadData();
             }
           });
         },
@@ -538,15 +568,36 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          item.name,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onSurface,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.name,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: item.isExpired 
+                                      ? Colors.red 
+                                      : colorScheme.onSurface,
+                                  decoration: item.isExpired 
+                                      ? TextDecoration.lineThrough 
+                                      : null,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            // Near expiry icon
+                            if (item.isNearExpiry && !item.isExpired)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 14,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -630,7 +681,12 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
+                          color: item.isExpired 
+                              ? Colors.red.withOpacity(0.7)
+                              : colorScheme.onSurface,
+                          decoration: item.isExpired 
+                              ? TextDecoration.lineThrough 
+                              : null,
                         ),
                       ),
                       Text(
@@ -645,8 +701,67 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                 ],
               ),
               
-              // Low Stock Warning
-              if (item.isLowStock && item.quantity > 0)
+              // EXPIRY WARNING SECTION
+              if (item.trackExpiry && item.expiryDate != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: item.isExpired 
+                        ? Colors.red.withOpacity(0.1)
+                        : (item.isNearExpiry 
+                            ? Colors.orange.withOpacity(0.1)
+                            : Colors.green.withOpacity(0.05)),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: item.isExpired 
+                          ? Colors.red.withOpacity(0.3)
+                          : (item.isNearExpiry 
+                              ? Colors.orange.withOpacity(0.3)
+                              : Colors.green.withOpacity(0.2)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        item.isExpired 
+                            ? Icons.event_busy
+                            : (item.isNearExpiry 
+                                ? Icons.warning_amber_rounded
+                                : Icons.event_available),
+                        size: 14,
+                        color: item.isExpired 
+                            ? Colors.red
+                            : (item.isNearExpiry 
+                                ? Colors.orange
+                                : Colors.green),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.isExpired
+                              ? '❌ EXPIRED on ${_formatDate(item.expiryDate!)}'
+                              : (item.isNearExpiry
+                                  ? '⚠️ Expires in ${item.daysUntilExpiry} days (${_formatDate(item.expiryDate!)})'
+                                  : '✓ Valid until ${_formatDate(item.expiryDate!)}'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: item.isExpired 
+                                ? Colors.red
+                                : (item.isNearExpiry 
+                                    ? Colors.orange
+                                    : Colors.green),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              // Low Stock Warning (only if not expired)
+              if (item.isLowStock && item.quantity > 0 && !item.isExpired)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Row(
@@ -667,6 +782,264 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showExpiredItemsModal(List<InventoryItem> expiredItems) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            constraints: const BoxConstraints(maxHeight: 500),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // HEADER
+                Row(
+                  children: [
+                    Icon(Icons.event_busy, color: Colors.red, size: 24),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        "Expired Items Alert",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "The following items have expired and need immediate attention:",
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // LIST OF EXPIRED ITEMS
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: expiredItems.length,
+                    itemBuilder: (context, index) {
+                      final item = expiredItems[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        color: Colors.red.withOpacity(0.05),
+                        child: ListTile(
+                          leading: const Icon(Icons.warning, color: Colors.red),
+                          title: Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('SKU: ${item.sku}'),
+                              Text(
+                                'Expired on: ${_formatDate(item.expiryDate!)}',
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          trailing: Text(
+                            '${item.quantity} ${item.unit}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => InventoryItemScreen(
+                                  item: item,
+                                  inventoryService: widget.inventoryService,
+                                  userMobile: widget.userMobile,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // ACTION BUTTONS
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.red),
+                          foregroundColor: Colors.red,
+                        ),
+                        child: const Text("Later"),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          setState(() {
+                            _selectedFilter = 'Expired';
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text("View All"),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLowStockModal() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            constraints: const BoxConstraints(maxHeight: 420),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // HEADER
+                Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded,
+                        color: colorScheme.tertiary),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        "Low Stock Alert",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  "These items need restocking:",
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // LIST
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _lowStockItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _lowStockItems[index];
+
+                      return Card(
+                        elevation: 0.5,
+                        child: ListTile(
+                          leading: const Icon(Icons.inventory_2),
+                          title: Text(item.name),
+                          subtitle: Text(
+                            'Qty: ${item.quantity} | Min: ${item.lowStockThreshold}',
+                          ),
+                          trailing: Text(
+                            "Low",
+                            style: TextStyle(
+                              color: colorScheme.tertiary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => InventoryItemScreen(
+                                  item: item,
+                                  inventoryService: widget.inventoryService,
+                                  userMobile: widget.userMobile,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // BUTTON
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text("OK"),
+                  ),
+                )
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -711,7 +1084,6 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
               );
             },
           ),
-
         ],
       ),
       body: _isLoading
@@ -730,7 +1102,9 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                       ),
                       
                       const SizedBox(height: 4),
-                      
+
+                      // Alert Cards
+
                       // Add/Category Row
                       _buildQuickActions(),
                       
@@ -818,6 +1192,8 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
                         filteredItems = items.where((item) => item.isLowStock).toList();
                       } else if (_selectedFilter == 'Out of Stock') {
                         filteredItems = items.where((item) => item.quantity <= 0).toList();
+                      } else if (_selectedFilter == 'Expired') {
+                        filteredItems = items.where((item) => item.isExpired).toList();
                       }
 
                       if (_selectedCategory != null && _selectedCategory != 'All Categories') {
@@ -900,59 +1276,6 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     );
   }
 
-  void _showDeleteItemDialog(InventoryItem item) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        title: Text(
-          'Delete Item', 
-          style: TextStyle(fontSize: 16, color: colorScheme.onSurface)
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to delete "${item.name}"?',
-              style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
-            ),
-            if (item.quantity > 0) ...[
-              const SizedBox(height: 8),
-              Text(
-                '⚠️ Warning: This item has ${item.quantity} units in stock.',
-                style: TextStyle(fontSize: 12, color: colorScheme.tertiary),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel', 
-              style: TextStyle(fontSize: 13, color: colorScheme.primary)
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _deleteItem(item);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.error,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete', style: TextStyle(fontSize: 13)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _deleteItem(InventoryItem item) async {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -981,6 +1304,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
             duration: const Duration(seconds: 2),
           ),
         );
+        _loadData();
       }
     } catch (e) {
       if (mounted) {
@@ -996,6 +1320,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     }
   }
 }
+
 // Search Delegate for Inventory
 class _InventorySearchDelegate extends SearchDelegate {
   final InventoryService inventoryService;

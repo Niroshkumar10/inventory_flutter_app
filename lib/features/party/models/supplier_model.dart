@@ -1,7 +1,6 @@
 //./lib/features/party/models/supplier_model.dart
 
-import 'package:cloud_firestore/cloud_firestore.dart'; // ← ADD THIS
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Supplier {
   String id;
@@ -13,6 +12,11 @@ class Supplier {
   DateTime createdAt;
   DateTime updatedAt;
   final bool isActive;
+  
+  // New location fields
+  double? latitude;
+  double? longitude;
+  String? locationAddress; // Formatted address from coordinates
 
   Supplier({
     required this.id,
@@ -23,8 +27,10 @@ class Supplier {
     required this.userMobile,
     required this.createdAt,
     required this.updatedAt,
-    this.isActive = true, // Add this default value
-
+    this.isActive = true,
+    this.latitude,
+    this.longitude,
+    this.locationAddress,
   });
 
   // Create new supplier for current user
@@ -34,6 +40,9 @@ class Supplier {
     required String userMobile,
     String email = '',
     String address = '',
+    double? latitude,
+    double? longitude,
+    String? locationAddress,
   }) {
     final now = DateTime.now();
     return Supplier(
@@ -45,6 +54,9 @@ class Supplier {
       userMobile: userMobile,
       createdAt: now,
       updatedAt: now,
+      latitude: latitude,
+      longitude: longitude,
+      locationAddress: locationAddress,
     );
   }
 
@@ -57,8 +69,10 @@ class Supplier {
       'userMobile': userMobile,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-      'isActive': isActive, // Add this to map
-
+      'isActive': isActive,
+      'latitude': latitude,
+      'longitude': longitude,
+      'locationAddress': locationAddress,
     };
   }
 
@@ -72,7 +86,10 @@ class Supplier {
       userMobile: map['userMobile'] ?? '',
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      isActive: map['isActive'] ?? true, // Handle missing field
+      isActive: map['isActive'] ?? true,
+      latitude: map['latitude'] != null ? (map['latitude'] as num).toDouble() : null,
+      longitude: map['longitude'] != null ? (map['longitude'] as num).toDouble() : null,
+      locationAddress: map['locationAddress'],
     );
   }
 
@@ -81,6 +98,9 @@ class Supplier {
     String? phone,
     String? email,
     String? address,
+    double? latitude,
+    double? longitude,
+    String? locationAddress,
   }) {
     return Supplier(
       id: id,
@@ -91,6 +111,12 @@ class Supplier {
       userMobile: userMobile,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      locationAddress: locationAddress ?? this.locationAddress,
     );
   }
+  
+  // Helper to check if location is available
+  bool get hasLocation => latitude != null && longitude != null;
 }

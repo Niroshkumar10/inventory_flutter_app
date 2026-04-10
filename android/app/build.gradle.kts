@@ -1,10 +1,19 @@
-//android\app\build.gradle.kts
+import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services") // no version here
+    id("com.google.gms.google-services")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// 🔐 Load keystore
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -18,22 +27,41 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        }
     }
 
     defaultConfig {
         applicationId = "com.example.inventory_app"
         minSdk = flutter.minSdkVersion
-    targetSdk = 36
-
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
+    }
+
+    // ✅ ADD THIS
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+            storeFile = file(keystoreProperties["storeFile"] as String)
+            storePassword = keystoreProperties["storePassword"] as String
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            // ❌ REMOVE debug signing
+            // signingConfig = signingConfigs.getByName("debug")
+
+            // ✅ USE release signing
+            signingConfig = signingConfigs.getByName("release")
+
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
@@ -43,9 +71,6 @@ flutter {
 }
 
 dependencies {
-    // Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:34.7.0"))
-
-    // Optional (keep only if you use analytics)
     implementation("com.google.firebase:firebase-analytics")
 }

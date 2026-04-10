@@ -19,14 +19,8 @@ class CustomerService {
   // Add customer
   Future<String> addCustomer(Customer customer) async {
     try {
-      // Don't include id field - Firestore will auto-generate
-      final customerData = {
-        'name': customer.name,
-        'mobile': customer.mobile,
-        'address': customer.address,
-        'userMobile': customer.userMobile,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
+      final customerData = customer.toMap();
+      customerData['userMobile'] = userMobile;
       
       final docRef = await _userCustomersCollection.add(customerData);
       return docRef.id;
@@ -36,19 +30,31 @@ class CustomerService {
     }
   }
 
-  // Update customer
+  // Update customer - now saves location fields too
   Future<void> updateCustomer(Customer customer) async {
     try {
       if (customer.id.isEmpty) {
         throw Exception('Customer ID is required for update');
       }
       
-      final customerData = {
+      final Map<String, dynamic> customerData = {
         'name': customer.name,
         'mobile': customer.mobile,
         'address': customer.address,
         'userMobile': customer.userMobile,
+        'isActive': customer.isActive,
       };
+
+      // Save or clear location
+      if (customer.latitude != null && customer.longitude != null) {
+        customerData['latitude'] = customer.latitude;
+        customerData['longitude'] = customer.longitude;
+        customerData['locationAddress'] = customer.locationAddress ?? '';
+      } else {
+        customerData['latitude'] = FieldValue.delete();
+        customerData['longitude'] = FieldValue.delete();
+        customerData['locationAddress'] = FieldValue.delete();
+      }
       
       await _userCustomersCollection.doc(customer.id).update(customerData);
     } catch (e) {
@@ -72,6 +78,9 @@ class CustomerService {
     return _userCustomersCollection
         .orderBy('name')
         .snapshots()
+        .handleError((error) {
+          print('❌ Stream error: $error');
+        })
         .map((snapshot) {
           if (snapshot.docs.isEmpty) return [];
           
@@ -82,6 +91,20 @@ class CustomerService {
             );
           }).toList();
         });
+  }
+
+  // Get customer by ID
+  Future<Customer> getCustomerById(String id) async {
+    try {
+      final doc = await _userCustomersCollection.doc(id).get();
+      if (doc.exists) {
+        return Customer.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      }
+      throw Exception('Customer not found');
+    } catch (e) {
+      print('❌ Error getting customer: $e');
+      rethrow;
+    }
   }
 
   // Get customer count

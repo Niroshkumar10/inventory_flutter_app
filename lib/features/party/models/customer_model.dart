@@ -8,6 +8,12 @@ class Customer {
   final String address;
   final String userMobile;
   final DateTime createdAt;
+  final bool isActive;
+  
+  // New location fields
+  final double? latitude;
+  final double? longitude;
+  final String? locationAddress; // Formatted address from coordinates
 
   Customer({
     required this.id,
@@ -16,16 +22,46 @@ class Customer {
     required this.address,
     required this.userMobile,
     required this.createdAt,
+    this.isActive = true,
+    this.latitude,
+    this.longitude,
+    this.locationAddress,
   });
+
+  // Create new customer for current user
+  factory Customer.create({
+    required String name,
+    required String mobile,
+    required String userMobile,
+    String address = '',
+    double? latitude,
+    double? longitude,
+    String? locationAddress,
+  }) {
+    return Customer(
+      id: '',
+      name: name,
+      mobile: mobile,
+      address: address,
+      userMobile: userMobile,
+      createdAt: DateTime.now(),
+      latitude: latitude,
+      longitude: longitude,
+      locationAddress: locationAddress,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'name': name,
       'mobile': mobile,
       'address': address,
       'userMobile': userMobile,
-      'createdAt': FieldValue.serverTimestamp(), // Use FieldValue for Firestore
+      'createdAt': FieldValue.serverTimestamp(),
+      'isActive': isActive,
+      'latitude': latitude,
+      'longitude': longitude,
+      'locationAddress': locationAddress,
     };
   }
 
@@ -52,7 +88,11 @@ class Customer {
       mobile: map['mobile']?.toString() ?? '',
       address: map['address']?.toString() ?? '',
       userMobile: map['userMobile']?.toString() ?? '',
-      createdAt: parseDate(map['createdAt']), // Use the parser
+      createdAt: parseDate(map['createdAt']),
+      isActive: map['isActive'] ?? true,
+      latitude: map['latitude'] != null ? (map['latitude'] as num).toDouble() : null,
+      longitude: map['longitude'] != null ? (map['longitude'] as num).toDouble() : null,
+      locationAddress: map['locationAddress'],
     );
   }
 
@@ -63,6 +103,10 @@ class Customer {
     String? address,
     String? userMobile,
     DateTime? createdAt,
+    bool? isActive,
+    double? latitude,
+    double? longitude,
+    String? locationAddress,
   }) {
     return Customer(
       id: id ?? this.id,
@@ -71,6 +115,13 @@ class Customer {
       address: address ?? this.address,
       userMobile: userMobile ?? this.userMobile,
       createdAt: createdAt ?? this.createdAt,
+      isActive: isActive ?? this.isActive,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      locationAddress: locationAddress ?? this.locationAddress,
     );
   }
+  
+  // Helper to check if location is available
+  bool get hasLocation => latitude != null && longitude != null;
 }

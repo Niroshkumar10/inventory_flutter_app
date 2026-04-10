@@ -55,6 +55,14 @@ dependencies:
   universal_html: ^2.2.3
   # excel: ^2.1.0
 
+
+  geolocator: ^10.1.0
+  geocoding: ^2.1.1
+  google_maps_flutter: ^2.5.0
+  permission_handler: ^11.0.1
+  url_launcher: ^6.2.0
+
+crypto: ^3.0.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

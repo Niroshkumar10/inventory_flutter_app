@@ -1,16 +1,35 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/inventory_item_model.dart';
 import '../models/category_model.dart';
+import '../models/batch_model.dart';  // ← ADD THIS LINE
+
 import '../services/local_storage_service.dart';
+import 'batch_service.dart';
+import 'expiry_alert_service.dart';
+
 
 class InventoryService {
   final String userMobile;
   late final LocalStorageService _localStorage;
+  late final BatchService _batchService;
+  late final ExpiryAlertService _expiryAlertService;
+
 
   InventoryService(this.userMobile) {
     _localStorage = LocalStorageService();
     _initLocalStorage();
+    _initBatchServices();  // ← ADD THIS LINE
   }
+
+    // Initialize batch services
+  void _initBatchServices() {
+    _batchService = BatchService(userMobile);
+    _expiryAlertService = ExpiryAlertService(userMobile);
+  }
+  
+    BatchService get batchService => _batchService;
+  ExpiryAlertService get expiryAlertService => _expiryAlertService;
+
 
   // Initialize local storage
   Future<void> _initLocalStorage() async {
@@ -208,16 +227,15 @@ class InventoryService {
   }
 
   // Update inventory item with cache update
-// Update inventory item with cache update
 Future<void> updateInventoryItem(InventoryItem item) async {
   try {
     print('🔄 Updating item with ID: ${item.id}');
-
+    
     if (item.id.isEmpty) {
       throw Exception('Inventory item ID is required for update');
     }
 
-    // Prepare update data (don't include createdAt or id)
+    // Prepare update data with proper Timestamp conversion
     final itemData = {
       'name': item.name,
       'description': item.description,
@@ -233,10 +251,17 @@ Future<void> updateInventoryItem(InventoryItem item) async {
       'supplierName': item.supplierName,
       'imageUrl': item.imageUrl,
       'userMobile': item.userMobile,
+      'trackExpiry': item.trackExpiry,
+      'trackByBatch': item.trackByBatch,  // ← ADD THIS LINE
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    print('📋 Update data: $itemData');
+    // Convert expiryDate to Timestamp if it exists
+    if (item.expiryDate != null) {
+      itemData['expiryDate'] = Timestamp.fromDate(item.expiryDate!);
+    } else {
+      itemData['expiryDate'] = null;
+    }
 
     // Perform update
     await _userInventoryCollection.doc(item.id).update(itemData);
@@ -251,7 +276,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
     print('Stack trace: $stackTrace');
     throw Exception('Failed to update inventory item: $e');
   }
-}
+} 
   // Delete inventory item (soft delete) with cache update
   Future<void> deleteInventoryItem(String id) async {
     try {
@@ -598,6 +623,158 @@ Future<void> updateInventoryItem(InventoryItem item) async {
       print('Stack trace: ${e.toString()}');
       throw Exception('Failed to adjust stock: $e');
     }
+  }
+
+Future<Batch> purchaseStock({
+    required String inventoryId,
+    required int quantity,
+    required double purchasePrice,
+    required DateTime expiryDate,
+    DateTime? purchaseDate,
+    String? supplierInvoiceNo,
+    String? supplierName,
+  }) async {
+    try {
+      // First, check if item exists
+      final item = await getInventoryItem(inventoryId);
+      
+      if (!item.trackByBatch) {
+        // If not tracking by batch, update the simple quantity
+        final newQuantity = item.quantity + quantity;
+        await _userInventoryCollection.doc(inventoryId).update({
+          'quantity': newQuantity,
+          'expiryDate': Timestamp.fromDate(expiryDate),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        // Update cache
+        final updatedItem = item.copyWith(
+          quantity: newQuantity,
+          expiryDate: expiryDate,
+        );
+        await _localStorage.updateInventoryItem(updatedItem);
+        
+        // Return a placeholder batch
+        return Batch(
+          id: '',
+          inventoryId: inventoryId,
+          batchNumber: 'SINGLE_BATCH',
+          quantity: quantity,
+          remainingQuantity: quantity,
+          purchasePrice: purchasePrice,
+          purchaseDate: purchaseDate ?? DateTime.now(),
+          expiryDate: expiryDate,
+          supplierInvoiceNo: supplierInvoiceNo,
+          supplierName: supplierName,
+        );
+      }
+      
+      // Initialize batch service if not already initialized
+      if (_batchService == null) {
+        _initBatchServices();
+      }
+      
+      // Create and add new batch
+      final newBatch = Batch(
+        id: '',
+        inventoryId: inventoryId,
+        batchNumber: '',
+        quantity: quantity,
+        remainingQuantity: quantity,
+        purchasePrice: purchasePrice,
+        purchaseDate: purchaseDate ?? DateTime.now(),
+        expiryDate: expiryDate,
+        supplierInvoiceNo: supplierInvoiceNo,
+        supplierName: supplierName,
+      );
+      
+      return await _batchService.addBatch(inventoryId, newBatch);
+      
+    } catch (e) {
+      print('❌ Error purchasing stock: $e');
+      throw Exception('Failed to purchase stock: $e');
+    }
+  }
+
+  // Sell stock using FIFO for batch-tracked items
+  Future<List<StockConsumption>> sellStock({
+    required String inventoryId,
+    required int quantity,
+    required String saleId,
+    required String soldBy,
+  }) async {
+    try {
+      final item = await getInventoryItem(inventoryId);
+      
+      if (!item.trackByBatch) {
+        // Simple stock deduction
+        final newQuantity = item.quantity - quantity;
+        if (newQuantity < 0) {
+          throw Exception('Insufficient stock');
+        }
+        
+        await _userInventoryCollection.doc(inventoryId).update({
+          'quantity': newQuantity,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        // Update cache
+        final updatedItem = item.copyWith(quantity: newQuantity);
+        await _localStorage.updateInventoryItem(updatedItem);
+        
+        return []; // Return empty list for non-batch items
+      }
+      
+      // Initialize batch service if not already initialized
+      if (_batchService == null) {
+        _initBatchServices();
+      }
+      
+      // Use FIFO consumption
+      return await _batchService.consumeStockFIFO(
+        inventoryId: inventoryId,
+        quantityToConsume: quantity,
+        transactionType: 'SALE',
+        reason: 'Sale transaction: $saleId',
+        referenceId: saleId,
+        consumedBy: soldBy,
+      );
+      
+    } catch (e) {
+      print('❌ Error selling stock: $e');
+      throw Exception('Failed to sell stock: $e');
+    }
+  }
+
+ Future<Map<String, dynamic>> getExpiryAlerts() async {
+    if (_expiryAlertService == null) {
+      _initBatchServices();
+    }
+    return await _expiryAlertService.getAlertSummary();
+  }
+  
+  // Get detailed near expiry alerts
+  Future<List<Map<String, dynamic>>> getNearExpiryAlerts({int daysThreshold = 30}) async {
+    if (_expiryAlertService == null) {
+      _initBatchServices();
+    }
+    return await _expiryAlertService.getNearExpiryAlerts(daysThreshold: daysThreshold);
+  }
+  
+  // Write off all expired stock
+  Future<int> writeOffExpiredStock(String inventoryId, String userId) async {
+    if (_batchService == null) {
+      _initBatchServices();
+    }
+    return await _batchService.writeOffExpiredBatches(inventoryId, userId);
+  }
+
+  // Get batch summary for an item
+  Future<Map<String, dynamic>> getBatchSummary(String inventoryId) async {
+    if (_batchService == null) {
+      _initBatchServices();
+    }
+    return await _batchService.getStockSummary(inventoryId);
   }
 
   // Get total inventory value for this user

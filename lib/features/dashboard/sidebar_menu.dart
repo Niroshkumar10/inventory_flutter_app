@@ -12,6 +12,10 @@ import 'reports_tab.dart';
 import '../../features/dashboard/profile_tab.dart';
 import '../dashboard/settings_screen.dart';
 
+// ✅ Import Feedback screens and service
+import '../feedback/screens/feedback_list_screen.dart';
+import '../feedback/services/feedback_service.dart';
+
 class SidebarMenu extends StatefulWidget {
   final String userMobile;
   final int selectedIndex;
@@ -44,14 +48,14 @@ class _SidebarMenuState extends State<SidebarMenu> {
 
     return Drawer(
       elevation: 0,
-      backgroundColor: colorScheme.surface, // Use theme surface color
+      backgroundColor: colorScheme.surface,
       child: SafeArea(
         top: true,
         bottom: false,
         left: false,
         right: false,
         child: Container(
-          color: colorScheme.surface, // Use theme surface color
+          color: colorScheme.surface,
           child: Column(
             children: [
               _buildHeader(context),
@@ -64,10 +68,10 @@ class _SidebarMenuState extends State<SidebarMenu> {
                       icon: Icons.dashboard,
                       title: 'Dashboard',
                       isSelected: widget.selectedIndex == 0,
-                      onTap: () {
-                        Navigator.pop(context);
-                        widget.onItemSelected(0);
-                      },
+                      // onTap: () {
+                      //   Navigator.pop(context);
+                      //   // widget.onItemSelected(0);
+                      // },
                     ),
                     
                     _buildExpandableMenu(
@@ -179,7 +183,26 @@ class _SidebarMenuState extends State<SidebarMenu> {
                     ),
                     
                     Divider(
-                      color: colorScheme.onSurface.withOpacity(0.1), // Theme-aware divider
+                      color: colorScheme.onSurface.withOpacity(0.1),
+                    ),
+                    
+                    // ✅ FEEDBACK MENU ITEM - Add this here
+                    _buildMenuItem(
+                      index: 7, // Use a unique index (7 since 0-6 are taken)
+                      icon: Icons.feedback_outlined,
+                      title: 'Feedback',
+                      isSelected: false, // Not part of main selectedIndex
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FeedbackListScreen(
+                              feedbackService: FeedbackService(widget.userMobile),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     
                     // Profile Menu Item
@@ -221,12 +244,18 @@ class _SidebarMenuState extends State<SidebarMenu> {
                     ),
                     
                     Divider(
-                      color: colorScheme.onSurface.withOpacity(0.1), // Theme-aware divider
+                      color: colorScheme.onSurface.withOpacity(0.1),
                     ),
                     
                     // Logout Menu Item
+                    _buildMenuItem(
+                      index: -1, // Special index for logout
+                      icon: Icons.logout,
+                      title: 'Logout',
+                      isSelected: false,
+                      onTap: _logout,
+                    ),
                     
-                    // Add bottom padding for better scrolling
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -249,7 +278,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            colorScheme.primary, // Use theme primary color
+            colorScheme.primary,
             isDark ? colorScheme.primary.withOpacity(0.7) : colorScheme.primary.withOpacity(0.8),
           ],
           begin: Alignment.topLeft,
@@ -281,7 +310,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
               child: Icon(
                 Icons.store, 
                 size: 30, 
-                color: colorScheme.primary, // Use theme primary color
+                color: colorScheme.primary,
               ),
             ),
           ),
@@ -293,7 +322,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
                 Text(
                   'Inventory Manager',
                   style: TextStyle(
-                    color: Colors.white, // Always white for contrast on gradient
+                    color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -302,7 +331,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
                 Text(
                   widget.userMobile,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9), // Slightly transparent white
+                    color: Colors.white.withOpacity(0.9),
                     fontSize: 13,
                   ),
                 ),
@@ -339,13 +368,13 @@ class _SidebarMenuState extends State<SidebarMenu> {
         ),
       ),
       selected: isSelected,
-      selectedTileColor: colorScheme.primary.withOpacity(0.1), // Theme-aware selection color
+      selectedTileColor: colorScheme.primary.withOpacity(0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       onTap: onTap,
-      hoverColor: colorScheme.primary.withOpacity(0.05), // Add hover effect
+      hoverColor: colorScheme.primary.withOpacity(0.05),
       splashColor: colorScheme.primary.withOpacity(0.1),
     );
   }
@@ -428,7 +457,6 @@ class _SidebarMenuState extends State<SidebarMenu> {
     final rootContext = Navigator.of(context, rootNavigator: true).context;
 
     try {
-      // Close drawer safely
       Navigator.of(context).pop();
 
       final shouldLogout = await showDialog<bool>(
@@ -444,7 +472,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
             ElevatedButton(
               onPressed: () => Navigator.pop(rootContext, true),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error, // Theme-aware error color
+                backgroundColor: Theme.of(context).colorScheme.error,
                 foregroundColor: Colors.white,
               ),
               child: const Text('LOGOUT'),

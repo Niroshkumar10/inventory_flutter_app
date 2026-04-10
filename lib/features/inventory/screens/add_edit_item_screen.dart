@@ -50,6 +50,10 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   String? _categoryError;
   String? _skuValidationError;
 
+  DateTime? _expiryDate;
+  late TextEditingController _expiryController;
+  bool _trackExpiry = false;  // Add this
+
   @override
   void initState() {
     super.initState();
@@ -59,7 +63,15 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     _nameController = TextEditingController(text: item?.name ?? '');
     _descriptionController = TextEditingController(text: item?.description ?? '');
     _skuController = TextEditingController(text: item?.sku ?? '');
-    
+
+_trackExpiry = widget.item?.trackExpiry ?? false;
+    _expiryDate = widget.item?.expiryDate;
+    _expiryController = TextEditingController(
+      text: _expiryDate != null 
+          ? "${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}"
+          : '',
+    ); 
+
     if (widget.initialCategory != null) {
       _categoryController = TextEditingController(text: widget.initialCategory!);
     } else {
@@ -224,8 +236,25 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     }
   }
 
+
+Future<void> _selectExpiryDate() async {
+  final pickedDate = await showDatePicker(
+    context: context,
+    initialDate: _expiryDate ?? DateTime.now().add(const Duration(days: 365)),
+    firstDate: DateTime.now(), // Prevent selecting past dates
+    lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+  );
+
+  if (pickedDate != null) {
+    setState(() {
+      _expiryDate = pickedDate;
+      _expiryController.text =
+          "${pickedDate.day}/${pickedDate.month}/${pickedDate.year}";
+    });
+  }
+}
+
   // ============ SAVE METHOD WITH VALIDATION ============
-// ============ SAVE METHOD WITH VALIDATION ============
 Future<void> _saveItem() async {
   // Clear previous errors
   setState(() {
@@ -248,6 +277,18 @@ Future<void> _saveItem() async {
   final quantityValidation = _validateQuantity(_quantityController.text);
   final lowStockValidation = _validateLowStock(_lowStockController.text);
   final unitValidation = _validateUnit(_unitController.text);
+
+  // Validate expiry date if tracking is enabled
+  if (_trackExpiry && _expiryDate == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Please select expiry date'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return;
+  }
 
   // Set validation errors
   bool hasErrors = false;
@@ -324,9 +365,9 @@ Future<void> _saveItem() async {
     }
 
     if (widget.item == null) {
-      // Add new item - let Firestore generate the ID
+      // Add new item
       final item = InventoryItem(
-        id: '', // Empty ID for new item
+        id: '',
         name: name,
         description: description,
         sku: sku,
@@ -340,6 +381,8 @@ Future<void> _saveItem() async {
         supplierId: supplierId,
         supplierName: supplierName.isNotEmpty ? supplierName : null,
         userMobile: widget.userMobile,
+        expiryDate: _trackExpiry ? _expiryDate : null,
+        trackExpiry: _trackExpiry,
       );
       
       await widget.inventoryService.addInventoryItem(item);
@@ -353,7 +396,7 @@ Future<void> _saveItem() async {
         );
       }
     } else {
-      // Update existing item - use the existing ID
+      // 🔥 FIX: Update existing item - include expiry fields in copyWith
       final updatedItem = widget.item!.copyWith(
         name: name,
         description: description,
@@ -366,7 +409,15 @@ Future<void> _saveItem() async {
         location: location.isNotEmpty ? location : null,
         supplierId: supplierId ?? widget.item!.supplierId,
         supplierName: supplierName.isNotEmpty ? supplierName : widget.item!.supplierName,
+        expiryDate: _trackExpiry ? _expiryDate : null,  // ✅ Add this
+        trackExpiry: _trackExpiry,                      // ✅ Add this
       );
+      
+      // Debug print to verify values
+      print('📝 Updating item with:');
+      print('  - Name: $name');
+      print('  - Track Expiry: $_trackExpiry');
+      print('  - Expiry Date: ${_expiryDate != null ? _expiryDate!.toIso8601String() : 'null'}');
       
       await widget.inventoryService.updateInventoryItem(updatedItem);
       if (mounted) {
@@ -401,7 +452,7 @@ Future<void> _saveItem() async {
       setState(() => _isLoading = false);
     }
   }
-}
+} 
   // ============ BUILD METHOD ============
   @override
   Widget build(BuildContext context) {
@@ -649,7 +700,88 @@ Future<void> _saveItem() async {
                         ),
                         
                         const SizedBox(height: 40),
-                        
+      // Replace your existing expiry section with this
+const SizedBox(height: 40),
+
+// 🔥 EXPIRY / REPLACEMENT SECTION
+_buildSectionHeader(
+  title: 'Expiry / Replacement',
+  required: false,
+),
+const SizedBox(height: 20),
+
+// Track Expiry Switch
+Container(
+  margin: const EdgeInsets.only(bottom: 16),
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  decoration: BoxDecoration(
+    color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: colorScheme.outline),
+  ),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Track Expiry Date',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Enable for items that have expiration dates',
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurface.withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
+      Switch(
+        value: _trackExpiry,
+        onChanged: (value) {
+          setState(() {
+            _trackExpiry = value;
+            if (!value) {
+              _expiryDate = null;
+              _expiryController.clear();
+            }
+          });
+        },
+        activeColor: colorScheme.primary,
+      ),
+    ],
+  ),
+),
+
+// Expiry Date Picker (only show if tracking expiry)
+if (_trackExpiry) ...[
+  GestureDetector(
+    onTap: _selectExpiryDate,
+    child: AbsorbPointer(
+      child: _buildInputField(
+        controller: _expiryController,
+        label: 'Expiry Date',
+        icon: Icons.calendar_today,
+        hintText: 'Select expiry date',
+        optional: false, // Required when tracking is enabled
+        errorText: _trackExpiry && _expiryDate == null ? 'Expiry date is required' : null,
+      ),
+    ),
+  ),
+  const SizedBox(height: 8),
+  if (_expiryDate != null)
+    _buildExpiryWarningCard(_expiryDate!),
+],
+
                         // Supplier Section
                         _buildSectionHeader(
                           title: 'Supplier Information',
@@ -779,6 +911,60 @@ Future<void> _saveItem() async {
             ),
     );
   }
+
+Widget _buildExpiryWarningCard(DateTime expiryDate) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final now = DateTime.now();
+  final daysUntilExpiry = expiryDate.difference(now).inDays;
+  
+  Color warningColor;
+  IconData warningIcon;
+  String warningMessage;
+  
+  if (daysUntilExpiry < 0) {
+    warningColor = Colors.red;
+    warningIcon = Icons.error_outline;
+    warningMessage = '⚠️ This item has already expired!';
+  } else if (daysUntilExpiry <= 7) {
+    warningColor = Colors.red;
+    warningIcon = Icons.warning_amber_rounded;
+    warningMessage = '⚠️ Expires in $daysUntilExpiry days! Urgent action needed.';
+  } else if (daysUntilExpiry <= 30) {
+    warningColor = Colors.orange;
+    warningIcon = Icons.warning;
+    warningMessage = '⚠️ Expires in $daysUntilExpiry days. Consider taking action.';
+  } else {
+    warningColor = Colors.green;
+    warningIcon = Icons.check_circle_outline;
+    warningMessage = '✓ Valid for $daysUntilExpiry more days';
+  }
+  
+  return Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: warningColor.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: warningColor.withOpacity(0.3)),
+    ),
+    child: Row(
+      children: [
+        Icon(warningIcon, color: warningColor, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            warningMessage,
+            style: TextStyle(
+              fontSize: 13,
+              color: warningColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   // ============ CUSTOM WIDGETS ============
   Widget _buildSectionHeader({
@@ -1049,59 +1235,64 @@ Future<void> _saveItem() async {
                 ),
               );
             },
-            menuChildren: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(context, rootNavigator: true).pop();
-                      _showAddCategoryDialog();
-                    },
-                    icon: Icon(
-                      Icons.add_circle_outline,
-                      size: 18,
-                      color: colorScheme.primary,
-                    ),
-                    label: Text(
-                      'Add New Category',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const Divider(height: 1, thickness: 1),
-              ..._categories.map((category) {
-                return MenuItemButton(
-                  style: MenuItemButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    backgroundColor: isDark ? colorScheme.surface : Colors.white,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _categoryController.text = category;
-                      _categoryError = null;
-                    });
-                  },
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Text(
-                      category,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: colorScheme.onSurface,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                );
-              }),
-            ],
+         // In _buildCategoryDropdown method, replace the menuChildren section:
+
+// In _buildCategoryDropdown method, update the menuChildren:
+
+menuChildren: [
+  Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+    child: SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        onPressed: () {
+          // Just close the menu and show dialog
+          Navigator.of(context).pop(); // Close menu
+          _showAddCategoryDialog(); // Show dialog
+        },
+        icon: Icon(
+          Icons.add_circle_outline,
+          size: 18,
+          color: colorScheme.primary,
+        ),
+        label: Text(
+          'Add New Category',
+          style: TextStyle(
+            fontSize: 14,
+            color: colorScheme.primary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    ),
+  ),
+  const Divider(height: 1, thickness: 1),
+  ..._categories.map((category) {
+    return MenuItemButton(
+      style: MenuItemButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        backgroundColor: isDark ? colorScheme.surface : Colors.white,
+      ),
+      onPressed: () {
+        setState(() {
+          _categoryController.text = category;
+          _categoryError = null;
+        });
+      },
+      child: SizedBox(
+        width: double.infinity,
+        child: Text(
+          category,
+          style: TextStyle(
+            fontSize: 14,
+            color: colorScheme.onSurface,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }),
+], 
           ),
         ),
         if (_categoryError != null)
@@ -1263,130 +1454,209 @@ Future<void> _saveItem() async {
     );
   }
 
-  void _showAddCategoryDialog() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final categoryController = TextEditingController();
-    
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: colorScheme.surface,
-          title: Text(
-            'Add New Category',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: colorScheme.onSurface,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: categoryController,
-                autofocus: true,
-                style: TextStyle(color: colorScheme.onSurface),
-                decoration: InputDecoration(
-                  hintText: 'Enter category name',
-                  hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: colorScheme.outline),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: colorScheme.outline),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                  filled: true,
-                  fillColor: theme.brightness == Brightness.dark 
-                      ? colorScheme.surfaceContainerHighest 
-                      : Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'This category will be available for all items',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: colorScheme.onSurface.withOpacity(0.6),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                foregroundColor: colorScheme.primary,
-              ),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontSize: 16),
+void _showAddCategoryDialog() {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final categoryController = TextEditingController();
+  
+  showDialog(
+    context: context,
+    barrierDismissible: false, // Prevent closing while loading
+    builder: (BuildContext dialogContext) {
+      bool isAdding = false;
+      String? validationError;
+      
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: colorScheme.surface,
+            title: Text(
+              'Add New Category',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
               ),
             ),
-            ElevatedButton(
-              onPressed: () async {
-                if (categoryController.text.trim().isNotEmpty) {
-                  try {
-                    await widget.inventoryService.addCategory(categoryController.text.trim());
-                    setState(() {
-                      _categories.add(categoryController.text.trim());
-                      _categoryController.text = categoryController.text.trim();
-                      _categoryError = null;
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: categoryController,
+                  autofocus: true,
+                  enabled: !isAdding, // Disable while adding
+                  style: TextStyle(color: colorScheme.onSurface),
+                  onChanged: (value) {
+                    if (validationError != null) {
+                      setDialogState(() {
+                        validationError = null;
+                      });
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Enter category name',
+                    hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                    errorText: validationError,
+                    errorStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                    filled: true,
+                    fillColor: theme.brightness == Brightness.dark 
+                        ? colorScheme.surfaceContainerHighest 
+                        : Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This category will be available for all items',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isAdding ? null : () {
+                  Navigator.of(dialogContext).pop();
+                },
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  foregroundColor: colorScheme.primary,
+                ),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: isAdding ? null : () async {
+                  final categoryName = categoryController.text.trim();
+                  
+                  if (categoryName.isEmpty) {
+                    setDialogState(() {
+                      validationError = 'Category name is required';
                     });
+                    return;
+                  }
+                  
+                  // Check if category already exists
+                  final existingCategory = _categories.any(
+                    (cat) => cat.toLowerCase() == categoryName.toLowerCase()
+                  );
+                  
+                  if (existingCategory) {
+                    setDialogState(() {
+                      validationError = 'Category "$categoryName" already exists';
+                    });
+                    return;
+                  }
+                  
+                  // Set loading state
+                  setDialogState(() {
+                    isAdding = true;
+                    validationError = null;
+                  });
+                  
+                  try {
+                    // Add to database
+                    await widget.inventoryService.addCategory(categoryName);
+                    
+                    // Reload categories
+                    final updatedCategories = await widget.inventoryService.getCategories();
+                    
+                    // Update parent state
                     if (mounted) {
-                      Navigator.pop(context);
+                      setState(() {
+                        _categories = updatedCategories;
+                        _categoryController.text = categoryName;
+                        _categoryError = null;
+                      });
+                    }
+                    
+                    // Close dialog
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                    
+                    // Show success message
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('"${categoryController.text.trim()}" added successfully'),
-                          backgroundColor: colorScheme.secondary,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                        const SnackBar(
+                          content: Text(
+                            'Category added successfully',
+                            style: TextStyle(fontSize: 14),
                           ),
+                          backgroundColor: Colors.green,
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
                         ),
                       );
                     }
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error adding category: $e'),
-                          backgroundColor: colorScheme.error,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
+                    // Reset loading state on error
+                    setDialogState(() {
+                      isAdding = false;
+                      if (e.toString().contains('already exists')) {
+                        validationError = 'Category "$categoryName" already exists';
+                      } else {
+                        validationError = 'Error: ${e.toString().replaceAll('Exception: ', '')}';
+                      }
+                    });
                   }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorScheme.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
+                child: isAdding
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Add',
+                        style: TextStyle(fontSize: 16),
+                      ),
               ),
-              child: const Text(
-                'Add',
-                style: TextStyle(fontSize: 16),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
+            ],
+          );
+        },
+      );
+    },
+  );
+} 
   void _showAddSupplierDialog() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;

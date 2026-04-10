@@ -1,21 +1,97 @@
 // lib/features/ai/services/sarvam_service.dart
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import '../../inventory/services/inventory_repo_service.dart';
 import '../../inventory/models/inventory_item_model.dart';
+import '../../feedback/services/feedback_service.dart';
+import '../../feedback/models/feedback_model.dart';
+import '../../party/models/customer_model.dart';
+import '../../party/models/supplier_model.dart';
 
 class SarvamService {
   final String apiKey;
   final String baseUrl;
   final InventoryService inventoryRepo;
-  
+  FeedbackService? _feedbackService;
+  String? _userMobile;
+
   SarvamService({
     required this.apiKey,
     required this.baseUrl,
     required this.inventoryRepo,
   });
 
-  // Get inventory context for AI
+  // Set user mobile for customers/suppliers access
+  void setUserMobile(String userMobile) {
+    _userMobile = userMobile;
+  }
+
+  // Set feedback service (call this after initialization)
+  void setFeedbackService(FeedbackService feedbackService) {
+    _feedbackService = feedbackService;
+  }
+
+  // Get customers list
+  Future<List<Map<String, dynamic>>> _getCustomers() async {
+    if (_userMobile == null) return [];
+    
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_userMobile)
+          .collection('customers')
+          // .where('isActive', isEqualTo: true)
+          .orderBy('name')
+          .get();
+      
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'] ?? '',
+          'mobile': data['mobile'] ?? '',
+          'address': data['address'] ?? '',
+          'isActive': data['isActive'] ?? true,
+        };
+      }).toList();
+    } catch (e) {
+      print('Error getting customers: $e');
+      return [];
+    }
+  }
+
+  // Get suppliers list
+  Future<List<Map<String, dynamic>>> _getSuppliers() async {
+    if (_userMobile == null) return [];
+    
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_userMobile)
+          .collection('suppliers')
+          // .where('isActive', isEqualTo: true)
+          .orderBy('name')
+          .get();
+      
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'] ?? '',
+          'phone': data['phone'] ?? '',
+          'email': data['email'] ?? '',
+          'address': data['address'] ?? '',
+          'isActive': data['isActive'] ?? true,
+        };
+      }).toList();
+    } catch (e) {
+      print('Error getting suppliers: $e');
+      return [];
+    }
+  }
+
+  // Get inventory context with expiry information
   Future<Map<String, dynamic>> _getInventoryContext() async {
     try {
       final items = await inventoryRepo.getAllInventoryItems();
@@ -25,15 +101,41 @@ class SarvamService {
       Map<String, double> categoryValues = {};
       Map<String, int> categoryCounts = {};
       
+      // Expiry tracking
+      List<Map<String, dynamic>> expiringSoon = [];
+      List<Map<String, dynamic>> expiredItems = [];
+      
       for (var item in items) {
         final category = item.category;
         final value = item.price * item.quantity;
         
         categoryValues[category] = (categoryValues[category] ?? 0) + value;
         categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
+        
+        if (item.trackExpiry && item.expiryDate != null) {
+          if (item.isExpired) {
+            expiredItems.add({
+              'name': item.name,
+              'sku': item.sku,
+              'expiryDate': item.expiryDate,
+              'quantity': item.quantity,
+              'daysOverdue': -item.daysUntilExpiry,
+            });
+          } else if (item.isNearExpiry) {
+            expiringSoon.add({
+              'name': item.name,
+              'sku': item.sku,
+              'expiryDate': item.expiryDate,
+              'daysLeft': item.daysUntilExpiry,
+              'quantity': item.quantity,
+              'status': item.expiryStatus,
+            });
+          }
+        }
       }
       
-      // Format items for display
+      expiringSoon.sort((a, b) => a['daysLeft'].compareTo(b['daysLeft']));
+      
       final itemsList = items.map((item) => {
         'id': item.id,
         'name': item.name,
@@ -45,10 +147,15 @@ class SarvamService {
         'location': item.location,
         'supplier': item.supplierName,
         'isLowStock': item.isLowStock,
-        'totalValue': item.price * item.quantity,
+        'totalValue': item.totalValue,
+        'trackExpiry': item.trackExpiry,
+        'expiryDate': item.expiryDate?.toIso8601String(),
+        'isExpired': item.isExpired,
+        'isNearExpiry': item.isNearExpiry,
+        'daysUntilExpiry': item.daysUntilExpiry,
+        'expiryStatus': item.expiryStatus,
       }).toList();
       
-      // Fix null safety issues with where clause
       final suppliers = items
           .map((i) => i.supplierName)
           .where((s) => s != null && s.isNotEmpty)
@@ -61,6 +168,8 @@ class SarvamService {
           .toSet()
           .toList();
       
+      final itemsWithExpiry = items.where((i) => i.trackExpiry && i.expiryDate != null).length;
+      
       return {
         'stats': stats,
         'items': itemsList,
@@ -69,9 +178,12 @@ class SarvamService {
         'categories': items.map((i) => i.category).toSet().toList(),
         'categoryValues': categoryValues,
         'categoryCounts': categoryCounts,
-        'totalValue': stats['totalValue'],
+        'totalValue': stats['totalValue'] ?? 0,
         'suppliers': suppliers,
         'locations': locations,
+        'expiringSoon': expiringSoon,
+        'expiredItems': expiredItems,
+        'itemsWithExpiry': itemsWithExpiry,
       };
     } catch (e) {
       print('Error getting inventory context: $e');
@@ -79,24 +191,68 @@ class SarvamService {
     }
   }
 
+  // Get feedback context with proper null handling
+  Future<Map<String, int>> _getFeedbackContext() async {
+    if (_feedbackService == null) {
+      return {
+        'total': 0,
+        'pending': 0,
+        'reviewed': 0,
+        'resolved': 0,
+        'client': 0,
+        'supplier': 0,
+        'avgRating': 0,
+      };
+    }
+    
+    try {
+      final stats = await _feedbackService!.getFeedbackStats();
+      return {
+        'total': stats['total'] ?? 0,
+        'pending': stats['pending'] ?? 0,
+        'reviewed': stats['reviewed'] ?? 0,
+        'resolved': stats['resolved'] ?? 0,
+        'client': stats['client'] ?? 0,
+        'supplier': stats['supplier'] ?? 0,
+        'avgRating': stats['avgRating'] ?? 0,
+      };
+    } catch (e) {
+      print('Error getting feedback context: $e');
+      return {
+        'total': 0,
+        'pending': 0,
+        'reviewed': 0,
+        'resolved': 0,
+        'client': 0,
+        'supplier': 0,
+        'avgRating': 0,
+      };
+    }
+  }
+
   // Query inventory with AI
   Future<String> queryInventory(String userQuery) async {
     try {
       final context = await _getInventoryContext();
+      final feedbackContext = await _getFeedbackContext();
+      final customers = await _getCustomers();
+      final suppliers = await _getSuppliers();
+      
       final items = context['items'] as List;
       final itemsCount = context['itemsCount'] as int;
       final categories = context['categories'] as List;
-      final suppliers = context['suppliers'] as List;
-      final locations = context['locations'] as List;
       final totalValue = context['totalValue'] as double;
       final categoryValues = context['categoryValues'] as Map<String, double>;
       final categoryCounts = context['categoryCounts'] as Map<String, int>;
+      final expiringSoon = context['expiringSoon'] as List;
+      final expiredItems = context['expiredItems'] as List;
+      final itemsWithExpiry = context['itemsWithExpiry'] as int;
       
       final query = userQuery.toLowerCase().trim();
       
       // ========== GREETINGS ==========
       if (query == 'hi' || query == 'hello' || query == 'hey' || query == 'help') {
-        return '''👋 Hello! I'm your AI inventory assistant.
+        String response = '''👋 Hello! I'm your AI inventory assistant.
 
 📊 **Inventory Summary:**
 • Total Items: **$itemsCount**
@@ -104,66 +260,317 @@ class SarvamService {
 • Low Stock Items: **${context['lowStockItems'].length}**
 • Total Value: **₹${totalValue.toStringAsFixed(2)}**
 
+👥 **Parties Summary:**
+• Customers: **${customers.length}**
+• Suppliers: **${suppliers.length}**
+
+⏰ **Expiry Alerts:**
+• Expiring Soon: **${expiringSoon.length}**
+• Expired Items: **${expiredItems.length}**
+
+⭐ **Feedback Summary:**
+• Total: **${feedbackContext['total']}**
+• Avg Rating: **${feedbackContext['avgRating']}/5**
+• Pending: **${feedbackContext['pending']}**
+
 💡 **You can ask me:**
 • "List all items"
-• "Show [category] items" (e.g., "Show grocery items")
+• "Show customers" / "Show suppliers"
 • "Low stock items"
-• "Search [item name]"
-• "Items by supplier [supplier name]"
-• "Items in location [location]"
-• "Inventory value"
-• "Category summary"
-• "Item details for [SKU or name]"
-• "supplier"
-• "Export inventory report"''';
+• "Expiring soon"
+• "expired items"
+• "Feedback summary"
+• "Pending feedback"
+• "Search [item name]"''';
+        return response;
       }
       
-      // ========== INVENTORY VALUE QUERY ==========
-      else if (query.contains('inventory value') || 
-               query.contains('total value') || 
-               query.contains('inventory worth') ||
-               query == 'value' ||
-               query == 'total') {
+      // ========== SHOW CUSTOMERS ==========
+      else if (query.contains('show customers') || 
+               query.contains('list customers') || 
+               query.contains('all customers') ||
+               (query == 'customers')) {
         
-        if (items.isEmpty) {
-          return '📭 Your inventory is empty. No value to display.';
+        if (customers.isEmpty) {
+          return '👤 No customers found.\n\n💡 Add customers from the Parties section.';
         }
         
-        String response = '💰 **Total Inventory Value: ₹${totalValue.toStringAsFixed(2)}**\n\n';
-        response += '📊 **Breakdown by Category:**\n';
+        String response = '👥 **Customers (${customers.length})**\n\n';
+        for (var customer in customers) {
+          response += '• **${customer['name']}**\n';
+          if (customer['mobile'].toString().isNotEmpty) {
+            response += '  📞 ${customer['mobile']}\n';
+          }
+          if (customer['address'].toString().isNotEmpty) {
+            response += '  📍 ${customer['address']}\n';
+          }
+          response += '\n';
+        }
+        return response;
+      }
+      
+      // ========== SHOW SUPPLIERS ==========
+      else if (query.contains('show suppliers') || 
+               query.contains('list suppliers') || 
+               query.contains('all suppliers') ||
+               (query == 'suppliers')) {
         
-        // Sort categories by value (highest first)
-        var sortedCategories = categoryValues.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
-        
-        for (var entry in sortedCategories) {
-          final percentage = ((entry.value / totalValue) * 100).toStringAsFixed(1);
-          final itemCount = categoryCounts[entry.key] ?? 0;
-          response += '• **${entry.key}**\n';
-          response += '  - Value: ₹${entry.value.toStringAsFixed(2)} ($percentage%)\n';
-          response += '  - Items: $itemCount\n\n';
+        if (suppliers.isEmpty) {
+          return '🚚 No suppliers found.\n\n💡 Add suppliers from the Parties section.';
         }
         
-        // Add summary
-        response += '📈 **Summary:**\n';
-        response += '• Average value per item: ₹${(totalValue / itemsCount).toStringAsFixed(2)}\n';
-        response += '• Highest value category: **${sortedCategories.first.key}**\n';
+        String response = '🚚 **Suppliers (${suppliers.length})**\n\n';
+        for (var supplier in suppliers) {
+          response += '• **${supplier['name']}**\n';
+          if (supplier['phone'].toString().isNotEmpty) {
+            response += '  📞 ${supplier['phone']}\n';
+          }
+          if (supplier['email'].toString().isNotEmpty) {
+            response += '  📧 ${supplier['email']}\n';
+          }
+          response += '\n';
+        }
+        return response;
+      }
+      
+      // ========== SEARCH CUSTOMER ==========
+      else if (query.contains('search customer') || query.contains('find customer')) {
+        String searchTerm = query
+            .replaceAll('search customer', '')
+            .replaceAll('find customer', '')
+            .replaceAll('for', '')
+            .trim();
+        
+        if (searchTerm.isEmpty) {
+          return '🔍 Please specify a customer name to search. Example: "search customer John"';
+        }
+        
+        final matchingCustomers = customers.where((c) =>
+          c['name'].toString().toLowerCase().contains(searchTerm) ||
+          c['mobile'].toString().contains(searchTerm)
+        ).toList();
+        
+        if (matchingCustomers.isEmpty) {
+          return '❌ No customers found matching "$searchTerm"';
+        }
+        
+        String response = '🔍 **Found ${matchingCustomers.length} customer(s):**\n\n';
+        for (var customer in matchingCustomers) {
+          response += '• **${customer['name']}**\n';
+          response += '  📞 ${customer['mobile']}\n';
+          response += '  📍 ${customer['address']}\n\n';
+        }
+        return response;
+      }
+      
+      // ========== SEARCH SUPPLIER ==========
+      else if (query.contains('search supplier') || query.contains('find supplier')) {
+        String searchTerm = query
+            .replaceAll('search supplier', '')
+            .replaceAll('find supplier', '')
+            .replaceAll('for', '')
+            .trim();
+        
+        if (searchTerm.isEmpty) {
+          return '🔍 Please specify a supplier name to search. Example: "search supplier ABC Corp"';
+        }
+        
+        final matchingSuppliers = suppliers.where((s) =>
+          s['name'].toString().toLowerCase().contains(searchTerm) ||
+          s['phone'].toString().contains(searchTerm)
+        ).toList();
+        
+        if (matchingSuppliers.isEmpty) {
+          return '❌ No suppliers found matching "$searchTerm"';
+        }
+        
+        String response = '🔍 **Found ${matchingSuppliers.length} supplier(s):**\n\n';
+        for (var supplier in matchingSuppliers) {
+          response += '• **${supplier['name']}**\n';
+          response += '  📞 ${supplier['phone']}\n';
+          response += '  📧 ${supplier['email']}\n\n';
+        }
+        return response;
+      }
+      
+      // ========== CUSTOMER COUNT ==========
+      else if (query.contains('how many customers') || 
+               query.contains('customer count') ||
+               query.contains('total customers')) {
+        return '👥 **Total Customers:** ${customers.length}\n\n${customers.isEmpty ? 'No customers added yet.' : 'You have ${customers.length} customer${customers.length > 1 ? 's' : ''} in your directory.'}';
+      }
+      
+      // ========== SUPPLIER COUNT ==========
+      else if (query.contains('how many suppliers') || 
+               query.contains('supplier count') ||
+               query.contains('total suppliers')) {
+        return '🚚 **Total Suppliers:** ${suppliers.length}\n\n${suppliers.isEmpty ? 'No suppliers added yet.' : 'You have ${suppliers.length} supplier${suppliers.length > 1 ? 's' : ''} in your directory.'}';
+      }
+      
+      // ========== FEEDBACK: SUMMARY (FIXED) ==========
+      else if (query.contains('feedback summary') || 
+               query.contains('feedback stats') || 
+               query.contains('feedback overview') ||
+               (query.contains('feedback') && query.contains('summary'))) {  
+        
+        final totalFeedback = feedbackContext['total'] ?? 0;
+        
+        if (totalFeedback == 0) {
+          return '📭 No feedback submitted yet.\n\n💡 You can submit feedback by:\n1. Going to the Feedback section\n2. Tapping the "+" button\n3. Selecting Client or Supplier\n4. Sharing your experience';
+        }
+            String response = '⭐ **Feedback Summary**\n\n';
+        response += '📊 **Overall Stats:**\n';
+        response += '• Total Feedback: **${feedbackContext['total']}**\n';
+        response += '• Average Rating: **${feedbackContext['avgRating']}/5** ⭐\n\n';
+        
+        response += '📋 **By Status:**\n';
+        response += '• ⏳ Pending: **${feedbackContext['pending']}**\n';
+        response += '• 👀 Reviewed: **${feedbackContext['reviewed']}**\n';
+        response += '• ✅ Resolved: **${feedbackContext['resolved']}**\n\n';
+        
+        response += '👥 **By Type:**\n';
+        response += '• 👤 Customers: **${feedbackContext['client']}**\n';
+        response += '• 🚚 Suppliers: **${feedbackContext['supplier']}**\n';
+        
+        final avgRating = feedbackContext['avgRating'] ?? 0;
+        response += '\n📈 **Insight:** ';
+        if (avgRating >= 4.5) {
+          response += 'Excellent satisfaction level! Keep up the great work! 🎉';
+        } else if (avgRating >= 3.5) {
+          response += 'Good overall, but review feedback for improvement areas. 👍';
+        } else if (avgRating >= 2.5) {
+          response += 'Average rating - consider addressing common concerns. 📊';
+        } else if (avgRating > 0) {
+          response += 'Needs attention - please review all feedback urgently. ⚠️';
+        } else {
+          response += 'Submit more feedback to get rating insights.';
+        }
         
         return response;
       }
       
+      // ========== FEEDBACK: PENDING ISSUES (FIXED) ==========
+      else if (query.contains('pending feedback') || 
+               query.contains('unresolved') || 
+               query.contains('open issues') ||
+               (query.contains('feedback') && query.contains('pending'))) {
+        
+        final pendingCount = feedbackContext['pending'] ?? 0;
+        
+        if (pendingCount == 0) {
+          return '✅ **Great!** No pending feedback issues.\n\nAll feedback has been reviewed and resolved.';
+        }
+        
+        return '''⏳ **$pendingCount pending feedback item${pendingCount > 1 ? 's' : ''}**
+
+Please go to the **Feedback** section in the app to:
+• Review pending feedback
+• Respond to customer/supplier concerns
+• Mark issues as resolved
+
+💡 **Tip:** Regular review of feedback helps maintain good relationships.
+
+**Quick Actions:**
+1. Tap on "Feedback" in bottom navigation
+2. Filter by "Pending" status
+3. Review and respond to each item''';
+      }
+      
+      // ========== FEEDBACK: RATINGS ANALYSIS (FIXED) ==========
+      else if ((query.contains('rating') || query.contains('average rating')) && 
+               (query.contains('feedback') || query.contains('review'))) {
+        
+        final avgRating = feedbackContext['avgRating'] ?? 0;
+        final totalFeedback = feedbackContext['total'] ?? 0;
+        
+        if (totalFeedback == 0) {
+          return 'No ratings available yet.\n\n💡 Submit feedback to see ratings! Go to Feedback → Add Feedback.';
+        }
+        
+        String response = '⭐ **Rating Analysis**\n\n';
+        response += '• Average Rating: **$avgRating/5**\n';
+        response += '• Total Reviews: **$totalFeedback**\n\n';
+        
+        if (avgRating >= 4.5) {
+          response += '🎉 **Excellent!** Your customers/suppliers are very satisfied.\n';
+          response += 'Keep up the great work!';
+        } else if (avgRating >= 3.5) {
+          response += '👍 **Good!** Overall positive feedback.\n';
+          response += 'Look at individual feedback for improvement areas.';
+        } else if (avgRating >= 2.5) {
+          response += '📊 **Average** - There\'s room for improvement.\n';
+          response += 'Review the feedback to identify key issues.';
+        } else if (avgRating > 0) {
+          response += '⚠️ **Needs Attention** - Ratings are below average.\n';
+          response += 'Please review all feedback and take action.';
+        } else {
+          response += 'No ratings available yet.';
+        }
+        
+        return response;
+      }
+      
+      // ========== EXPIRING SOON ==========
+      else if (query.contains('expiring soon') || 
+               query.contains('near expiry') ||
+               query.contains('about to expire')) {
+        
+        if (expiringSoon.isEmpty) {
+          if (itemsWithExpiry == 0) {
+            return '📭 No items have expiry dates tracked.\n\n💡 To track expiry dates:\n1. Go to Add/Edit Item\n2. Enable "Track Expiry"\n3. Set the expiry date';
+          }
+          return '✅ No items are expiring in the next 30 days.';
+        }
+        
+        String response = '⚠️ **${expiringSoon.length} items expiring soon:**\n\n';
+        for (var item in expiringSoon) {
+          final daysLeft = item['daysLeft'];
+          String urgency = daysLeft <= 7 ? '🔴 URGENT' : (daysLeft <= 14 ? '🟡 Soon' : '🟢 OK');
+          response += '• **${item['name']}** $urgency\n';
+          response += '  Expires: ${_formatDate(item['expiryDate'])}\n';
+          response += '  Days left: $daysLeft\n\n';
+        }
+        return response;
+      }
+      
+      // ========== EXPIRED ITEMS ==========
+      else if (query.contains('expired') && !query.contains('expiring')) {
+        if (expiredItems.isEmpty) {
+          return '✅ No expired items found in your inventory.';
+        }
+        
+        String response = '❌ **${expiredItems.length} expired items:**\n\n';
+        for (var item in expiredItems) {
+          response += '• **${item['name']}**\n';
+          response += '  Expired: ${_formatDate(item['expiryDate'])}\n';
+          response += '  Overdue: ${item['daysOverdue']} days\n\n';
+        }
+        return response;
+      }
+      
+      // ========== LOW STOCK ==========
+      else if (query.contains('low stock')) {
+        final lowStock = items.where((item) => item['isLowStock'] == true).toList();
+        if (lowStock.isEmpty) {
+          return '✅ No items are currently low in stock.';
+        }
+        
+        String response = '⚠️ **${lowStock.length} low stock items:**\n\n';
+        for (var item in lowStock) {
+          response += '• **${item['name']}**\n';
+          response += '  Current: ${item['quantity']} units\n';
+          response += '  SKU: ${item['sku']}\n\n';
+        }
+        return response;
+      }
+      
       // ========== LIST ALL ITEMS ==========
-      else if (query.contains('list all items') || 
-               query.contains('show all items') || 
-               query == 'items' ||
-               query.contains('all items')) {
+      else if (query.contains('list all items') || query == 'items') {
         if (items.isEmpty) {
-          return '📭 Your inventory is empty. No items to display.';
+          return '📭 Your inventory is empty. Add items using the "+" button.';
         }
         
         String response = '📋 **All Items (${items.length})**\n\n';
-        
-        // Group by category for better organization
         Map<String, List> itemsByCategory = {};
         for (var item in items) {
           final category = item['category'] ?? 'Uncategorized';
@@ -171,247 +578,44 @@ class SarvamService {
         }
         
         itemsByCategory.forEach((category, categoryItems) {
-          response += '**$category** (${categoryItems.length} items):\n';
+          response += '**$category** (${categoryItems.length}):\n';
           for (var item in categoryItems) {
-            response += '  • ${item['name']} - Qty: ${item['quantity']}, SKU: ${item['sku']}\n';
+            response += '  • ${item['name']} - ${item['quantity']} units, ₹${item['price']}\n';
           }
           response += '\n';
         });
-        
         return response;
       }
       
-      // ========== CATEGORY SPECIFIC ITEMS ==========
-      else {
-        // Try to extract category from query
-        String? targetCategory;
-        
-        // Check for "show me X items" pattern
-        final showMeMatch = RegExp(r'show me (\w+) items').firstMatch(query);
-        if (showMeMatch != null) {
-          targetCategory = showMeMatch.group(1);
+      // ========== INVENTORY VALUE ==========
+      else if (query.contains('inventory value') || query.contains('total value')) {
+        if (items.isEmpty) {
+          return '📭 Your inventory is empty. Total value: ₹0';
         }
         
-        // Check for "X items" pattern
-        final itemsMatch = RegExp(r'(\w+) items').firstMatch(query);
-        if (itemsMatch != null && targetCategory == null) {
-          targetCategory = itemsMatch.group(1);
-        }
+        String response = '💰 **Total Inventory Value: ₹${totalValue.toStringAsFixed(2)}**\n\n';
+        response += '📊 **Breakdown by Category:**\n';
         
-        // Check for "in X category" pattern
-        final categoryMatch = RegExp(r'in (\w+) category').firstMatch(query);
-        if (categoryMatch != null) {
-          targetCategory = categoryMatch.group(1);
-        }
+        var sortedCategories = categoryValues.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
         
-        // Check if query directly matches a category name
-        if (targetCategory == null) {
-          for (var category in categories) {
-            if (query.contains(category.toString().toLowerCase())) {
-              targetCategory = category.toString().toLowerCase();
-              break;
-            }
-          }
+        for (var entry in sortedCategories) {
+          final percentage = ((entry.value / totalValue) * 100).toStringAsFixed(1);
+          response += '• **${entry.key}**: ₹${entry.value.toStringAsFixed(2)} ($percentage%)\n';
         }
-        
-        // If we found a category, show items in that category
-        if (targetCategory != null) {
-          final categoryItems = items.where((item) => 
-            item['category'].toString().toLowerCase().contains(targetCategory!)
-          ).toList();
-          
-          if (categoryItems.isEmpty) {
-            return '❌ No items found in category: **$targetCategory**\n\nAvailable categories: ${categories.join(', ')}';
-          }
-          
-          // Calculate category total value
-          double categoryTotal = 0;
-          for (var item in categoryItems) {
-            categoryTotal += item['price'] * item['quantity'];
-          }
-          
-          String response = '📦 **${categoryItems.length} items in ${targetCategory} category**\n';
-          response += '💰 Category Value: ₹${categoryTotal.toStringAsFixed(2)}\n\n';
-          
-          for (var item in categoryItems) {
-            response += '• **${item['name']}**\n';
-            response += '  SKU: ${item['sku']}\n';
-            response += '  Quantity: ${item['quantity']}\n';
-            response += '  Price: ₹${item['price']}\n';
-            response += '  Value: ₹${(item['price'] * item['quantity']).toStringAsFixed(2)}\n';
-            response += '  Location: ${item['location']}\n';
-            if (item['isLowStock'] == true) {
-              response += '  ⚠️ **LOW STOCK**\n';
-            }
-            response += '\n';
-          }
-          return response;
-        }
+        return response;
       }
       
-      // ========== SEARCH BY NAME/SKU ==========
-      if (query.contains('search') || query.contains('find')) {
-        // Extract search term
-        final searchTerm = query
+      // ========== SEARCH ITEMS ==========
+      else if (query.contains('search') || query.contains('find')) {
+        String searchTerm = query
             .replaceAll('search', '')
             .replaceAll('find', '')
             .replaceAll('for', '')
             .trim();
         
         if (searchTerm.isEmpty) {
-          return '🔍 What would you like to search for? Try: "search rice" or "find item with SKU 123"';
-        }
-        
-        final matchingItems = items.where((item) {
-          return item['name'].toString().toLowerCase().contains(searchTerm) ||
-                 item['sku'].toString().toLowerCase().contains(searchTerm) ||
-                 item['category'].toString().toLowerCase().contains(searchTerm);
-        }).toList();
-        
-        if (matchingItems.isEmpty) {
-          return '❌ No items found matching "$searchTerm"';
-        }
-        
-        String response = '🔍 **Found ${matchingItems.length} items matching "$searchTerm":**\n\n';
-        for (var item in matchingItems) {
-          response += '• **${item['name']}**\n';
-          response += '  SKU: ${item['sku']}, Qty: ${item['quantity']}\n';
-          response += '  Category: ${item['category']}, Location: ${item['location']}\n';
-          response += '  Value: ₹${(item['price'] * item['quantity']).toStringAsFixed(2)}\n\n';
-        }
-        return response;
-      }
-      
-      // ========== LOW STOCK ITEMS ==========
-      else if (query.contains('low stock') || query.contains('low quantity')) {
-        final lowStock = items.where((item) => item['isLowStock'] == true).toList();
-        if (lowStock.isEmpty) {
-          return '✅ **Great news!** No items are currently low in stock.';
-        }
-        
-        String response = '⚠️ **${lowStock.length} items with low stock:**\n\n';
-        for (var item in lowStock) {
-          response += '• **${item['name']}**\n';
-          response += '  Current Stock: ${item['quantity']} units\n';
-          response += '  SKU: ${item['sku']}\n';
-          response += '  Category: ${item['category']}\n\n';
-        }
-        return response;
-      }
-      
-      // ========== CATEGORY SUMMARY ==========
-      else if (query.contains('category summary') || query.contains('categories summary')) {
-        if (categories.isEmpty) {
-          return 'No categories found in your inventory.';
-        }
-        
-        String response = '📊 **Category Summary:**\n\n';
-        
-        // Sort categories by value
-        var sortedCategories = categoryValues.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
-        
-        for (var entry in sortedCategories) {
-          final category = entry.key;
-          final value = entry.value;
-          final count = categoryCounts[category] ?? 0;
-          final percentage = ((value / totalValue) * 100).toStringAsFixed(1);
-          
-          response += '**$category**\n';
-          response += '  • Items: $count\n';
-          response += '  • Total Value: ₹${value.toStringAsFixed(2)}\n';
-          response += '  • % of Total: $percentage%\n\n';
-        }
-        
-        return response;
-      }
-      
-      // ========== SUPPLIER SPECIFIC ITEMS ==========
-      else if (query.contains('supplier') || query.contains('suppliers')) {
-        // Check if asking for items from a specific supplier
-        for (var supplier in suppliers) {
-          if (query.contains(supplier.toString().toLowerCase())) {
-            final supplierItems = items.where((item) => 
-              item['supplier'].toString().toLowerCase().contains(supplier.toString().toLowerCase())
-            ).toList();
-            
-            if (supplierItems.isEmpty) {
-              return 'No items found from supplier: $supplier';
-            }
-            
-            double supplierValue = 0;
-            for (var item in supplierItems) {
-              supplierValue += item['price'] * item['quantity'];
-            }
-            
-            String response = '📦 **Items from $supplier (${supplierItems.length}):**\n';
-            response += '💰 Total Value: ₹${supplierValue.toStringAsFixed(2)}\n\n';
-            
-            for (var item in supplierItems) {
-              response += '• ${item['name']} - Qty: ${item['quantity']}, Price: ₹${item['price']}\n';
-            }
-            return response;
-          }
-        }
-        
-        // Just show suppliers list
-        if (suppliers.isEmpty) {
-          return 'No suppliers found in your inventory.';
-        }
-        
-        String response = '**Suppliers in your inventory:**\n';
-        for (var supplier in suppliers) {
-          final count = items.where((item) => item['supplier'] == supplier).length;
-          response += '• $supplier ($count items)\n';
-        }
-        return response;
-      }
-      
-      
-      // ========== LOCATION SPECIFIC ITEMS ==========
-      else if (query.contains('location') || query.contains('aisle')) {
-        // Check if asking for items in a specific location
-        for (var location in locations) {
-          if (query.contains(location.toString().toLowerCase())) {
-            final locationItems = items.where((item) => 
-              item['location'].toString().toLowerCase().contains(location.toString().toLowerCase())
-            ).toList();
-            
-            if (locationItems.isEmpty) {
-              return 'No items found in location: $location';
-            }
-            
-            String response = '📦 **Items in $location (${locationItems.length}):**\n\n';
-            for (var item in locationItems) {
-              response += '• ${item['name']} - Qty: ${item['quantity']}\n';
-            }
-            return response;
-          }
-        }
-        
-        // Just show locations list
-        if (locations.isEmpty) {
-          return 'No locations found in your inventory.';
-        }
-        
-        String response = '**Storage locations in your inventory:**\n';
-        for (var location in locations) {
-          final count = items.where((item) => item['location'] == location).length;
-          response += '• $location ($count items)\n';
-        }
-        return response;
-      }
-      
-      // ========== ITEM DETAILS BY SKU OR NAME ==========
-      else if (query.contains('details') || query.contains('info about')) {
-        final searchTerm = query
-            .replaceAll('details', '')
-            .replaceAll('info about', '')
-            .replaceAll('for', '')
-            .trim();
-        
-        if (searchTerm.isEmpty) {
-          return 'Please specify which item you want details for. Example: "details for SKU123" or "info about rice"';
+          return '🔍 What would you like to search for? Example: "search rice"';
         }
         
         final matchingItems = items.where((item) {
@@ -420,60 +624,16 @@ class SarvamService {
         }).toList();
         
         if (matchingItems.isEmpty) {
-          return 'No items found matching "$searchTerm"';
+          return '❌ No items found matching "$searchTerm"';
         }
         
-        if (matchingItems.length > 1) {
-          String response = 'Found multiple items. Please be more specific:\n\n';
-          for (var item in matchingItems) {
-            response += '• ${item['name']} (SKU: ${item['sku']})\n';
-          }
-          return response;
+        String response = '🔍 **Found ${matchingItems.length} items:**\n\n';
+        for (var item in matchingItems) {
+          response += '• **${item['name']}**\n';
+          response += '  SKU: ${item['sku']}, Qty: ${item['quantity']}\n';
+          response += '  Price: ₹${item['price']}\n\n';
         }
-        
-        final item = matchingItems.first;
-        return '''📄 **Item Details: ${item['name']}**
-
-**Basic Info:**
-• SKU: ${item['sku']}
-• Category: ${item['category']}
-• Location: ${item['location']}
-• Supplier: ${item['supplier']}
-
-**Stock Info:**
-• Current Quantity: ${item['quantity']}
-• Unit Price: ₹${item['price']}
-• Total Value: ₹${(item['price'] * item['quantity']).toStringAsFixed(2)}
-${item['isLowStock'] == true ? '⚠️ **LOW STOCK WARNING**' : ''}
-
-**Additional Info:**
-• Cost Price: ₹${item['cost']}
-• Profit Margin: ${(((item['price'] - item['cost']) / item['cost'] * 100)).toStringAsFixed(1)}%''';
-      }
-      
-      // ========== EXPORT REPORT ==========
-      else if (query.contains('export') || query.contains('report')) {
-        return '''📊 **Inventory Report Summary**
-
-**Overview:**
-• Total Items: $itemsCount
-• Total Categories: ${categories.length}
-• Total Suppliers: ${suppliers.length}
-• Total Value: ₹${totalValue.toStringAsFixed(2)}
-
-**Stock Status:**
-• In Stock: ${items.where((i) => i['quantity'] > 0).length} items
-• Low Stock: ${items.where((i) => i['isLowStock']).length} items
-• Out of Stock: ${items.where((i) => i['quantity'] == 0).length} items
-
-**Top Categories by Value:**
-${categoryValues.entries.toList()
-  ..sort((a, b) => b.value.compareTo(a.value))
-  ..take(3)
-  .map((e) => '• ${e.key}: ₹${e.value.toStringAsFixed(2)}')
-  .join('\n')}
-
-To get a detailed CSV export, please use the export feature in the app.''';
+        return response;
       }
       
       // ========== DEFAULT RESPONSE ==========
@@ -482,30 +642,41 @@ To get a detailed CSV export, please use the export feature in the app.''';
 
 Here's what I can help you with:
 
-📋 **View Items:**
+📋 **Inventory:**
 • "List all items"
-• "Show [category] items" (e.g., "Show grocery items")
 • "Low stock items"
+• "Inventory value"
+
+👥 **Parties:**
+• "Show customers"
+• "Show suppliers"
+• "Search customer [name]"
+• "How many customers?"
+
+⏰ **Expiry:**
+• "Expiring soon"
+• "Expired items"
+
+⭐ **Feedback:**
+• "Feedback summary"
+• "Pending feedback"
+• "Average rating"
 
 🔍 **Search:**
 • "Search [item name]"
-• "Find [SKU]"
-• "Items by supplier [name]"
 
-📊 **Analytics:**
-• "Inventory value"
-• "Category summary"
-• "Export report"
-
-❓ **Help:**
-• Type "help" to see this menu again
-
-What would you like to do?''';
+Type "help" to see this menu again.''';
       }
     } catch (e) {
       print('Error in queryInventory: $e');
-      return 'Sorry, I encountered an error processing your request. Please try again.';
+      return 'Sorry, I encountered an error. Please try again or type "help" for available commands.';
     }
+  }
+
+  // Helper: Format date
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Not set';
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   // Search items with AI understanding

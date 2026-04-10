@@ -8,6 +8,7 @@ import '../../features/party/services/customer_service.dart';
 import '../../features/party/services/supplier_service.dart';
 import '../../features/inventory/services/inventory_repo_service.dart';
 import '../../features/bill/services/bill_service.dart';
+import '../../features/feedback/services/feedback_service.dart'; // Add this
 
 import '../party/screens/customer_list_screen.dart';
 import '../party/screens/supplier_list_screen.dart';
@@ -39,6 +40,8 @@ class _HomeTabState extends State<HomeTab> {
   late final CustomerService _customerService;
   late final SupplierService _supplierService;
   late InventoryService inventoryService;
+    late FeedbackService feedbackService; // Add this
+
   Widget _currentScreen = Container();
   bool _isOnDashboard = true;
   String _currentTitle = 'Dashboard';
@@ -51,34 +54,62 @@ class _HomeTabState extends State<HomeTab> {
     inventoryService = Provider.of<InventoryService>(context, listen: false);
     _customerService = CustomerService(widget.userMobile);
     _supplierService = SupplierService(widget.userMobile);
+    feedbackService = FeedbackService(widget.userMobile); // Initialize feedback service
+
     _currentScreen = _buildDashboardContent();
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _currentScreen,
-      // Add AI FAB at bottom right
-      floatingActionButton: Consumer<AIProvider>(
-        builder: (context, aiProvider, child) {
-          if (aiProvider.isAvailable) {
-            return FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AiChatScreen(),
-                  ),
-                );
-              },
-              child: const Icon(Icons.chat),
-              tooltip: 'AI Assistant',
-              backgroundColor: Theme.of(context).primaryColor,
-              elevation: 4,
+      // Updated AI FAB - Always show, initialize when pressed
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final userMobile = widget.userMobile;
+          
+          if (userMobile.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please log in to use AI assistant'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+          
+          // Get AI Provider and initialize if needed
+          final aiProvider = Provider.of<AIProvider>(context, listen: false);
+          
+          if (!aiProvider.isInitialized) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Initializing AI Assistant...'),
+                duration: Duration(seconds: 1),
+              ),
+            );
+            
+            await aiProvider.initialize(
+              inventoryService,
+              feedbackService: feedbackService,
+              userMobile: userMobile,
             );
           }
-          return const SizedBox.shrink();
+          
+          // Navigate to AI Chat Screen with userMobile
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AiChatScreen(
+                userMobile: widget.userMobile,
+              ),
+            ),
+          );
         },
+        child: const Icon(Icons.chat),
+        tooltip: 'AI Assistant',
+        backgroundColor: Theme.of(context).primaryColor,
+        elevation: 4,
       ),
     );
   }
@@ -129,6 +160,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 }
+
 
 // ============ DashboardContent (Separate Widget) ============
 class DashboardContent extends StatefulWidget {

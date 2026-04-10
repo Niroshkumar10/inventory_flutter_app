@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/customer_model.dart';
 import '../services/customer_service.dart';
+import 'location_picker.dart'; // Make sure this import path is correct
 
 class AddEditCustomerScreen extends StatefulWidget {
   final String userMobile;
@@ -23,6 +24,11 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
   final _nameController = TextEditingController();
   final _mobileController = TextEditingController();
   final _addressController = TextEditingController();
+  
+  // New location variables
+  double? _selectedLatitude;
+  double? _selectedLongitude;
+  String? _selectedLocationAddress;
   
   bool _isLoading = false;
   List<Customer> _existingCustomers = [];
@@ -54,6 +60,11 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       _nameController.text = widget.customer!.name;
       _mobileController.text = widget.customer!.mobile;
       _addressController.text = widget.customer!.address;
+      
+      // Load location data if exists
+      _selectedLatitude = widget.customer!.latitude;
+      _selectedLongitude = widget.customer!.longitude;
+      _selectedLocationAddress = widget.customer!.locationAddress;
     }
   }
 
@@ -73,6 +84,27 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
         _mobileTouched = true;
       });
     }
+  }
+
+  // Add method to open location picker
+  Future<void> _openLocationPicker() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LocationPicker(
+          initialLatitude: _selectedLatitude,
+          initialLongitude: _selectedLongitude,
+          initialAddress: _selectedLocationAddress,
+          onLocationSelected: (lat, lng, address) {
+            setState(() {
+              _selectedLatitude = lat;
+              _selectedLongitude = lng;
+              _selectedLocationAddress = address;
+            });
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _loadExistingCustomers() async {
@@ -203,13 +235,15 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     
     try {
       if (widget.customer == null) {
-        final customer = Customer(
-          id: '',
+        // Add new customer with location
+        final customer = Customer.create(
           name: _nameController.text.trim(),
           mobile: _mobileController.text.trim(),
-          address: _addressController.text.trim(),
           userMobile: widget.userMobile,
-          createdAt: DateTime.now(),
+          address: _addressController.text.trim(),
+          latitude: _selectedLatitude,
+          longitude: _selectedLongitude,
+          locationAddress: _selectedLocationAddress,
         );
         
         await _customerService.addCustomer(customer);
@@ -227,10 +261,14 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
           );
         }
       } else {
+        // Update existing customer with location
         final updatedCustomer = widget.customer!.copyWith(
           name: _nameController.text.trim(),
           mobile: _mobileController.text.trim(),
           address: _addressController.text.trim(),
+          latitude: _selectedLatitude,
+          longitude: _selectedLongitude,
+          locationAddress: _selectedLocationAddress,
         );
         
         await _customerService.updateCustomer(updatedCustomer);
@@ -477,6 +515,92 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 ),
                 maxLines: 3,
               ),
+              
+              const SizedBox(height: 16),
+              
+              // Location Picker Button
+              OutlinedButton.icon(
+                onPressed: _openLocationPicker,
+                icon: Icon(
+                  _selectedLatitude != null ? Icons.location_on : Icons.add_location,
+                  color: _selectedLatitude != null ? colorScheme.primary : null,
+                ),
+                label: Text(
+                  _selectedLatitude != null ? 'Update Location' : 'Add Map Location',
+                  style: TextStyle(
+                    color: _selectedLatitude != null ? colorScheme.primary : null,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  side: BorderSide(
+                    color: _selectedLatitude != null 
+                        ? colorScheme.primary 
+                        : colorScheme.outline,
+                  ),
+                ),
+              ),
+              
+              // Show selected location if available
+              if (_selectedLocationAddress != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: colorScheme.primary.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on, 
+                        color: colorScheme.primary, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Selected Location',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _selectedLocationAddress!,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.onSurface,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.clear, size: 20, 
+                          color: colorScheme.onSurface.withOpacity(0.5)),
+                        onPressed: () {
+                          setState(() {
+                            _selectedLatitude = null;
+                            _selectedLongitude = null;
+                            _selectedLocationAddress = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               
               const SizedBox(height: 24),
               

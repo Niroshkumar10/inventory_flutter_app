@@ -24,13 +24,25 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
   String _selectedPeriod = 'This Month';
   int _selectedTab = 0;
   String _searchQuery = '';
-  
+  String _inventoryFilter = "all"; // all | low | out
+String _getFilterLabel() {
+  switch (_inventoryFilter) {
+    case "low":
+      return "Low Stock";
+    case "out":
+      return "Out of Stock";
+    default:
+      return "All";
+  }
+}
   List<SalesReport> _salesReports = [];
   List<PurchaseReport> _purchaseReports = [];
   List<InventoryReport> _inventoryReports = [];
   List<CustomerReport> _customerReports = [];
   List<SupplierReport> _supplierReports = [];
   
+  
+bool _exportLowStockOnly = false;
   bool _isLoading = true;
   bool _isExporting = false;
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
@@ -171,6 +183,36 @@ class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
       ),
     );
   }
+
+  Widget _buildFilterChip(String label, String value) {
+  final isSelected = _inventoryFilter == value;
+
+  return GestureDetector(
+    onTap: () {
+      setState(() {
+        _inventoryFilter = value;
+      });
+    },
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isSelected ? Colors.purple.withOpacity(0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isSelected ? Colors.purple : Colors.grey,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: isSelected ? Colors.purple : Colors.black,
+        ),
+      ),
+    ),
+  );
+}
 
   Widget _buildDateRangeCard() {
     final theme = Theme.of(context);
@@ -1353,79 +1395,144 @@ if (report.expenses > 0) ...[
   }
 
   // Inventory Report
-  Widget _buildInventoryReport() {
-    if (_inventoryReports.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.inventory,
-        title: 'No Inventory Data',
-        message: 'No inventory items found',
-        color: Colors.purple,
-      );
-    }
 
-    final totalValue = _inventoryReports.fold(0.0, (sum, r) => sum + r.totalValue);
-    final lowStock = _inventoryReports.where((r) => r.status == 'low-stock').length;
-    final outOfStock = _inventoryReports.where((r) => r.status == 'out-of-stock').length;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Total Value',
-                  '₹${NumberFormat('#,##0.00').format(totalValue)}',
-                  Icons.attach_money,
-                  Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Items',
-                  '${_inventoryReports.length}',
-                  Icons.inventory,
-                  Colors.green,
-                  isCount: true,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Low Stock',
-                  '$lowStock',
-                  Icons.warning,
-                  Colors.orange,
-                  isCount: true,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Out of Stock',
-                  '$outOfStock',
-                  Icons.error,
-                  Colors.red,
-                  isCount: true,
-                ),
-              ),
-            ],
-          ),
-        ),
-        ..._inventoryReports.map((report) => _buildInventoryCard(report)),
-        const SizedBox(height: 16),
-      ],
+Widget _buildInventoryReport() {
+  if (_inventoryReports.isEmpty) {
+    return _buildEmptyState(
+      icon: Icons.inventory,
+      title: 'No Inventory Data',
+      message: 'No inventory items found',
+      color: Colors.purple,
     );
   }
 
+  // ✅ APPLY FILTER HERE
+  List<InventoryReport> filteredReports;
+
+  switch (_inventoryFilter) {
+    case "low":
+      filteredReports = _inventoryReports
+          .where((r) => r.status == 'low-stock')
+          .toList();
+      break;
+
+    case "out":
+      filteredReports = _inventoryReports
+          .where((r) => r.status == 'out-of-stock')
+          .toList();
+      break;
+
+    default:
+      filteredReports = _inventoryReports;
+  }
+
+  final totalValue =
+      filteredReports.fold(0.0, (sum, r) => sum + r.totalValue);
+
+  final lowStock =
+      _inventoryReports.where((r) => r.status == 'low-stock').length;
+
+  final outOfStock =
+      _inventoryReports.where((r) => r.status == 'out-of-stock').length;
+
+  return Column(
+    children: [
+      // ✅ STATS
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Total Value',
+                '₹${NumberFormat('#,##0.00').format(totalValue)}',
+                Icons.attach_money,
+                Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Items',
+                '${filteredReports.length}',
+                Icons.inventory,
+                Colors.green,
+                isCount: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Low Stock',
+                '$lowStock',
+                Icons.warning,
+                Colors.orange,
+                isCount: true,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Out of Stock',
+                '$outOfStock',
+                Icons.error,
+                Colors.red,
+                isCount: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      const SizedBox(height: 10),
+
+      // ✅ FILTER DROPDOWN (ADD THIS)
+     Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(
+        "Filter: ${_getFilterLabel()}",
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+
+      ElevatedButton.icon(
+        onPressed: () async {
+          final selected = await _showExportFilterDialog();
+
+          if (selected != null) {
+            setState(() {
+              _inventoryFilter = selected; // ✅ UPDATE FILTER
+            });
+          }
+        },
+        icon: const Icon(Icons.filter_list),
+        label: const Text("Change"),
+      ),
+    ],
+  ),
+),
+
+      const SizedBox(height: 10),
+
+      // ✅ LIST OF ITEMS (IMPORTANT)
+      ...filteredReports.map((report) {
+        return _buildInventoryCard(report); // your existing card UI
+      }).toList(),
+
+      const SizedBox(height: 16),
+    ],
+  );
+}
   Widget _buildInventoryCard(InventoryReport report) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -2459,7 +2566,27 @@ Future<void> _handleExport(String format) async {
         final plReport = await _getProfitLossData();
         return [plReport.toMap()];
       case 3: // Inventory
-        return _inventoryReports.map((report) => report.toMap()).toList();
+
+  List<InventoryReport> filteredReports;
+
+  switch (_inventoryFilter) {
+    case "low":
+      filteredReports = _inventoryReports
+          .where((r) => r.status == 'low-stock')
+          .toList();
+      break;
+
+    case "out":
+      filteredReports = _inventoryReports
+          .where((r) => r.status == 'out-of-stock')
+          .toList();
+      break;
+
+    default:
+      filteredReports = _inventoryReports;
+  }
+
+  return filteredReports.map((report) => report.toMap()).toList();
       case 4: // Customer
         return _customerReports.map((report) => report.toMap()).toList();
       case 5: // Supplier
@@ -2469,6 +2596,36 @@ Future<void> _handleExport(String format) async {
     }
   }
 
+Future<String?> _showExportFilterDialog() async {
+  return showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text("Select Export Type"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.inventory),
+              title: const Text("All Items"),
+              onTap: () => Navigator.pop(context, "all"),
+            ),
+            ListTile(
+              leading: const Icon(Icons.warning, color: Colors.orange),
+              title: const Text("Low Stock Only"),
+              onTap: () => Navigator.pop(context, "low"),
+            ),
+            ListTile(
+              leading: const Icon(Icons.error, color: Colors.red),
+              title: const Text("Out of Stock"),
+              onTap: () => Navigator.pop(context, "out"),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
   Future<ProfitLossReport> _getProfitLossData() async {
     return await _reportService.getProfitLossReport(
       userMobile: _userMobile!,

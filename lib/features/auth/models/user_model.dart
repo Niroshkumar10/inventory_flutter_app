@@ -7,6 +7,8 @@ class UserModel {
   final String mobile;
   final String name;
   final String location;
+    final String? password; // NEW: Add password field
+
   final DateTime createdAt;
 
   UserModel({
@@ -14,6 +16,8 @@ class UserModel {
     required this.mobile,
     required this.name,
     required this.location,
+        this.password, // NEW: Optional password
+
     required this.createdAt,
   });
 
@@ -23,6 +27,8 @@ class UserModel {
       'mobile': mobile,
       'name': name,
       'location': location,
+            if (password != null) 'password': password, // NEW: Only save if exists
+
       'createdAt': FieldValue.serverTimestamp(),
     };
   }
@@ -33,6 +39,8 @@ class UserModel {
       mobile: map['mobile'] ?? '',
       name: map['name'] ?? '',
       location: map['location'] ?? '',
+            password: map['password'], // NEW
+
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }

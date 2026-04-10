@@ -52,6 +52,21 @@ Future<void> ensureUserProfile({
   }
 }
 
+// lib/features/auth/services/user_service.dart
+
+// Add this method to the existing UserService class
+
+/// Check if user has password set
+Future<bool> hasPassword(String mobile) async {
+  try {
+    final doc = await _db.collection('users').doc(mobile).get();
+    final data = doc.data();
+    return doc.exists && data != null && data.containsKey('password') && data['password'] != null;
+  } catch (e) {
+    print('Error checking password: $e');
+    return false;
+  }
+}
 
   /// 💾 Save new user
   Future<void> saveUser(UserModel user) async {

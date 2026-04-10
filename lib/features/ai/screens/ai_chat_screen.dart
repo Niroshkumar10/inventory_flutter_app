@@ -2,10 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/ai_provider.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../inventory/services/inventory_repo_service.dart';
+import '../../feedback/services/feedback_service.dart';
 
 class AiChatScreen extends StatefulWidget {
-  const AiChatScreen({Key? key}) : super(key: key);
+  final String? userMobile;
+  const AiChatScreen({Key? key, this.userMobile}) : super(key: key);
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
@@ -16,15 +18,83 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    // Add welcome message
-    _messages.add(ChatMessage(
-      content: '👋 Hello! I\'m your AI inventory assistant. How can I help you today?\n\nYou can ask me about:\n• Low stock items\n• Total inventory value\n• Categories\n• Search items',
-      isUser: false,
-    ));
+    _initializeAI();
+  }
+
+  Future<void> _initializeAI() async {
+    if (_isInitialized) return;
+    
+    try {
+      final aiProvider = Provider.of<AIProvider>(context, listen: false);
+      final userMobile = widget.userMobile;
+      
+      if (userMobile == null || userMobile.isEmpty) {
+        setState(() {
+          _messages.add(ChatMessage(
+            content: '⚠️ Please log in to use the AI assistant.',
+            isUser: false,
+          ));
+        });
+        _isInitialized = true;
+        return;
+      }
+      
+      print('📱 AI Chat Screen - Initializing with user: $userMobile');
+      
+      // Initialize AI Provider if not already initialized
+      if (!aiProvider.isInitialized) {
+        // FIXED: Use positional argument, not named parameter
+        final inventoryService = InventoryService(userMobile); // ← FIXED
+        final feedbackService = FeedbackService(userMobile);   // ← FIXED
+        
+        await aiProvider.initialize(
+          inventoryService,
+          feedbackService: feedbackService,
+          userMobile: userMobile,
+        );
+      } else if (aiProvider.sarvamService != null) {
+        // Update user mobile if already initialized
+        aiProvider.sarvamService!.setUserMobile(userMobile);
+        if (aiProvider.sarvamService != null) {
+          final feedbackService = FeedbackService(userMobile);
+          aiProvider.sarvamService!.setFeedbackService(feedbackService);
+        }
+      }
+      
+      print('✅ AI Chat Screen - Initialized successfully');
+      
+      // Add welcome message with actual data
+      if (aiProvider.isAvailable && aiProvider.sarvamService != null) {
+        final response = await aiProvider.sarvamService!.queryInventory('help');
+        setState(() {
+          _messages.add(ChatMessage(content: response, isUser: false));
+        });
+      } else {
+        setState(() {
+          _messages.add(ChatMessage(
+            content: '👋 Hello! I\'m your AI inventory assistant.\n\n'
+                'Type "help" to see what I can do for you!\n\n'
+                '⚠️ Note: AI service is currently unavailable. Please check your configuration.',
+            isUser: false,
+          ));
+        });
+      }
+    } catch (e) {
+      print('❌ AI Chat Screen - Error: $e');
+      setState(() {
+        _messages.add(ChatMessage(
+          content: '❌ Failed to initialize AI assistant: $e\n\nPlease try again or contact support.',
+          isUser: false,
+        ));
+      });
+    } finally {
+      setState(() => _isInitialized = true);
+    }
   }
 
   void _scrollToBottom() {
@@ -32,7 +102,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
@@ -54,10 +124,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
     try {
       final aiProvider = Provider.of<AIProvider>(context, listen: false);
       
-      if (!aiProvider.isAvailable) {
+      if (!aiProvider.isAvailable || aiProvider.sarvamService == null) {
         setState(() {
           _messages.add(ChatMessage(
-            content: '⚠️ AI assistant is not available. Please check your API configuration.\n\nError: ${aiProvider.errorMessage}',
+            content: '⚠️ AI assistant is not available. Please check your configuration.\n\nError: ${aiProvider.errorMessage}',
             isUser: false,
           ));
         });
@@ -70,9 +140,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
       }
     } catch (e) {
+      print('Error sending message: $e');
       setState(() {
         _messages.add(ChatMessage(
-          content: '❌ Sorry, I encountered an error: $e',
+          content: '❌ Sorry, I encountered an error: $e\n\nPlease try again or type "help" for assistance.',
           isUser: false,
         ));
       });
@@ -98,31 +169,43 @@ class _AiChatScreenState extends State<AiChatScreen> {
               return Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: aiProvider.isAvailable ? Colors.green : Colors.red,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
                         ),
                       ),
-                      SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       Text(
                         aiProvider.isAvailable ? 'Online' : 'Offline',
-                        style: TextStyle(color: Colors.white, fontSize: 12),
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
               );
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _messages.clear();
+                _isInitialized = false;
+              });
+              _initializeAI();
+            },
+            tooltip: 'Refresh',
           ),
         ],
       ),
@@ -131,7 +214,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
@@ -149,32 +232,32 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final isUser = message.isUser;
     
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            CircleAvatar(
+            const CircleAvatar(
               radius: 16,
               backgroundColor: Colors.blue,
               child: Icon(Icons.smart_toy, color: Colors.white, size: 16),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
           ],
           Flexible(
             child: Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isUser 
                     ? (isDark ? Colors.blue.shade700 : Colors.blue.shade100)
                     : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
                 borderRadius: BorderRadius.circular(16).copyWith(
-                  bottomLeft: isUser ? Radius.circular(16) : Radius.circular(4),
-                  bottomRight: isUser ? Radius.circular(4) : Radius.circular(16),
+                  bottomLeft: isUser ? const Radius.circular(16) : const Radius.circular(4),
+                  bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
                 ),
               ),
-              child: Text(
+              child: SelectableText(
                 message.content,
                 style: TextStyle(
                   color: isUser 
@@ -185,8 +268,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
             ),
           ),
           if (isUser) ...[
-            SizedBox(width: 8),
-            CircleAvatar(
+            const SizedBox(width: 8),
+            const CircleAvatar(
               radius: 16,
               backgroundColor: Colors.green,
               child: Icon(Icons.person, color: Colors.white, size: 16),
@@ -199,12 +282,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget _buildInputArea(ThemeData theme) {
     return Container(
-      padding: EdgeInsets.all(8),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: theme.cardColor,
         boxShadow: [
           BoxShadow(
-            offset: Offset(0, -2),
+            offset: const Offset(0, -2),
             blurRadius: 4,
             color: Colors.black12,
           ),
@@ -216,7 +299,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             child: TextField(
               controller: _messageController,
               decoration: InputDecoration(
-                hintText: 'Ask about inventory...',
+                hintText: 'Ask me anything...',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
@@ -225,18 +308,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 fillColor: theme.brightness == Brightness.dark
                     ? Colors.grey.shade800
                     : Colors.grey.shade100,
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               onSubmitted: (_) => _sendMessage(),
               enabled: !_isLoading,
             ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           CircleAvatar(
             backgroundColor: theme.primaryColor,
             child: IconButton(
               icon: _isLoading 
-                  ? SizedBox(
+                  ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
@@ -244,7 +327,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : Icon(Icons.send, color: Colors.white),
+                  : const Icon(Icons.send, color: Colors.white),
               onPressed: _isLoading ? null : _sendMessage,
             ),
           ),
