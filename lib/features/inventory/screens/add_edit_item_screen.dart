@@ -35,7 +35,9 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   late TextEditingController _supplierController;
 
   bool _isLoading = false;
-  
+  bool _trackByBatch = false;
+
+
   List<String> _categories = [];
   List<String> _suppliers = [];
   final Map<String, String> _supplierMap = {};
@@ -53,6 +55,12 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   DateTime? _expiryDate;
   late TextEditingController _expiryController;
   bool _trackExpiry = false;  // Add this
+
+// Add this method to check if batch tracking can be enabled
+bool get _canEnableBatchTracking {
+  // Batch tracking can only be enabled for new items or items that have no existing batches
+  return widget.item == null || (widget.item != null && !widget.item!.trackByBatch);
+}
 
   @override
   void initState() {
@@ -213,6 +221,69 @@ _trackExpiry = widget.item?.trackExpiry ?? false;
     return null;
   }
 
+
+void _showBatchTrackingInfo() {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Batch Tracking Explained'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Batch tracking allows you to:',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text('• Track multiple purchases of the same item separately'),
+          const Text('• Store each batch with its own expiry date'),
+          const Text('• Use FIFO (First Expiry First Out) for sales'),
+          const Text('• Get expiry alerts for each batch'),
+          const SizedBox(height: 16),
+          const Text(
+            'When enabled:',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text('• Each purchase will create a new batch'),
+          const Text('• Sales will automatically consume oldest batches first'),
+          const Text('• Stock quantity will be sum of all active batches'),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Recommended for items with expiry dates like food, medicine, cosmetics',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Got it'),
+        ),
+      ],
+    ),
+  );
+}
+
   // ============ LOAD METHODS ============
   Future<void> _loadCategories() async {
     try {
@@ -255,6 +326,7 @@ Future<void> _selectExpiryDate() async {
 }
 
   // ============ SAVE METHOD WITH VALIDATION ============
+// ============ SAVE METHOD WITH VALIDATION & BATCH TRACKING ============
 Future<void> _saveItem() async {
   // Clear previous errors
   setState(() {
@@ -283,6 +355,18 @@ Future<void> _saveItem() async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Please select expiry date'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return;
+  }
+
+  // Validate batch tracking requirements
+  if (_trackByBatch && !_trackExpiry) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Batch tracking requires expiry tracking to be enabled'),
         backgroundColor: Theme.of(context).colorScheme.error,
         behavior: SnackBarBehavior.floating,
       ),
@@ -365,7 +449,7 @@ Future<void> _saveItem() async {
     }
 
     if (widget.item == null) {
-      // Add new item
+      // ========== ADD NEW ITEM WITH BATCH TRACKING ==========
       final item = InventoryItem(
         id: '',
         name: name,
@@ -374,7 +458,7 @@ Future<void> _saveItem() async {
         category: category,
         price: price,
         cost: cost,
-        quantity: quantity,
+        quantity: _trackByBatch ? 0 : quantity, // If batch tracking, start with 0 quantity (batches will handle stock)
         lowStockThreshold: lowStockThreshold,
         unit: unit,
         location: location.isNotEmpty ? location : null,
@@ -383,47 +467,124 @@ Future<void> _saveItem() async {
         userMobile: widget.userMobile,
         expiryDate: _trackExpiry ? _expiryDate : null,
         trackExpiry: _trackExpiry,
+        trackByBatch: _trackByBatch, // 🔥 ADD BATCH TRACKING FLAG
       );
       
-      await widget.inventoryService.addInventoryItem(item);
+      final itemId = await widget.inventoryService.addInventoryItem(item);
+      
+      // If batch tracking is enabled and quantity > 0, create initial batch
+      if (_trackByBatch && quantity > 0 && _expiryDate != null) {
+        try {
+          await widget.inventoryService.purchaseStock(
+            inventoryId: itemId,
+            quantity: quantity,
+            purchasePrice: cost,
+            expiryDate: _expiryDate!,
+            purchaseDate: DateTime.now(),
+            supplierInvoiceNo: null,
+            supplierName: supplierName.isNotEmpty ? supplierName : null,
+          );
+          print('✅ Initial batch created with $quantity units');
+        } catch (batchError) {
+          print('⚠️ Could not create initial batch: $batchError');
+          // Don't fail the whole operation, item was created successfully
+        }
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Item added successfully'),
+            content: Text(
+              _trackByBatch 
+                ? 'Item added successfully with batch tracking enabled'
+                : 'Item added successfully',
+            ),
             backgroundColor: Theme.of(context).colorScheme.secondary,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
     } else {
-      // 🔥 FIX: Update existing item - include expiry fields in copyWith
+      // ========== UPDATE EXISTING ITEM WITH BATCH TRACKING ==========
+      
+      // Check if batch tracking is being enabled for the first time
+      final isEnablingBatchTracking = _trackByBatch && !widget.item!.trackByBatch;
+      
+      // Calculate final quantity - if enabling batch tracking, clear simple quantity
+      final finalQuantity = _trackByBatch ? 0 : quantity;
+      
       final updatedItem = widget.item!.copyWith(
         name: name,
         description: description,
         category: category,
         price: price,
         cost: cost,
-        quantity: quantity,
+        quantity: finalQuantity,
         lowStockThreshold: lowStockThreshold,
         unit: unit,
         location: location.isNotEmpty ? location : null,
         supplierId: supplierId ?? widget.item!.supplierId,
         supplierName: supplierName.isNotEmpty ? supplierName : widget.item!.supplierName,
-        expiryDate: _trackExpiry ? _expiryDate : null,  // ✅ Add this
-        trackExpiry: _trackExpiry,                      // ✅ Add this
+        expiryDate: _trackExpiry ? _expiryDate : null,
+        trackExpiry: _trackExpiry,
+        trackByBatch: _trackByBatch, // 🔥 UPDATE BATCH TRACKING FLAG
       );
       
       // Debug print to verify values
       print('📝 Updating item with:');
       print('  - Name: $name');
       print('  - Track Expiry: $_trackExpiry');
+      print('  - Track By Batch: $_trackByBatch');
       print('  - Expiry Date: ${_expiryDate != null ? _expiryDate!.toIso8601String() : 'null'}');
+      print('  - Is Enabling Batch: $isEnablingBatchTracking');
       
       await widget.inventoryService.updateInventoryItem(updatedItem);
-      if (mounted) {
+      
+      // If enabling batch tracking and there's existing stock, convert to batch
+      if (isEnablingBatchTracking && quantity > 0 && _expiryDate != null) {
+        try {
+          await widget.inventoryService.purchaseStock(
+            inventoryId: widget.item!.id,
+            quantity: quantity,
+            purchasePrice: cost,
+            expiryDate: _expiryDate!,
+            purchaseDate: widget.item!.createdAt,
+            supplierInvoiceNo: null,
+            supplierName: supplierName.isNotEmpty ? supplierName : widget.item!.supplierName,
+          );
+          print('✅ Existing stock converted to batch: $quantity units');
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Batch tracking enabled! $quantity units converted to batch'),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } catch (batchError) {
+          print('⚠️ Could not convert existing stock to batch: $batchError');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Item updated but stock conversion failed: $batchError'),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      }
+      
+      if (mounted && !isEnablingBatchTracking) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Item updated successfully'),
+            content: Text(
+              _trackByBatch 
+                ? 'Item updated successfully (batch tracking active)'
+                : 'Item updated successfully',
+            ),
             backgroundColor: Theme.of(context).colorScheme.secondary,
             behavior: SnackBarBehavior.floating,
           ),
@@ -452,7 +613,8 @@ Future<void> _saveItem() async {
       setState(() => _isLoading = false);
     }
   }
-} 
+}
+
   // ============ BUILD METHOD ============
   @override
   Widget build(BuildContext context) {
@@ -703,9 +865,9 @@ Future<void> _saveItem() async {
       // Replace your existing expiry section with this
 const SizedBox(height: 40),
 
-// 🔥 EXPIRY / REPLACEMENT SECTION
+// 🔥 EXPIRY / REPLACEMENT SECTION (UPDATED WITH BATCH TRACKING)
 _buildSectionHeader(
-  title: 'Expiry / Replacement',
+  title: 'Expiry & Batch Management',
   required: false,
 ),
 const SizedBox(height: 20),
@@ -753,6 +915,10 @@ Container(
             if (!value) {
               _expiryDate = null;
               _expiryController.clear();
+              // If expiry tracking is off, batch tracking might not be needed
+              if (_trackByBatch && !value) {
+                _trackByBatch = false;
+              }
             }
           });
         },
@@ -772,7 +938,7 @@ if (_trackExpiry) ...[
         label: 'Expiry Date',
         icon: Icons.calendar_today,
         hintText: 'Select expiry date',
-        optional: false, // Required when tracking is enabled
+        optional: false,
         errorText: _trackExpiry && _expiryDate == null ? 'Expiry date is required' : null,
       ),
     ),
@@ -782,6 +948,187 @@ if (_trackExpiry) ...[
     _buildExpiryWarningCard(_expiryDate!),
 ],
 
+const SizedBox(height: 16),
+
+// 🔥 NEW: BATCH TRACKING SECTION
+Container(
+  margin: const EdgeInsets.only(top: 8),
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  decoration: BoxDecoration(
+    color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(
+      color: _trackByBatch ? colorScheme.primary : colorScheme.outline,
+      width: _trackByBatch ? 2 : 1.5,
+    ),
+  ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enable Batch Tracking',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: _trackByBatch ? colorScheme.primary : colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Track multiple batches with different expiry dates (FIFO)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _trackByBatch,
+            onChanged: _canEnableBatchTracking
+                ? (value) {
+                    setState(() {
+                      _trackByBatch = value;
+                      // If enabling batch tracking, automatically enable expiry tracking
+                      if (_trackByBatch && !_trackExpiry) {
+                        _trackExpiry = true;
+                      }
+                    });
+                  }
+                : null, // Disable if can't enable
+            activeColor: colorScheme.primary,
+          ),
+        ],
+      ),
+      
+      if (_trackByBatch) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Batch Tracking Features:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '• Each purchase will be stored as a separate batch',
+                style: TextStyle(fontSize: 12),
+              ),
+              const Text(
+                '• Sales will use FIFO (First Expiry First Out)',
+                style: TextStyle(fontSize: 12),
+              ),
+              const Text(
+                '• View and manage batches from item details screen',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: _showBatchTrackingInfo,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.help_outline, size: 14, color: colorScheme.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Learn more about batch tracking',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        if (widget.item != null && widget.item!.quantity > 0 && !widget.item!.trackByBatch) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber, size: 20, color: Colors.orange),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Current stock (${widget.item!.quantity} ${widget.item!.unit}) will be converted to a batch when you save',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+      
+      if (!_canEnableBatchTracking && widget.item != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Batch tracking cannot be disabled once enabled (has existing batches)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+    ],
+  ),
+),
                         // Supplier Section
                         _buildSectionHeader(
                           title: 'Supplier Information',
