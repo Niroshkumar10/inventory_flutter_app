@@ -12,15 +12,15 @@
 // Future<void> main() async {
 //   WidgetsFlutterBinding.ensureInitialized();
   
-//   print('🚀 Starting Firebase initialization...');
+//   //print('🚀 Starting Firebase initialization...');
   
 //   try {
 //     await Firebase.initializeApp(
 //       options: DefaultFirebaseOptions.currentPlatform,
 //     );
-//     print('✅ Firebase initialized successfully');
+//     //print('✅ Firebase initialized successfully');
 //   } catch (e) {
-//     print('❌ Firebase initialization failed: $e');
+//     //print('❌ Firebase initialization failed: $e');
 //   }
   
 //   runApp(const MyApp());
@@ -65,15 +65,15 @@ import './auth_wrapper.dart'; // Add this - you need an auth provider
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  print('🚀 Starting Firebase initialization...');
+  //print('🚀 Starting Firebase initialization...');
   
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print('✅ Firebase initialized successfully');
+    //print('✅ Firebase initialized successfully');
   } catch (e) {
-    print('❌ Firebase initialization failed: $e');
+    //print('❌ Firebase initialization failed: $e');
   }
   
   runApp(const MyApp());

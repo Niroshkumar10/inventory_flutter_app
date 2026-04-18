@@ -55,7 +55,7 @@ class BatchService {
       
       return newBatch;
     } catch (e) {
-      print('❌ Error adding batch: $e');
+      //print('❌ Error adding batch: $e');
       throw Exception('Failed to add batch: $e');
     }
   }
@@ -96,7 +96,7 @@ class BatchService {
       }
       return null;
     } catch (e) {
-      print('❌ Error getting batch: $e');
+      //print('❌ Error getting batch: $e');
       return null;
     }
   }
@@ -111,6 +111,9 @@ class BatchService {
     required String consumedBy,
   }) async {
     try {
+      //print('📦 BatchService.consumeStockFIFO called');
+    //print('  Inventory ID: $inventoryId');
+    //print('  Quantity: $quantityToConsume');
       if (quantityToConsume <= 0) {
         throw Exception('Quantity to consume must be positive');
       }
@@ -208,10 +211,11 @@ class BatchService {
       return consumptions;
       
     } catch (e) {
-      print('❌ Error consuming stock with FIFO: $e');
+      //print('❌ Error consuming stock with FIFO: $e');
       throw Exception('Failed to consume stock: $e');
     }
   }
+  
   
   // Add stock to existing batch (restocking)
   Future<void> restockBatch(String inventoryId, String batchId, int additionalQuantity) async {
@@ -238,7 +242,7 @@ class BatchService {
       await _updateInventoryTotals(inventoryId);
       
     } catch (e) {
-      print('❌ Error restocking batch: $e');
+      //print('❌ Error restocking batch: $e');
       throw Exception('Failed to restock batch: $e');
     }
   }
@@ -281,7 +285,7 @@ class BatchService {
       };
       
     } catch (e) {
-      print('❌ Error getting stock summary: $e');
+      //print('❌ Error getting stock summary: $e');
       return {
         'totalRemaining': 0,
         'totalBatches': 0,
@@ -311,7 +315,7 @@ class BatchService {
       }).toList();
       
     } catch (e) {
-      print('❌ Error getting near expiry batches: $e');
+      //print('❌ Error getting near expiry batches: $e');
       return [];
     }
   }
@@ -331,40 +335,35 @@ class BatchService {
       }).toList();
       
     } catch (e) {
-      print('❌ Error getting expired batches: $e');
+      //print('❌ Error getting expired batches: $e');
       return [];
     }
   }
   
   // Update inventory totals (sum of all batch remaining quantities)
-  Future<void> _updateInventoryTotals(String inventoryId) async {
-    try {
-      final batches = await _getBatchesCollection(inventoryId)
-          .where('isActive', isEqualTo: true)
-          .get();
-      
-      int totalRemaining = 0;
-      int activeBatches = 0;
-      
-      for (var doc in batches.docs) {
-        final batch = Batch.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-        if (batch.remainingQuantity > 0) {
-          totalRemaining += batch.remainingQuantity;
-          activeBatches++;
-        }
-      }
-      
-      await _userInventoryCollection.doc(inventoryId).update({
-        'totalQuantity': totalRemaining,
-        'batchCount': activeBatches,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      
-    } catch (e) {
-      print('❌ Error updating inventory totals: $e');
-    }
+ Future<void> _updateInventoryTotals(String inventoryId) async {
+  final batches = await _getBatchesCollection(inventoryId)
+      .where('isActive', isEqualTo: true)
+      .where('remainingQuantity', isGreaterThan: 0)
+      .get();
+  
+  int totalRemaining = 0;
+  for (final doc in batches.docs) {
+    final data = doc.data() as Map<String, dynamic>;
+    totalRemaining += (data['remainingQuantity'] as int? ?? 0);
   }
   
+  // Sync back to the parent inventory document
+  await _firestore
+      .collection('users')
+      .doc(userMobile)
+      .collection('inventory')
+      .doc(inventoryId)
+      .update({
+    'quantity': totalRemaining,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+}
   // Generate unique batch number
   String _generateBatchNumber(String inventoryId) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -399,7 +398,7 @@ class BatchService {
       return totalWrittenOff;
       
     } catch (e) {
-      print('❌ Error writing off expired batches: $e');
+      //print('❌ Error writing off expired batches: $e');
       return 0;
     }
   }

@@ -52,6 +52,20 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
     }
   }
 
+  // Helper method to get the current effective quantity
+  int get _currentQuantity {
+    if (_item.trackByBatch && _batchSummary != null) {
+      return _batchSummary!['totalRemaining'] ?? 0;
+    }
+    return _item.quantity;
+  }
+
+  // Helper method to get quantity display text
+  String get _quantityDisplay {
+    final qty = _currentQuantity;
+    return '$qty ${_item.unit}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -190,6 +204,8 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
   }
 
   Future<void> _enableBatchTracking() async {
+    if (!mounted) return;
+    
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enabling batch tracking...')),
@@ -414,16 +430,6 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => _showSellDialog(),
-            icon: const Icon(Icons.sell),
-            label: const Text('Sell Stock'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -492,9 +498,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
   void _showSellDialog() {
     final TextEditingController quantityController = TextEditingController();
     
-    final maxQuantity = _item.trackByBatch 
-        ? (_batchSummary?['totalRemaining'] ?? 0)
-        : _item.quantity;
+    final maxQuantity = _currentQuantity;
 
     showDialog(
       context: context,
@@ -614,6 +618,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
   Widget _buildHeader() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isLowStock = _currentQuantity <= _item.lowStockThreshold;
     
     return Row(
       children: [
@@ -621,13 +626,13 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
           radius: 40,
           backgroundColor: _item.isExpired
               ? Colors.red.shade100
-              : _item.isLowStock
+              : isLowStock
                   ? Colors.orange.shade100
                   : Colors.blue.shade100,
           child: Icon(
-            _item.isLowStock ? Icons.warning : Icons.inventory_2,
+            isLowStock ? Icons.warning : Icons.inventory_2,
             size: 40,
-            color: _item.isLowStock ? Colors.orange : Colors.blue,
+            color: isLowStock ? Colors.orange : Colors.blue,
           ),
         ),
         const SizedBox(width: 16),
@@ -672,9 +677,29 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 8),
-              Chip(
-                label: Text(_item.category),
-                backgroundColor: Colors.blue.shade50,
+              Row(
+                children: [
+                  Chip(
+                    label: Text(_item.category),
+                    backgroundColor: Colors.blue.shade50,
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isLowStock ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _quantityDisplay,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isLowStock ? Colors.orange : Colors.green,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -695,7 +720,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            _buildInfoRow('Description', _item.description),
+            _buildInfoRow('Description', _item.description.isNotEmpty ? _item.description : 'No description'),
             const Divider(),
             _buildInfoRow('Unit', _item.unit),
             const Divider(),
@@ -736,7 +761,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
                                 : FontWeight.normal,
                           ),
                         ),
-                        if (_item.trackExpiry && _item.expiryDate != null) ...[
+                        if (_item.trackExpiry && _item.expiryDate != null && !_item.trackByBatch) ...[
                           const SizedBox(height: 4),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -762,7 +787,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              '⚠️ Multiple expiry dates exist in batches',
+                              '⚠️ Multiple expiry dates exist in batches. Check Batch Summary above.',
                               style: const TextStyle(fontSize: 11, color: Colors.orange),
                             ),
                           ),
@@ -784,11 +809,11 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 120,
             child: Text(
-              '',
-              style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey),
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey),
             ),
           ),
           const SizedBox(width: 8),
@@ -804,9 +829,8 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     
-    final displayQuantity = _item.trackByBatch 
-        ? (_batchSummary?['totalRemaining'] ?? 0)
-        : _item.quantity;
+    final displayQuantity = _currentQuantity;
+    final isLowStock = displayQuantity <= _item.lowStockThreshold;
     
     return Card(
       child: Padding(
@@ -845,8 +869,8 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
                 Expanded(
                   child: _buildStatCard(
                     'Current Stock',
-                    '$displayQuantity ${_item.unit}',
-                    _item.isLowStock ? Colors.orange : Colors.green,
+                    _quantityDisplay,
+                    isLowStock ? Colors.orange : Colors.green,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -861,15 +885,15 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
             ),
             const SizedBox(height: 12),
             LinearProgressIndicator(
-              value: displayQuantity / (_item.lowStockThreshold * 3).clamp(1, double.infinity),
+              value: (displayQuantity / (_item.lowStockThreshold * 3)).clamp(0.0, 1.0),
               backgroundColor: Colors.grey.shade200,
-              color: _item.isLowStock ? Colors.orange : Colors.green,
+              color: isLowStock ? Colors.orange : Colors.green,
             ),
             const SizedBox(height: 8),
             Text(
-              _item.isLowStock ? '⚠️ Low stock alert!' : 'Stock level is good',
+              isLowStock ? '⚠️ Low stock alert!' : 'Stock level is good',
               style: TextStyle(
-                color: _item.isLowStock ? Colors.orange : Colors.green,
+                color: isLowStock ? Colors.orange : Colors.green,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -880,6 +904,8 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
   }
 
   Widget _buildFinancialSection() {
+    final totalValue = _currentQuantity * _item.price;
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -911,7 +937,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildStatCard('Total Value', '₹${_item.totalValue.toStringAsFixed(2)}', Colors.purple),
+                  child: _buildStatCard('Total Value', '₹${totalValue.toStringAsFixed(2)}', Colors.purple),
                 ),
               ],
             ),
@@ -940,7 +966,6 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
     );
   }
 
-  // FIXED: This is the correct _buildStatCard method
   Widget _buildStatCard(String title, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),

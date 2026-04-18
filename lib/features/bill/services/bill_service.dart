@@ -25,7 +25,7 @@ class BillService {
       final docRef = await _userBillsCollection.add(billData);
       return docRef.id;
     } catch (e) {
-      print('❌ Error adding bill: $e');
+      //print('❌ Error adding bill: $e');
       throw Exception('Failed to add bill: $e');
     }
   }
@@ -42,7 +42,7 @@ class BillService {
       
       await _userBillsCollection.doc(bill.id).update(updateData);
     } catch (e) {
-      print('❌ Error updating bill: $e');
+      //print('❌ Error updating bill: $e');
       throw Exception('Failed to update bill: $e');
     }
   }
@@ -52,7 +52,7 @@ class BillService {
     try {
       await _userBillsCollection.doc(id).delete();
     } catch (e) {
-      print('❌ Error deleting bill: $e');
+      //print('❌ Error deleting bill: $e');
       throw Exception('Failed to delete bill: $e');
     }
   }
@@ -89,7 +89,7 @@ Stream<List<Bill>> getBills({String? filter}) {
       return filteredBills;
     });
   } catch (e) {
-    print('❌ Error in getBills: $e');
+    //print('❌ Error in getBills: $e');
     // Return empty stream on error
     return Stream.value(<Bill>[]);
   }
@@ -103,7 +103,7 @@ Stream<List<Bill>> getBills({String? filter}) {
       }
       throw Exception('Bill not found');
     } catch (e) {
-      print('❌ Error getting bill: $e');
+      //print('❌ Error getting bill: $e');
       rethrow;
     }
   }
@@ -128,7 +128,7 @@ Stream<List<Bill>> getBills({String? filter}) {
               ))
           .toList();
     }).handleError((error) {
-      print('❌ Stream error in searchBills: $error');
+      //print('❌ Stream error in searchBills: $error');
       return [];
     });
   }
@@ -201,7 +201,7 @@ Stream<BillSummary> getBillSummary() {
       
       return '$prefix-$currentYear-${(maxNumber + 1).toString().padLeft(3, '0')}';
     } catch (e) {
-      print('❌ Error getting next invoice number: $e');
+      //print('❌ Error getting next invoice number: $e');
       // Fallback if there's an error
       return '${type == 'sales' ? 'SALE' : 'PUR'}-${DateTime.now().year}-001';
     }
@@ -221,7 +221,7 @@ Stream<BillSummary> getBillSummary() {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('❌ Error adding payment: $e');
+      //print('❌ Error adding payment: $e');
       throw Exception('Failed to add payment: $e');
     }
   }
@@ -244,7 +244,7 @@ Stream<BillSummary> getBillSummary() {
       
       return allNames.toList()..sort();
     } catch (e) {
-      print('❌ Error getting party names: $e');
+      //print('❌ Error getting party names: $e');
       return [];
     }
   }

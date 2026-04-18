@@ -49,7 +49,7 @@ class ExpiryAlertService {
       return alerts;
       
     } catch (e) {
-      print('❌ Error getting near expiry alerts: $e');
+      //print('❌ Error getting near expiry alerts: $e');
       return [];
     }
   }
@@ -79,7 +79,7 @@ class ExpiryAlertService {
       return alerts;
       
     } catch (e) {
-      print('❌ Error getting expired alerts: $e');
+      //print('❌ Error getting expired alerts: $e');
       return [];
     }
   }
@@ -115,7 +115,7 @@ class ExpiryAlertService {
       };
       
     } catch (e) {
-      print('❌ Error getting alert summary: $e');
+      //print('❌ Error getting alert summary: $e');
       return {
         'nearExpiryCount': 0,
         'nearExpiryQuantity': 0,
@@ -140,7 +140,7 @@ class ExpiryAlertService {
       }).toList();
       
     } catch (e) {
-      print('❌ Error getting inventory items: $e');
+      //print('❌ Error getting inventory items: $e');
       return [];
     }
   }
@@ -235,7 +235,7 @@ class ExpiryAlertService {
       return alerts;
       
     } catch (e) {
-      print('❌ Error getting today expiring alerts: $e');
+      //print('❌ Error getting today expiring alerts: $e');
       return [];
     }
   }

@@ -82,9 +82,9 @@ class InventoryService {
       final categories = await getCategoriesWithCount();
       await _localStorage.saveCategories(categories);
 
-      print('✅ All data cached successfully');
+      //print('✅ All data cached successfully');
     } catch (e) {
-      print('❌ Error caching data: $e');
+      //print('❌ Error caching data: $e');
     }
   }
 
@@ -221,7 +221,7 @@ class InventoryService {
 
       return docRef.id;
     } catch (e) {
-      print('❌ Error adding inventory item: $e');
+      //print('❌ Error adding inventory item: $e');
       throw Exception('Failed to add inventory item: $e');
     }
   }
@@ -229,7 +229,7 @@ class InventoryService {
   // Update inventory item with cache update
 Future<void> updateInventoryItem(InventoryItem item) async {
   try {
-    print('🔄 Updating item with ID: ${item.id}');
+    //print('🔄 Updating item with ID: ${item.id}');
     
     if (item.id.isEmpty) {
       throw Exception('Inventory item ID is required for update');
@@ -265,15 +265,15 @@ Future<void> updateInventoryItem(InventoryItem item) async {
 
     // Perform update
     await _userInventoryCollection.doc(item.id).update(itemData);
-    print('✅ Item updated successfully in Firestore');
+    //print('✅ Item updated successfully in Firestore');
 
     // Update cache
     await _localStorage.updateInventoryItem(item);
 
-    print('✅ All updates completed successfully');
+    //print('✅ All updates completed successfully');
   } catch (e, stackTrace) {
-    print('❌ Error updating inventory item: $e');
-    print('Stack trace: $stackTrace');
+    //print('❌ Error updating inventory item: $e');
+    //print('Stack trace: $stackTrace');
     throw Exception('Failed to update inventory item: $e');
   }
 } 
@@ -295,7 +295,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
       // Delete from cache
       await _localStorage.deleteInventoryItem(id);
     } catch (e) {
-      print('❌ Error deleting inventory item: $e');
+      //print('❌ Error deleting inventory item: $e');
       throw Exception('Failed to delete inventory item: $e');
     }
   }
@@ -322,7 +322,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
         return cachedItem;
       }
     } catch (e) {
-      print('❌ Error getting inventory item: $e');
+      //print('❌ Error getting inventory item: $e');
       throw Exception('Failed to get inventory item: $e');
     }
   }
@@ -334,7 +334,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
         .orderBy('updatedAt', descending: true)
         .snapshots()
         .handleError((error) {
-      print('❌ Stream error: $error');
+      //print('❌ Stream error: $error');
       throw error;
     }).map((snapshot) {
       if (snapshot.docs.isEmpty) return [];
@@ -416,7 +416,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
         );
       }).toList();
     } catch (e) {
-      print('❌ Error getting items by category: $e');
+      //print('❌ Error getting items by category: $e');
       return [];
     }
   }
@@ -432,7 +432,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
             doc.data() as Map<String, dynamic>, doc.id);
       }).toList();
     } catch (e) {
-      print('Error getting all items: $e');
+      //print('Error getting all items: $e');
       return [];
     }
   }
@@ -457,7 +457,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
 
       return categories;
     } catch (e) {
-      print('❌ Error getting categories: $e');
+      //print('❌ Error getting categories: $e');
       return ['Uncategorized'];
     }
   }
@@ -491,7 +491,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
       );
       await _localStorage.addCategory(newCategory);
     } catch (e) {
-      print('❌ Error adding category: $e');
+      //print('❌ Error adding category: $e');
       throw Exception('Failed to add category: $e');
     }
   }
@@ -510,7 +510,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
       }
       return snapshot.docs.isNotEmpty;
     } catch (e) {
-      print('❌ Error checking SKU: $e');
+      //print('❌ Error checking SKU: $e');
       return false;
     }
   }
@@ -553,7 +553,7 @@ Future<void> updateInventoryItem(InventoryItem item) async {
         'totalValue': totalValue,
       };
     } catch (e) {
-      print('❌ Error getting inventory stats from Firebase, using cache: $e');
+      //print('❌ Error getting inventory stats from Firebase, using cache: $e');
 
       // Fallback to cache
       final cachedItems = _localStorage.getInventoryItems();
@@ -579,31 +579,31 @@ Future<void> updateInventoryItem(InventoryItem item) async {
   // Adjust stock quantity with cache update
   Future<void> adjustStock(String id, int adjustment, String reason) async {
     try {
-      print('🛠️ adjustStock called:');
-      print('  Item ID: $id');
-      print('  Adjustment: $adjustment');
-      print('  Reason: $reason');
+      //print('🛠️ adjustStock called:');
+      //print('  Item ID: $id');
+      //print('  Adjustment: $adjustment');
+      //print('  Reason: $reason');
 
       final item = await getInventoryItem(id);
-      print('  Current quantity: ${item.quantity}');
+      //print('  Current quantity: ${item.quantity}');
 
       final newQuantity = item.quantity + adjustment;
-      print('  New quantity will be: $newQuantity');
+      //print('  New quantity will be: $newQuantity');
 
       if (newQuantity < 0) {
-        print('  ❌ ERROR: Cannot set negative stock quantity');
+        //print('  ❌ ERROR: Cannot set negative stock quantity');
         throw Exception('Cannot set negative stock quantity');
       }
 
       // Update the quantity
-      print('  📝 Updating Firestore...');
+      //print('  📝 Updating Firestore...');
       await _userInventoryCollection.doc(id).update({
         'quantity': newQuantity,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
       // Log stock adjustment in subcollection
-      print('  📝 Logging adjustment...');
+      //print('  📝 Logging adjustment...');
       await _getStockAdjustmentsCollection(id).add({
         'previousQuantity': item.quantity,
         'adjustment': adjustment,
@@ -617,10 +617,10 @@ Future<void> updateInventoryItem(InventoryItem item) async {
       final updatedItem = item.copyWith(quantity: newQuantity);
       await _localStorage.updateInventoryItem(updatedItem);
 
-      print('  ✅ adjustStock completed successfully');
+      //print('  ✅ adjustStock completed successfully');
     } catch (e) {
-      print('❌ Error in adjustStock: $e');
-      print('Stack trace: ${e.toString()}');
+      //print('❌ Error in adjustStock: $e');
+      //print('Stack trace: ${e.toString()}');
       throw Exception('Failed to adjust stock: $e');
     }
   }
@@ -635,26 +635,22 @@ Future<Batch> purchaseStock({
     String? supplierName,
   }) async {
     try {
-      // First, check if item exists
       final item = await getInventoryItem(inventoryId);
       
       if (!item.trackByBatch) {
-        // If not tracking by batch, update the simple quantity
+        // Non-batch: simple quantity update
         final newQuantity = item.quantity + quantity;
         await _userInventoryCollection.doc(inventoryId).update({
           'quantity': newQuantity,
           'expiryDate': Timestamp.fromDate(expiryDate),
           'updatedAt': FieldValue.serverTimestamp(),
         });
-        
-        // Update cache
         final updatedItem = item.copyWith(
           quantity: newQuantity,
           expiryDate: expiryDate,
         );
         await _localStorage.updateInventoryItem(updatedItem);
         
-        // Return a placeholder batch
         return Batch(
           id: '',
           inventoryId: inventoryId,
@@ -669,12 +665,7 @@ Future<Batch> purchaseStock({
         );
       }
       
-      // Initialize batch service if not already initialized
-      if (_batchService == null) {
-        _initBatchServices();
-      }
-      
-      // Create and add new batch
+      // Batch tracking: create batch then sync quantity
       final newBatch = Batch(
         id: '',
         inventoryId: inventoryId,
@@ -688,16 +679,20 @@ Future<Batch> purchaseStock({
         supplierName: supplierName,
       );
       
-      return await _batchService.addBatch(inventoryId, newBatch);
+      final createdBatch = await _batchService.addBatch(inventoryId, newBatch);
+      
+      // ✅ KEY FIX: sync total batch quantity back to inventory item
+      await syncBatchQuantityToItem(inventoryId);
+      
+      return createdBatch;
       
     } catch (e) {
-      print('❌ Error purchasing stock: $e');
+      //print('❌ Error purchasing stock: $e');
       throw Exception('Failed to purchase stock: $e');
     }
   }
-
   // Sell stock using FIFO for batch-tracked items
-  Future<List<StockConsumption>> sellStock({
+Future<List<StockConsumption>> sellStock({
     required String inventoryId,
     required int quantity,
     required String saleId,
@@ -707,31 +702,20 @@ Future<Batch> purchaseStock({
       final item = await getInventoryItem(inventoryId);
       
       if (!item.trackByBatch) {
-        // Simple stock deduction
         final newQuantity = item.quantity - quantity;
-        if (newQuantity < 0) {
-          throw Exception('Insufficient stock');
-        }
+        if (newQuantity < 0) throw Exception('Insufficient stock');
         
         await _userInventoryCollection.doc(inventoryId).update({
           'quantity': newQuantity,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-        
-        // Update cache
         final updatedItem = item.copyWith(quantity: newQuantity);
         await _localStorage.updateInventoryItem(updatedItem);
-        
-        return []; // Return empty list for non-batch items
+        return [];
       }
       
-      // Initialize batch service if not already initialized
-      if (_batchService == null) {
-        _initBatchServices();
-      }
-      
-      // Use FIFO consumption
-      return await _batchService.consumeStockFIFO(
+      // Batch FIFO consumption
+      final consumptions = await _batchService.consumeStockFIFO(
         inventoryId: inventoryId,
         quantityToConsume: quantity,
         transactionType: 'SALE',
@@ -740,11 +724,50 @@ Future<Batch> purchaseStock({
         consumedBy: soldBy,
       );
       
+      // ✅ KEY FIX: sync total batch quantity back to inventory item
+      await syncBatchQuantityToItem(inventoryId);
+      
+      return consumptions;
+      
     } catch (e) {
-      print('❌ Error selling stock: $e');
+      //print('❌ Error selling stock: $e');
       throw Exception('Failed to sell stock: $e');
     }
   }
+// Sync batch total back to inventory item's quantity field
+Future<void> syncBatchQuantityToItem(String inventoryId) async {
+  try {
+    final batchesSnapshot = await _userInventoryCollection
+        .doc(inventoryId)
+        .collection('batches')
+        .where('isActive', isEqualTo: true)
+        .where('remainingQuantity', isGreaterThan: 0)
+        .get();
+
+    int totalRemaining = 0;
+    for (final doc in batchesSnapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      totalRemaining += (data['remainingQuantity'] as num?)?.toInt() ?? 0;
+    }
+
+    await _userInventoryCollection.doc(inventoryId).update({
+      'quantity': totalRemaining,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Update cache
+    final cachedItems = _localStorage.getInventoryItems();
+    final idx = cachedItems.indexWhere((i) => i.id == inventoryId);
+    if (idx != -1) {
+      final updated = cachedItems[idx].copyWith(quantity: totalRemaining);
+      await _localStorage.updateInventoryItem(updated);
+    }
+
+    //print('✅ Synced batch quantity: $totalRemaining units for $inventoryId');
+  } catch (e) {
+    //print('❌ Error syncing batch quantity: $e');
+  }
+}
 
  Future<Map<String, dynamic>> getExpiryAlerts() async {
     if (_expiryAlertService == null) {
@@ -762,11 +785,13 @@ Future<Batch> purchaseStock({
   }
   
   // Write off all expired stock
-  Future<int> writeOffExpiredStock(String inventoryId, String userId) async {
-    if (_batchService == null) {
-      _initBatchServices();
-    }
-    return await _batchService.writeOffExpiredBatches(inventoryId, userId);
+ Future<int> writeOffExpiredStock(String inventoryId, String userId) async {
+    final count = await _batchService.writeOffExpiredBatches(inventoryId, userId);
+    
+    // ✅ KEY FIX: sync quantity after write-off
+    await syncBatchQuantityToItem(inventoryId);
+    
+    return count;
   }
 
   // Get batch summary for an item
@@ -797,7 +822,7 @@ Future<Batch> purchaseStock({
 
       return totalValue;
     } catch (e) {
-      print('❌ Error getting total inventory value: $e');
+      //print('❌ Error getting total inventory value: $e');
 
       // Fallback to cache
       final cachedItems = _localStorage.getInventoryItems();
@@ -818,7 +843,7 @@ Future<Batch> purchaseStock({
         return Category.fromMap(data, doc.id);
       }).toList();
     } catch (e) {
-      print('Error getting categories: $e');
+      //print('Error getting categories: $e');
       return [];
     }
   }
@@ -834,7 +859,7 @@ Future<Batch> purchaseStock({
           .where((name) => name.isNotEmpty)
           .toList();
     } catch (e) {
-      print('Error getting categories for dropdown: $e');
+      //print('Error getting categories for dropdown: $e');
       return [];
     }
   }
@@ -844,7 +869,7 @@ Future<Batch> purchaseStock({
 Future<void> updateCategory(String id, String name,
     {String? description, required String oldCategoryName}) async {
   try {
-    print('🔄 Updating category: $oldCategoryName -> $name');
+    //print('🔄 Updating category: $oldCategoryName -> $name');
     
     // Start a batch write for atomic operation
     final batch = _firestore.batch();
@@ -859,7 +884,7 @@ Future<void> updateCategory(String id, String name,
 
     // 2. Update all inventory items that have this category
     if (oldCategoryName != name) {
-      print('🔄 Updating all items from "$oldCategoryName" to "$name"');
+      //print('🔄 Updating all items from "$oldCategoryName" to "$name"');
       
       // Get all items with the old category name
       final itemsSnapshot = await _userInventoryCollection
@@ -867,7 +892,7 @@ Future<void> updateCategory(String id, String name,
           .where('isActive', isEqualTo: true)
           .get();
 
-      print('📋 Found ${itemsSnapshot.docs.length} items to update');
+      //print('📋 Found ${itemsSnapshot.docs.length} items to update');
 
       // Update each item in the batch
       for (final doc in itemsSnapshot.docs) {
@@ -880,13 +905,13 @@ Future<void> updateCategory(String id, String name,
 
     // Commit the batch
     await batch.commit();
-    print('✅ Category and related items updated successfully');
+    //print('✅ Category and related items updated successfully');
 
     // Update category in cache (if you have local storage)
     // await _localStorage.updateCategory(...);
     
   } catch (e) {
-    print('❌ Error updating category: $e');
+    //print('❌ Error updating category: $e');
     throw Exception('Failed to update category: $e');
   }
 }
@@ -909,9 +934,9 @@ Future<void> updateCategory(String id, String name,
       // Delete from cache
       await _localStorage.deleteCategory(id);
 
-      print('✅ Category "$name" deleted successfully');
+      //print('✅ Category "$name" deleted successfully');
     } catch (e) {
-      print('❌ Error deleting category: $e');
+      //print('❌ Error deleting category: $e');
       rethrow;
     }
   }
@@ -932,9 +957,9 @@ Future<void> updateCategory(String id, String name,
       // Delete from cache
       await _localStorage.deleteInventoryItem(id);
 
-      print('✅ Item permanently deleted: ${item.name}');
+      //print('✅ Item permanently deleted: ${item.name}');
     } catch (e) {
-      print('❌ Error permanently deleting item: $e');
+      //print('❌ Error permanently deleting item: $e');
       throw Exception('Failed to delete item: $e');
     }
   }
@@ -1024,7 +1049,7 @@ Future<void> updateCategory(String id, String name,
         await _localStorage.addCategory(newCategory);
       }
     } catch (e) {
-      print('Error updating category count: $e');
+      //print('Error updating category count: $e');
     }
   }
 
@@ -1045,7 +1070,7 @@ Future<void> updateCategory(String id, String name,
 
       return suppliers;
     } catch (e) {
-      print('❌ Error getting suppliers: $e');
+      //print('❌ Error getting suppliers: $e');
       return [];
     }
   }
@@ -1071,7 +1096,7 @@ Future<void> updateCategory(String id, String name,
         'isActive': true,
       });
     } catch (e) {
-      print('❌ Error adding supplier: $e');
+      //print('❌ Error adding supplier: $e');
       throw Exception('Failed to add supplier: $e');
     }
   }
@@ -1090,7 +1115,7 @@ Future<void> updateCategory(String id, String name,
           .where((name) => name.isNotEmpty)
           .toList();
     } catch (e) {
-      print('Error getting suppliers for dropdown: $e');
+      //print('Error getting suppliers for dropdown: $e');
       return [];
     }
   }
@@ -1109,7 +1134,7 @@ Future<void> updateCategory(String id, String name,
       }
       return null;
     } catch (e) {
-      print('Error getting supplier details: $e');
+      //print('Error getting supplier details: $e');
       return null;
     }
   }
@@ -1123,7 +1148,7 @@ Future<void> updateCategory(String id, String name,
       }
       return null;
     } catch (e) {
-      print('Error getting supplier by ID: $e');
+      //print('Error getting supplier by ID: $e');
       return null;
     }
   }
@@ -1140,7 +1165,7 @@ Future<void> updateCategory(String id, String name,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Error updating supplier: $e');
+      //print('Error updating supplier: $e');
       throw Exception('Failed to update supplier');
     }
   }
@@ -1194,7 +1219,7 @@ Future<void> updateCategory(String id, String name,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Error deleting supplier: $e');
+      //print('Error deleting supplier: $e');
       throw Exception('Failed to delete supplier');
     }
   }
@@ -1209,7 +1234,7 @@ Future<void> updateCategory(String id, String name,
 
       return snapshot.docs.length;
     } catch (e) {
-      print('Error getting supplier item count: $e');
+      //print('Error getting supplier item count: $e');
       return 0;
     }
   }

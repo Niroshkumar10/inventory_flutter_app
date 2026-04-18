@@ -30,9 +30,9 @@ Future<void> saveInventoryItems(List<InventoryItem> items) async {
     final itemsJson = items.map((item) => item.toCacheMap()).toList();
     await _prefs.setString(INVENTORY_ITEMS_KEY, jsonEncode(itemsJson));
     await _prefs.setInt(LAST_SYNC_KEY, DateTime.now().millisecondsSinceEpoch);
-    print('✅ Saved ${items.length} items to local storage');
+    //print('✅ Saved ${items.length} items to local storage');
   } catch (e) {
-    print('❌ Error saving items to local storage: $e');
+    //print('❌ Error saving items to local storage: $e');
   }
 }
 
@@ -51,7 +51,7 @@ List<InventoryItem> getInventoryItems() {
       );
     }).toList();
   } catch (e) {
-    print('❌ Error reading items from local storage: $e');
+    //print('❌ Error reading items from local storage: $e');
     return [];
   }
 }
@@ -86,9 +86,9 @@ Future<void> updateItemsCategory(String oldCategoryName, String newCategoryName)
     }).toList();
     
     await saveInventoryItems(updatedItems); // Assuming you have this method
-    print('✅ Updated items category from "$oldCategoryName" to "$newCategoryName" in cache');
+    //print('✅ Updated items category from "$oldCategoryName" to "$newCategoryName" in cache');
   } catch (e) {
-    print('❌ Error updating items category in cache: $e');
+    //print('❌ Error updating items category in cache: $e');
   }
 }
   // Delete inventory item
@@ -105,9 +105,9 @@ Future<void> saveCategories(List<Category> categories) async {
   try {
     final categoriesJson = categories.map((category) => category.toCacheMap()).toList();
     await _prefs.setString(CATEGORIES_KEY, jsonEncode(categoriesJson));
-    print('✅ Saved ${categories.length} categories to local storage');
+    //print('✅ Saved ${categories.length} categories to local storage');
   } catch (e) {
-    print('❌ Error saving categories to local storage: $e');
+    //print('❌ Error saving categories to local storage: $e');
   }
 }
 
@@ -122,7 +122,7 @@ List<Category> getCategories() {
       return Category.fromCacheMap(Map<String, dynamic>.from(json));
     }).toList();
   } catch (e) {
-    print('❌ Error reading categories from local storage: $e');
+    //print('❌ Error reading categories from local storage: $e');
     return [];
   }
 }
@@ -250,7 +250,7 @@ List<Category> getCategories() {
       await _prefs.setStringList(SEARCH_HISTORY_WITH_TIME_KEY, historyWithTime);
       
     } catch (e) {
-      print('❌ Error saving search history: $e');
+      //print('❌ Error saving search history: $e');
     }
   }
 
@@ -271,7 +271,7 @@ List<Category> getCategories() {
         }
       }).toList();
     } catch (e) {
-      print('❌ Error getting search history with time: $e');
+      //print('❌ Error getting search history with time: $e');
       return [];
     }
   }
@@ -309,7 +309,7 @@ List<Category> getCategories() {
     await _prefs.remove(INVENTORY_ITEMS_KEY);
     await _prefs.remove(CATEGORIES_KEY);
     await _prefs.remove(LAST_SYNC_KEY);
-    print('✅ Cleared all local cache');
+    //print('✅ Cleared all local cache');
   }
 
   // Get cache statistics

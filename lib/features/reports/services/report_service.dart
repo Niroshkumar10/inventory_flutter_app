@@ -64,8 +64,8 @@ class ReportService {
     String? paymentStatus,
   }) async {
     try {
-      print('📊 Fetching sales reports for user: $userMobile');
-      print('📅 Date range: $startDate to $endDate');
+      //print('📊 Fetching sales reports for user: $userMobile');
+      //print('📅 Date range: $startDate to $endDate');
       
       Query query = _getUserBillsCollection(userMobile)
           .where('type', isEqualTo: 'sales')
@@ -81,15 +81,15 @@ class ReportService {
       }
 
       final querySnapshot = await query.get();
-      print('✅ Found ${querySnapshot.docs.length} sales bills');
+      //print('✅ Found ${querySnapshot.docs.length} sales bills');
 
       return querySnapshot.docs.map((doc) {
         final bill = Bill.fromMap(doc.data() as Map<String, dynamic>, doc.id);
         return SalesReport.fromBill(bill);
       }).toList();
     } catch (e, stackTrace) {
-      print('❌ Error getting sales reports: $e');
-      print('Stack trace: $stackTrace');
+      //print('❌ Error getting sales reports: $e');
+      //print('Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -104,7 +104,7 @@ class ReportService {
     String? paymentStatus,
   }) async {
     try {
-      print('📊 Fetching purchase reports for user: $userMobile');
+      //print('📊 Fetching purchase reports for user: $userMobile');
       
       Query query = _getUserBillsCollection(userMobile)
           .where('type', isEqualTo: 'purchase')
@@ -120,15 +120,15 @@ class ReportService {
       }
 
       final querySnapshot = await query.get();
-      print('✅ Found ${querySnapshot.docs.length} purchase bills');
+      //print('✅ Found ${querySnapshot.docs.length} purchase bills');
 
       return querySnapshot.docs.map((doc) {
         final bill = Bill.fromMap(doc.data() as Map<String, dynamic>, doc.id);
         return PurchaseReport.fromBill(bill);
       }).toList();
     } catch (e, stackTrace) {
-      print('❌ Error getting purchase reports: $e');
-      print('Stack trace: $stackTrace');
+      //print('❌ Error getting purchase reports: $e');
+      //print('Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -141,7 +141,7 @@ class ReportService {
     String? status,
   }) async {
     try {
-      print('📊 Fetching inventory reports for user: $userMobile');
+      //print('📊 Fetching inventory reports for user: $userMobile');
       
       Query query = _getUserInventoryCollection(userMobile)
           .where('isActive', isEqualTo: true);
@@ -151,7 +151,7 @@ class ReportService {
       }
 
       final querySnapshot = await query.get();
-      print('✅ Found ${querySnapshot.docs.length} inventory items');
+      //print('✅ Found ${querySnapshot.docs.length} inventory items');
 
       List<InventoryReport> reports = querySnapshot.docs.map((doc) {
         final item = InventoryItem.fromMap(doc.data() as Map<String, dynamic>, doc.id);
@@ -161,13 +161,13 @@ class ReportService {
       // Filter by status if provided
       if (status != null && status.isNotEmpty && status != 'All') {
         reports = reports.where((report) => report.status == status).toList();
-        print('✅ Filtered to ${reports.length} items with status: $status');
+        //print('✅ Filtered to ${reports.length} items with status: $status');
       }
 
       return reports;
     } catch (e, stackTrace) {
-      print('❌ Error getting inventory reports: $e');
-      print('Stack trace: $stackTrace');
+      //print('❌ Error getting inventory reports: $e');
+      //print('Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -179,7 +179,7 @@ class ReportService {
     required DateTime endDate,
   }) async {
     try {
-      print('📊 Fetching customer reports for user: $userMobile');
+      //print('📊 Fetching customer reports for user: $userMobile');
       
       // Get sales data for period
       final salesQuery = await _getUserBillsCollection(userMobile)
@@ -188,7 +188,7 @@ class ReportService {
           .where('date', isLessThanOrEqualTo: endDate)
           .get();
 
-      print('📊 Found ${salesQuery.docs.length} sales in period');
+      //print('📊 Found ${salesQuery.docs.length} sales in period');
 
       // Group sales by customer name
       final Map<String, Map<String, dynamic>> customerData = {};
@@ -200,7 +200,7 @@ class ReportService {
           final customerName = bill.partyName.trim();
           
           if (customerName.isEmpty) {
-            print('⚠️ Bill ${bill.invoiceNumber} has empty customer name');
+            //print('⚠️ Bill ${bill.invoiceNumber} has empty customer name');
             continue;
           }
 
@@ -225,7 +225,7 @@ class ReportService {
             stats['lastPurchaseDate'] = bill.date;
           }
         } catch (e) {
-          print('⚠️ Error processing bill ${doc.id}: $e');
+          //print('⚠️ Error processing bill ${doc.id}: $e');
         }
       }
 
@@ -247,17 +247,17 @@ class ReportService {
       // Sort by total spent (descending)
       reports.sort((a, b) => b.totalSpent.compareTo(a.totalSpent));
 
-      print('✅ Generated ${reports.length} customer reports');
+      //print('✅ Generated ${reports.length} customer reports');
       
       // Debug output
       for (final report in reports) {
-        print('   👤 ${report.name}: ${report.totalPurchases} purchases, ₹${report.totalSpent}');
+        //print('   👤 ${report.name}: ${report.totalPurchases} purchases, ₹${report.totalSpent}');
       }
       
       return reports;
     } catch (e, stackTrace) {
-      print('❌ Error getting customer reports: $e');
-      print('Stack trace: $stackTrace');
+      //print('❌ Error getting customer reports: $e');
+      //print('Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -270,8 +270,8 @@ Future<List<SupplierReport>> getSupplierReports({
   required DateTime endDate,
 }) async {
   try {
-    print('📊 Fetching supplier reports for user: $userMobile');
-    print('📅 Date range: $startDate to $endDate');
+    //print('📊 Fetching supplier reports for user: $userMobile');
+    //print('📅 Date range: $startDate to $endDate');
     
     // 1. Get all suppliers from user's subcollection - REMOVE THE isActive FILTER
     final suppliersQuery = await _getUserSuppliersCollection(userMobile)
@@ -281,16 +281,16 @@ Future<List<SupplierReport>> getSupplierReports({
       return Supplier.fromMap(doc.data() as Map<String, dynamic>, doc.id);
     }).toList();
 
-    print('✅ Found ${suppliers.length} suppliers for user: $userMobile');
+    //print('✅ Found ${suppliers.length} suppliers for user: $userMobile');
 
     if (suppliers.isEmpty) {
-      print('⚠️ No suppliers found for this user at all');
+      //print('⚠️ No suppliers found for this user at all');
       return [];
     }
 
-    // Print ALL suppliers for debugging (not just active)
+    // //print ALL suppliers for debugging (not just active)
     for (final supplier in suppliers) {
-      print('   👥 Supplier: "${supplier.name}", ID: ${supplier.id}, Active: ${supplier.isActive}');
+      //print('   👥 Supplier: "${supplier.name}", ID: ${supplier.id}, Active: ${supplier.isActive}');
     }
 
     // 2. Get purchase data for period
@@ -300,7 +300,7 @@ Future<List<SupplierReport>> getSupplierReports({
         .where('date', isLessThanOrEqualTo: endDate)
         .get();
 
-    print('📊 Found ${purchasesQuery.docs.length} purchases in period');
+    //print('📊 Found ${purchasesQuery.docs.length} purchases in period');
 
     // Process purchase data
     final Map<String, SupplierStats> supplierStats = {};
@@ -312,11 +312,11 @@ Future<List<SupplierReport>> getSupplierReports({
         final supplierName = bill.partyName;
 
         if (supplierName.isEmpty) {
-          print('⚠️ Purchase bill ${doc.id} has empty supplier name');
+          //print('⚠️ Purchase bill ${doc.id} has empty supplier name');
           continue;
         }
 
-        print('   🔍 Processing purchase for supplier: "$supplierName"');
+        //print('   🔍 Processing purchase for supplier: "$supplierName"');
 
         if (!supplierStats.containsKey(supplierName)) {
           supplierStats[supplierName] = SupplierStats(
@@ -336,16 +336,16 @@ Future<List<SupplierReport>> getSupplierReports({
           stats.lastOrderDate = bill.date;
         }
 
-        print('   📝 Purchase details: ₹${bill.totalAmount}, Due: ₹${bill.amountDue}');
+        //print('   📝 Purchase details: ₹${bill.totalAmount}, Due: ₹${bill.amountDue}');
       } catch (e) {
-        print('❌ Error processing purchase bill ${doc.id}: $e');
+        //print('❌ Error processing purchase bill ${doc.id}: $e');
       }
     }
 
     // 3. Show all supplier stats found in purchases
-    print('📋 Supplier stats from purchases:');
+    //print('📋 Supplier stats from purchases:');
     for (final entry in supplierStats.entries) {
-      print('   📍 "${entry.key}": ${entry.value.totalOrders} orders, ₹${entry.value.totalPurchases}');
+      //print('   📍 "${entry.key}": ${entry.value.totalOrders} orders, ₹${entry.value.totalPurchases}');
     }
 
     // 4. Create supplier reports - Show ALL suppliers
@@ -360,11 +360,11 @@ Future<List<SupplierReport>> getSupplierReports({
         final billSupplierName = entry.key.trim().toLowerCase();
         final supplierName = supplier.name.trim().toLowerCase();
         
-        print('   🔄 Comparing bill: "$billSupplierName" with supplier: "$supplierName"');
+        //print('   🔄 Comparing bill: "$billSupplierName" with supplier: "$supplierName"');
         
         if (billSupplierName == supplierName) {
           matchingStats = entry.value;
-          print('   ✅ Exact match found for supplier: ${supplier.name}');
+          //print('   ✅ Exact match found for supplier: ${supplier.name}');
           break;
         }
       }
@@ -377,7 +377,7 @@ Future<List<SupplierReport>> getSupplierReports({
           
           if (billSupplierName.contains(supplierName) || supplierName.contains(billSupplierName)) {
             matchingStats = entry.value;
-            print('   🔄 Partial match for supplier: ${supplier.name} -> ${entry.key}');
+            //print('   🔄 Partial match for supplier: ${supplier.name} -> ${entry.key}');
             break;
           }
         }
@@ -404,14 +404,14 @@ Future<List<SupplierReport>> getSupplierReports({
     // Sort by total purchases (descending)
     reports.sort((a, b) => b.totalPurchases.compareTo(a.totalPurchases));
 
-    print('✅ Generated ${reports.length} supplier reports');
-    print('📋 Suppliers with purchases: ${reports.where((r) => r.totalPurchases > 0).length}');
-    print('📋 Suppliers with zero purchases: ${reports.where((r) => r.totalPurchases == 0).length}');
+    //print('✅ Generated ${reports.length} supplier reports');
+    //print('📋 Suppliers with purchases: ${reports.where((r) => r.totalPurchases > 0).length}');
+    //print('📋 Suppliers with zero purchases: ${reports.where((r) => r.totalPurchases == 0).length}');
     
     return reports; // Return ALL suppliers
   } catch (e, stackTrace) {
-    print('❌ Error getting supplier reports: $e');
-    print('Stack trace: $stackTrace');
+    //print('❌ Error getting supplier reports: $e');
+    //print('Stack trace: $stackTrace');
     return []; // Return empty list instead of rethrowing
   }
 } 
@@ -422,8 +422,8 @@ Future<List<SupplierReport>> getSupplierReports({
     required DateTime endDate,
   }) async {
     try {
-      print('📊 Calculating P&L for user: $userMobile');
-      print('📅 Period: $startDate to $endDate');
+      //print('📊 Calculating P&L for user: $userMobile');
+      //print('📅 Period: $startDate to $endDate');
 
       // Get sales revenue
       final salesQuery = await _getUserBillsCollection(userMobile)
@@ -457,13 +457,13 @@ Future<List<SupplierReport>> getSupplierReports({
       final netProfit = grossProfit - expenses;
       final profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-      print('💰 P&L Results:');
-      print('   Revenue: ₹$totalRevenue');
-      print('   Cost: ₹$totalCost');
-      print('   Gross Profit: ₹$grossProfit');
-      print('   Expenses: ₹$expenses');
-      print('   Net Profit: ₹$netProfit');
-      print('   Margin: ${profitMargin.toStringAsFixed(2)}%');
+      //print('💰 P&L Results:');
+      //print('   Revenue: ₹$totalRevenue');
+      //print('   Cost: ₹$totalCost');
+      //print('   Gross Profit: ₹$grossProfit');
+      //print('   Expenses: ₹$expenses');
+      //print('   Net Profit: ₹$netProfit');
+      //print('   Margin: ${profitMargin.toStringAsFixed(2)}%');
 
       return ProfitLossReport(
         id: '${startDate.millisecondsSinceEpoch}_${endDate.millisecondsSinceEpoch}',
@@ -479,8 +479,8 @@ Future<List<SupplierReport>> getSupplierReports({
         generatedAt: DateTime.now(),
       );
     } catch (e, stackTrace) {
-      print('❌ Error getting profit loss report: $e');
-      print('Stack trace: $stackTrace');
+      //print('❌ Error getting profit loss report: $e');
+      //print('Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -497,7 +497,7 @@ Future<List<SupplierReport>> getSupplierReports({
     required DateTime endDate,
   }) async {
     try {
-      print('📊 Fetching dashboard summary for user: $userMobile');
+      //print('📊 Fetching dashboard summary for user: $userMobile');
 
       // Get sales summary
       final salesReports = await getSalesReports(
@@ -524,11 +524,11 @@ Future<List<SupplierReport>> getSupplierReports({
       );
       final totalPurchases = purchaseReports.fold(0.0, (sum, report) => sum + report.totalAmount);
 
-      print('📊 Summary Calculated:');
-      print('   Total Sales: ₹$totalSales');
-      print('   Total Purchases: ₹$totalPurchases');
-      print('   Inventory Value: ₹$totalInventoryValue');
-      print('   Outstanding: ₹$totalDue');
+      //print('📊 Summary Calculated:');
+      //print('   Total Sales: ₹$totalSales');
+      //print('   Total Purchases: ₹$totalPurchases');
+      //print('   Inventory Value: ₹$totalInventoryValue');
+      //print('   Outstanding: ₹$totalDue');
 
       return [
         ReportSummary(
@@ -587,8 +587,8 @@ Future<List<SupplierReport>> getSupplierReports({
         ),
       ];
     } catch (e, stackTrace) {
-      print('❌ Error getting dashboard summary: $e');
-      print('Stack trace: $stackTrace');
+      //print('❌ Error getting dashboard summary: $e');
+      //print('Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -700,8 +700,8 @@ Future<List<SupplierReport>> getSupplierReports({
 
       return reportData;
     } catch (e, stackTrace) {
-      print('❌ Error exporting report data: $e');
-      print('Stack trace: $stackTrace');
+      //print('❌ Error exporting report data: $e');
+      //print('Stack trace: $stackTrace');
       rethrow;
     }
   }

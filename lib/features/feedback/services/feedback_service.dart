@@ -21,7 +21,7 @@ class FeedbackService {
       final docRef = await _feedbackCollection.add(feedback.toMap());
       return docRef.id;
     } catch (e) {
-      print('❌ Error adding feedback: $e');
+      //print('❌ Error adding feedback: $e');
       throw Exception('Failed to add feedback: $e');
     }
   }
@@ -37,7 +37,7 @@ class FeedbackService {
         'respondedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('❌ Error updating feedback status: $e');
+      //print('❌ Error updating feedback status: $e');
       throw Exception('Failed to update feedback status: $e');
     }
   }
@@ -52,7 +52,7 @@ class FeedbackService {
         'respondedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('❌ Error adding response: $e');
+      //print('❌ Error adding response: $e');
       throw Exception('Failed to add response: $e');
     }
   }
@@ -144,7 +144,7 @@ Stream<List<FeedbackItem>> getFeedback() {
         'avgRating': feedbacks.isEmpty ? 0 : (feedbacks.map((f) => f.rating).reduce((a, b) => a + b) / feedbacks.length).round(),
       };
     } catch (e) {
-      print('❌ Error getting feedback stats: $e');
+      //print('❌ Error getting feedback stats: $e');
       return {
         'total': 0,
         'pending': 0,
@@ -162,7 +162,7 @@ Stream<List<FeedbackItem>> getFeedback() {
     try {
       await _feedbackCollection.doc(id).delete();
     } catch (e) {
-      print('❌ Error deleting feedback: $e');
+      //print('❌ Error deleting feedback: $e');
       throw Exception('Failed to delete feedback: $e');
     }
   }

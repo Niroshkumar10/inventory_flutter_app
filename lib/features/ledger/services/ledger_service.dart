@@ -57,10 +57,10 @@ class LedgerService {
       // Save to Firestore
       final docRef = await _userLedgerCollection.add(updatedEntry.toMap());
       
-      print('✅ Ledger entry added: ${docRef.id}');
+      //print('✅ Ledger entry added: ${docRef.id}');
       return docRef.id;
     } catch (e) {
-      print('❌ Error adding ledger entry: $e');
+      //print('❌ Error adding ledger entry: $e');
       throw Exception('Failed to add ledger entry: $e');
     }
   }
@@ -76,16 +76,16 @@ class LedgerService {
       }
       
       await batch.commit();
-      print('✅ ${entries.length} ledger entries added in bulk');
+      //print('✅ ${entries.length} ledger entries added in bulk');
     } catch (e) {
-      print('❌ Error bulk adding ledger entries: $e');
+      //print('❌ Error bulk adding ledger entries: $e');
       throw Exception('Failed to add ledger entries: $e');
     }
   }
 // Add this method to your LedgerService class
 Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5}) async {
   try {
-    print('📊 Fetching ledger entries for party: $partyId');
+    //print('📊 Fetching ledger entries for party: $partyId');
     
     // Create query with filtering and sorting
     Query query = _userLedgerCollection
@@ -100,7 +100,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
     final snapshot = await query.get();
     
     if (snapshot.docs.isEmpty) {
-      print('📭 No ledger entries found for party: $partyId');
+      //print('📭 No ledger entries found for party: $partyId');
       return [];
     }
     
@@ -112,10 +112,10 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       );
     }).toList();
     
-    print('✅ Found ${entries.length} entries for party: $partyId');
+    //print('✅ Found ${entries.length} entries for party: $partyId');
     return entries;
   } catch (e) {
-    print('❌ Error getting party ledger entries: $e');
+    //print('❌ Error getting party ledger entries: $e');
     return [];
   }
 }
@@ -146,7 +146,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       
       return balance;
     } catch (e) {
-      print('⚠️ Using fallback balance calculation: $e');
+      //print('⚠️ Using fallback balance calculation: $e');
       return 0.0;
     }
   }
@@ -245,7 +245,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
         summary: summary,
       );
     } catch (e) {
-      print('❌ Error getting ledger report: $e');
+      //print('❌ Error getting ledger report: $e');
       throw Exception('Failed to generate ledger report: $e');
     }
   }
@@ -381,7 +381,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
         'pendingCount': pendingCount,
       };
     } catch (e) {
-      print('❌ Error getting statistics: $e');
+      //print('❌ Error getting statistics: $e');
       return {
         'totalSales': 0,
         'totalPurchases': 0,
@@ -434,7 +434,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       
       return balances;
     } catch (e) {
-      print('❌ Error getting party balances: $e');
+      //print('❌ Error getting party balances: $e');
       return {};
     }
   }
@@ -443,9 +443,9 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
   Future<void> deleteLedgerEntry(String id) async {
     try {
       await _userLedgerCollection.doc(id).delete();
-      print('✅ Ledger entry deleted: $id');
+      //print('✅ Ledger entry deleted: $id');
     } catch (e) {
-      print('❌ Error deleting ledger entry: $e');
+      //print('❌ Error deleting ledger entry: $e');
       throw Exception('Failed to delete ledger entry: $e');
     }
   }
@@ -466,9 +466,9 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
         'status': entry.status,
       });
       
-      print('✅ Ledger entry updated: ${entry.id}');
+      //print('✅ Ledger entry updated: ${entry.id}');
     } catch (e) {
-      print('❌ Error updating ledger entry: $e');
+      //print('❌ Error updating ledger entry: $e');
       throw Exception('Failed to update ledger entry: $e');
     }
   }
@@ -479,9 +479,9 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       await _userLedgerCollection.doc(id).update({
         'status': status,
       });
-      print('✅ Ledger status updated: $id -> $status');
+      //print('✅ Ledger status updated: $id -> $status');
     } catch (e) {
-      print('❌ Error updating ledger status: $e');
+      //print('❌ Error updating ledger status: $e');
       throw Exception('Failed to update ledger status: $e');
     }
   }
@@ -540,7 +540,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
         );
       }
     } catch (e) {
-      print('❌ Error exporting ledger report: $e');
+      //print('❌ Error exporting ledger report: $e');
       throw Exception('Failed to export ledger report: $e');
     }
   }

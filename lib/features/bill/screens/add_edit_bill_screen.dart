@@ -115,109 +115,109 @@ Future<void> _loadInventoryData() async {
     print('❌ Error loading inventory data: $e');
   }
 }
-  /// Handle inventory updates for NEW bills
-  Future<void> _handleInventoryUpdatesForNewBill(Bill bill) async {
-    print('🔄 Handling inventory updates for new ${bill.type} bill');
-    print('  Invoice: ${bill.invoiceNumber}');
-    print('  Total items: ${bill.items.length}');
+/// Handle inventory updates for NEW bills
+Future<void> _handleInventoryUpdatesForNewBill(Bill bill) async {
+  print('🔄 Handling inventory updates for new ${bill.type} bill');
+  print('  Invoice: ${bill.invoiceNumber}');
+  print('  Total items: ${bill.items.length}');
+  
+  for (int i = 0; i < bill.items.length; i++) {
+    final item = bill.items[i];
+    print('  Item ${i + 1}: ${item.description}');
+    print('    Quantity: ${item.quantity}');
+    print('    Inventory ID: ${item.inventoryItemId}');
+    print('    Unit: ${item.unit}');
     
-    for (int i = 0; i < bill.items.length; i++) {
-      final item = bill.items[i];
-      print('  Item ${i + 1}: ${item.description}');
-      print('    Quantity: ${item.quantity}');
-      print('    Inventory ID: ${item.inventoryItemId}');
-      print('    Unit: ${item.unit}');
-      
-      if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-        try {
-          final adjustment = bill.type == 'sales' ? -item.quantity : item.quantity;
-          print('    Adjustment: $adjustment (${bill.type == 'sales' ? 'decrease' : 'increase'})');
-          
-          await _inventoryService.adjustStock(
-            item.inventoryItemId!,
-            adjustment.toInt(),
-            '${bill.type == 'sales' ? 'Sold' : 'Purchased'} ${item.quantity} in bill ${bill.invoiceNumber}',
-          );
-          
-          print('    ✅ Stock update SUCCESS');
-          
-          // Verify the update worked
-          final updatedItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
-          print('    Verified stock: ${updatedItem.quantity}');
-          
-        } catch (e) {
-          print('    ❌ Stock update FAILED: $e');
-          print('    Stack trace: ${e.toString()}');
-        }
-      } else {
-        print('    ⚠️ No inventoryItemId - SKIPPING stock update');
-        print('    This means the item was not selected from inventory');
+    if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
+      try {
+        final adjustment = bill.type == 'sales' ? -item.quantity : item.quantity;
+        print('    Adjustment: $adjustment (${bill.type == 'sales' ? 'decrease' : 'increase'})');
+        
+        await _inventoryService.adjustStock(
+          item.inventoryItemId!,
+          adjustment.toInt(),
+          '${bill.type == 'sales' ? 'Sold' : 'Purchased'} ${item.quantity} in bill ${bill.invoiceNumber}',
+        );
+        
+        print('    ✅ Stock update SUCCESS');
+        
+        // Verify the update worked
+        final updatedItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
+        print('    Verified stock: ${updatedItem.quantity}');
+        
+      } catch (e) {
+        print('    ❌ Stock update FAILED: $e');
+        print('    Stack trace: ${e.toString()}');
       }
+    } else {
+      print('    ⚠️ No inventoryItemId - SKIPPING stock update');
+      print('    This means the item was not selected from inventory');
     }
   }
+}
 
-  /// Handle inventory updates for EDITING bills
-  Future<void> _handleInventoryUpdatesForEdit(Bill oldBill, Bill newBill) async {
-    print('🔄 Handling inventory updates for edited bill');
-    print('  Old bill type: ${oldBill.type}, New bill type: ${newBill.type}');
-    
-    // Track items by inventoryId to calculate differences
-    final Map<String, int> oldQuantities = {};
-    final Map<String, int> newQuantities = {};
-    
-    // Collect old quantities
-    for (final item in oldBill.items) {
-      if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-        oldQuantities[item.inventoryItemId!] = item.quantity.toInt();
-      }
-    }
-    
-    // Collect new quantities
-    for (final item in newBill.items) {
-      if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-        newQuantities[item.inventoryItemId!] = item.quantity.toInt();
-      }
-    }
-    
-    // Calculate adjustments for each inventory item
-    final allItemIds = {
-      ...oldQuantities.keys,
-      ...newQuantities.keys,
-    };
-    
-    for (final itemId in allItemIds) {
-      final oldQty = oldQuantities[itemId] ?? 0;
-      final newQty = newQuantities[itemId] ?? 0;
-      final difference = newQty - oldQty;
-      
-      if (difference != 0) {
-        try {
-          // Determine adjustment based on bill type
-          int adjustment = difference;
-          
-          if (newBill.type == 'sales') {
-            // For sales: if quantity increased, decrease more stock; if decreased, add back stock
-            adjustment = -difference;
-          }
-          // For purchases: if quantity increased, increase more stock; if decreased, decrease stock
-          
-          print('  📊 Adjusting stock for item $itemId: $oldQty → $newQty (diff: $difference, adj: $adjustment)');
-          
-          await _inventoryService.adjustStock(
-            itemId,
-            adjustment,
-            'Updated from $oldQty to $newQty in bill ${newBill.invoiceNumber}',
-          );
-          
-          print('  ✅ Stock adjustment completed for item $itemId');
-        } catch (e) {
-          print('  ❌ Error adjusting stock for item $itemId: $e');
-        }
-      } else {
-        print('  ⏭️ No quantity change for item $itemId, skipping update');
-      }
+/// Handle inventory updates for EDITING bills
+Future<void> _handleInventoryUpdatesForEdit(Bill oldBill, Bill newBill) async {
+  print('🔄 Handling inventory updates for edited bill');
+  print('  Old bill type: ${oldBill.type}, New bill type: ${newBill.type}');
+  
+  // Track items by inventoryId to calculate differences
+  final Map<String, int> oldQuantities = {};
+  final Map<String, int> newQuantities = {};
+  
+  // Collect old quantities
+  for (final item in oldBill.items) {
+    if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
+      oldQuantities[item.inventoryItemId!] = item.quantity.toInt();
     }
   }
+  
+  // Collect new quantities
+  for (final item in newBill.items) {
+    if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
+      newQuantities[item.inventoryItemId!] = item.quantity.toInt();
+    }
+  }
+  
+  // Calculate adjustments for each inventory item
+  final allItemIds = {
+    ...oldQuantities.keys,
+    ...newQuantities.keys,
+  };
+  
+  for (final itemId in allItemIds) {
+    final oldQty = oldQuantities[itemId] ?? 0;
+    final newQty = newQuantities[itemId] ?? 0;
+    final difference = newQty - oldQty;
+    
+    if (difference != 0) {
+      try {
+        // Determine adjustment based on bill type
+        int adjustment = difference;
+        
+        if (newBill.type == 'sales') {
+          // For sales: if quantity increased, decrease more stock; if decreased, add back stock
+          adjustment = -difference;
+        }
+        // For purchases: if quantity increased, increase more stock; if decreased, decrease stock
+        
+        print('  📊 Adjusting stock for item $itemId: $oldQty → $newQty (diff: $difference, adj: $adjustment)');
+        
+        await _inventoryService.adjustStock(
+          itemId,
+          adjustment,
+          'Updated from $oldQty to $newQty in bill ${newBill.invoiceNumber}',
+        );
+        
+        print('  ✅ Stock adjustment completed for item $itemId');
+      } catch (e) {
+        print('  ❌ Error adjusting stock for item $itemId: $e');
+      }
+    } else {
+      print('  ⏭️ No quantity change for item $itemId, skipping update');
+    }
+  }
+}
 void _filterItems() {
   print('🔍 Filtering items with search: "${_searchController.text}", category: $_selectedCategory');
   
@@ -1842,80 +1842,242 @@ Widget _buildItemRow(int index) {
     );
   }
 
-  Future<void> _saveBill() async {
-    print('💾 Saving bill...');
-    print('  Bill type: ${widget.type}');
-    print('  Is edit mode: ${widget.billToEdit != null}');
+Future<void> _saveBill() async {
+  print('💾 Saving bill...');
+  print('  Bill type: ${widget.type}');
+  print('  Is edit mode: ${widget.billToEdit != null}');
 
-    if (widget.billToEdit != null) {
-      print('  Bill ID: ${widget.billToEdit!.id}');
-      print('  Original Invoice Number: ${widget.billToEdit!.invoiceNumber}');
-    }
-    
-    if (!_formKey.currentState!.validate()) {
-      print('❌ Form validation failed');
-      return;
-    }
-    
-    // Validate party name
-    if (_partyNameController.text.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please select a ${widget.type == 'sales' ? 'customer' : 'supplier'}'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-      return;
-    }
-    
-  // Validate that all items are selected from inventory
-for (int i = 0; i < _items.length; i++) {
-  final item = _items[i];
-  if (item.inventoryItemId == null || item.inventoryItemId!.isEmpty) {
+  if (widget.billToEdit != null) {
+    print('  Bill ID: ${widget.billToEdit!.id}');
+    print('  Original Invoice Number: ${widget.billToEdit!.invoiceNumber}');
+  }
+  
+  if (!_formKey.currentState!.validate()) {
+    print('❌ Form validation failed');
+    return;
+  }
+  
+  // Validate party name
+  if (_partyNameController.text.isEmpty) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please select all items from inventory'),
+          content: Text('Please select a ${widget.type == 'sales' ? 'customer' : 'supplier'}'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }
     return;
   }
-}  
-    // Validate inventory stock for sales bills
-    if (widget.type == 'sales') {
-      bool hasInsufficientStock = false;
-      String errorMessage = '';
-      String errorItemName = '';
-      
-      for (final item in _items) {
-        // Only check inventory if item has a valid inventoryItemId
-        if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-          try {
-            final inventoryItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
-            
-            if (item.quantity > inventoryItem.quantity) {
-              hasInsufficientStock = true;
-              errorMessage = 'Insufficient stock for ${inventoryItem.name}. '
-                  'Available: ${inventoryItem.quantity}, Requested: ${item.quantity}';
-              errorItemName = inventoryItem.name;
-              break;
-            }
-          } catch (e) {
-            print('⚠️ Error checking inventory stock for item ${item.inventoryItemId}: $e');
-            // Don't fail if we can't check inventory, just log it
+  
+  // Validate that all items are selected from inventory
+  for (int i = 0; i < _items.length; i++) {
+    final item = _items[i];
+    if (item.inventoryItemId == null || item.inventoryItemId!.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please select all items from inventory'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+      return;
+    }
+  }
+  
+  // Validate inventory stock for sales bills (ENHANCED for batch tracking)
+  if (widget.type == 'sales') {
+    bool hasInsufficientStock = false;
+    String errorMessage = '';
+    
+    for (final item in _items) {
+      if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
+        try {
+          final inventoryItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
+          
+          // Check available stock based on tracking method
+          int availableStock;
+          if (inventoryItem.trackByBatch) {
+            // Get total from batches
+            final batchSummary = await _inventoryService.getBatchSummary(item.inventoryItemId!);
+            availableStock = batchSummary['totalRemaining'] ?? 0;
+            print('  Batch item ${inventoryItem.name}: Available from batches: $availableStock');
+          } else {
+            availableStock = inventoryItem.quantity;
+            print('  Simple item ${inventoryItem.name}: Available stock: $availableStock');
           }
+          
+          if (item.quantity > availableStock) {
+            hasInsufficientStock = true;
+            errorMessage = 'Insufficient stock for ${inventoryItem.name}. '
+                'Available: $availableStock ${inventoryItem.unit}, Requested: ${item.quantity} ${inventoryItem.unit}';
+            break;
+          }
+        } catch (e) {
+          print('⚠️ Error checking inventory stock for item ${item.inventoryItemId}: $e');
         }
       }
+    }
+    
+    if (hasInsufficientStock) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+  }
+  
+  // Check if widget is still mounted
+  if (!mounted) {
+    print('⚠️ Widget is disposed, skipping save');
+    return;
+  }
+  
+  setState(() => _isLoading = true);
+  
+  try {
+    // DEBUG: Log current items before processing
+    print('🔄 Processing items before creating bill:');
+    for (int i = 0; i < _items.length; i++) {
+      final item = _items[i];
+      print('  Item $i: ${item.description}');
+      print('    Inventory ID from UI: ${item.inventoryItemId}');
+      print('    Unit from UI: ${item.unit}');
+    }
+    
+    // Process items - preserve the inventoryItemId from the original items
+    final processedItems = _items.map((item) {
+      return BillItem.create(
+        description: item.description,
+        quantity: item.quantity,
+        price: item.price,
+        inventoryItemId: item.inventoryItemId ?? '',
+        unit: item.unit ?? '',
+        category: item.category ?? '',
+        name: item.name ?? item.description,
+      );
+    }).toList();
+    
+    // DEBUG: Log processed items
+    print('✅ Processed items for bill:');
+    for (int i = 0; i < processedItems.length; i++) {
+      final item = processedItems[i];
+      print('  Item $i: ${item.description}');
+      print('    Inventory ID: ${item.inventoryItemId}');
+      print('    Unit: ${item.unit}');
+    }
+    
+    // Use the factory method to create the bill
+    final bill = Bill.create(
+      type: widget.type,
+      invoiceNumber: _invoiceNumber!,
+      partyName: _partyNameController.text,
+      userMobile: widget.userMobile,
+      partyPhone: _partyPhoneController.text,
+      partyAddress: _partyAddressController.text,
+      items: processedItems,
+      subtotal: _subtotal,
+      gstRate: double.tryParse(_gstRateController.text) ?? 0.0,
+      gstAmount: _gstAmount,
+      totalAmount: _totalAmount,
+      amountPaid: double.tryParse(_amountPaidController.text) ?? 0.0,
+      amountDue: _amountDue,
+      paymentStatus: _amountDue <= 0 ? 'paid' : (_amountDue < _totalAmount ? 'partial' : 'due'),
+      isGST: _isGST,
+      notes: _notesController.text,
+    );
+    
+    print('📋 Bill created successfully:');
+    print('  Type: ${bill.type}');
+    print('  Invoice: ${bill.invoiceNumber}');
+    print('  Party: ${bill.partyName}');
+    print('  Items: ${bill.items.length}');
+    
+    // Log item details for debugging
+    for (int i = 0; i < bill.items.length; i++) {
+      final item = bill.items[i];
+      print('    Item ${i + 1}: ${item.description}');
+      print('      Qty: ${item.quantity}, Price: ${item.price}');
+      print('      Inventory ID: "${item.inventoryItemId}"');
+      print('      Unit: "${item.unit}"');
+      print('      Has inventory ID: ${item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty}');
+    }
+    
+    print('  Subtotal: $_subtotal');
+    print('  GST: $_gstAmount');
+    print('  Total: $_totalAmount');
+    
+    if (widget.billToEdit != null) {
+      print('✏️ Updating existing bill...');
+      print('  Original ID: ${widget.billToEdit!.id}');
       
-      if (hasInsufficientStock) {
+      final updatedBill = bill.copyWith(id: widget.billToEdit!.id);
+      print('  Updated bill ID: ${updatedBill.id}');
+      
+      try {
+        await widget.billService.updateBill(updatedBill);
+        print('✅ Bill updated successfully in database');
+        
+        // Update inventory stock for edited bills
+        await _handleInventoryUpdatesForEdit(widget.billToEdit!, updatedBill);
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(errorMessage),
+              content: const Text('Transaction updated successfully'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e, stackTrace) {
+        print('❌ Error in updateBill: $e');
+        print('Stack trace: $stackTrace');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update transaction: ${e.toString()}'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+    } else {
+      print('➕ Adding new bill to database...');
+      try {
+        await widget.billService.addBill(bill);
+        print('✅ Bill added successfully to database');
+        
+        // Handle inventory stock updates for BOTH sales and purchases
+        await _handleInventoryUpdatesForNewBill(bill);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Transaction saved successfully'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e, stackTrace) {
+        print('❌ Error adding bill to database: $e');
+        print('Stack trace: $stackTrace');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to save transaction: ${e.toString()}'),
               backgroundColor: Theme.of(context).colorScheme.error,
               duration: Duration(seconds: 3),
             ),
@@ -1925,191 +2087,138 @@ for (int i = 0; i < _items.length; i++) {
       }
     }
     
-    // Check if widget is still mounted
-    if (!mounted) {
-      print('⚠️ Widget is disposed, skipping save');
-      return;
+    // Check if still mounted before navigating
+    if (mounted) {
+      print('✅ Navigating back...');
+      Navigator.pop(context);
+    } else {
+      print('⚠️ Widget was disposed before navigation');
     }
     
-    setState(() => _isLoading = true);
+  } catch (e, stackTrace) {
+    print('❌ Unexpected error in saveBill process: $e');
+    print('Stack trace: $stackTrace');
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving transaction: ${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  } finally {
+    // Check if mounted before setState
+    if (mounted) {
+      setState(() => _isLoading = false);
+    } else {
+      print('⚠️ Widget disposed, cannot update loading state');
+    }
+  }
+}
+// Add this method to handle stock deduction for sales
+Future<void> _deductStockForBill(Bill bill) async {
+  print('📦 Deducting stock for bill ${bill.invoiceNumber}');
+  
+  for (final billItem in bill.items) {
+    if (billItem.inventoryItemId == null || billItem.inventoryItemId!.isEmpty) {
+      print('⚠️ Skipping item with no inventory ID: ${billItem.description}');
+      continue;
+    }
     
     try {
-      // DEBUG: Log current items before processing
-      print('🔄 Processing items before creating bill:');
-      for (int i = 0; i < _items.length; i++) {
-        final item = _items[i];
-        print('  Item $i: ${item.description}');
-        print('    Inventory ID from UI: ${item.inventoryItemId}');
-        print('    Unit from UI: ${item.unit}');
-      }
+      final inventoryItem = await _inventoryService.getInventoryItem(billItem.inventoryItemId!);
       
-      // Process items - preserve the inventoryItemId from the original items
-      final processedItems = _items.map((item) {
-        return BillItem.create(
-          description: item.description,
-          quantity: item.quantity,
-          price: item.price,
-          inventoryItemId: item.inventoryItemId ?? '',
-          unit: item.unit ?? '',
-          category: item.category ?? '',
-          name: item.name ?? item.description,
-        );
-      }).toList();
-      
-      // DEBUG: Log processed items
-      print('✅ Processed items for bill:');
-      for (int i = 0; i < processedItems.length; i++) {
-        final item = processedItems[i];
-        print('  Item $i: ${item.description}');
-        print('    Inventory ID: ${item.inventoryItemId}');
-        print('    Unit: ${item.unit}');
-      }
-      
-      // Use the factory method to create the bill
-      final bill = Bill.create(
-        type: widget.type,
-        invoiceNumber: _invoiceNumber!,
-        partyName: _partyNameController.text,
-        userMobile: widget.userMobile,
-        partyPhone: _partyPhoneController.text,
-        partyAddress: _partyAddressController.text,
-        items: processedItems,
-        subtotal: _subtotal,
-        gstRate: double.tryParse(_gstRateController.text) ?? 0.0,
-        gstAmount: _gstAmount,
-        totalAmount: _totalAmount,
-        amountPaid: double.tryParse(_amountPaidController.text) ?? 0.0,
-        amountDue: _amountDue,
-        paymentStatus: _amountDue <= 0 ? 'paid' : (_amountDue < _totalAmount ? 'partial' : 'due'),
-        isGST: _isGST,
-        notes: _notesController.text,
-      );
-      
-      print('📋 Bill created successfully:');
-      print('  Type: ${bill.type}');
-      print('  Invoice: ${bill.invoiceNumber}');
-      print('  Party: ${bill.partyName}');
-      print('  Items: ${bill.items.length}');
-      
-      // Log item details for debugging
-      for (int i = 0; i < bill.items.length; i++) {
-        final item = bill.items[i];
-        print('    Item ${i + 1}: ${item.description}');
-        print('      Qty: ${item.quantity}, Price: ${item.price}');
-        print('      Inventory ID: "${item.inventoryItemId}"');
-        print('      Unit: "${item.unit}"');
-        print('      Has inventory ID: ${item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty}');
-      }
-      
-      print('  Subtotal: $_subtotal');
-      print('  GST: $_gstAmount');
-      print('  Total: $_totalAmount');
-      
-      if (widget.billToEdit != null) {
-        print('✏️ Updating existing bill...');
-        print('  Original ID: ${widget.billToEdit!.id}');
+      if (inventoryItem.trackByBatch) {
+        // For batch-tracked items - use FIFO consumption
+        print('🔄 Using batch FIFO for ${inventoryItem.name}');
         
-        final updatedBill = bill.copyWith(id: widget.billToEdit!.id);
-        print('  Updated bill ID: ${updatedBill.id}');
+        final batchService = _inventoryService.batchService;
         
-        try {
-          await widget.billService.updateBill(updatedBill);
-          print('✅ Bill updated successfully in database');
-          
-          // Update inventory stock for edited bills
-          await _handleInventoryUpdatesForEdit(widget.billToEdit!, updatedBill);
-          
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Transaction updated successfully'),
-                backgroundColor: Theme.of(context).colorScheme.secondary,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        } catch (e, stackTrace) {
-          print('❌ Error in updateBill: $e');
-          print('Stack trace: $stackTrace');
-          
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to update transaction: ${e.toString()}'),
-                backgroundColor: Theme.of(context).colorScheme.error,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
-        }
-      } else {
-        print('➕ Adding new bill to database...');
-        try {
-          await widget.billService.addBill(bill);
-          print('✅ Bill added successfully to database');
-          
-          // Handle inventory stock updates for BOTH sales and purchases
-          await _handleInventoryUpdatesForNewBill(bill);
-          
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Transaction saved successfully'),
-                backgroundColor: Theme.of(context).colorScheme.secondary,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        } catch (e, stackTrace) {
-          print('❌ Error adding bill to database: $e');
-          print('Stack trace: $stackTrace');
-          
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to save transaction: ${e.toString()}'),
-                backgroundColor: Theme.of(context).colorScheme.error,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
-        }
-      }
-      
-      // Check if still mounted before navigating
-      if (mounted) {
-        print('✅ Navigating back...');
-        Navigator.pop(context);
-      } else {
-        print('⚠️ Widget was disposed before navigation');
-      }
-      
-    } catch (e, stackTrace) {
-      print('❌ Unexpected error in saveBill process: $e');
-      print('Stack trace: $stackTrace');
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving transaction: ${e.toString()}'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            duration: Duration(seconds: 3),
-          ),
+        await batchService.consumeStockFIFO(
+          inventoryId: billItem.inventoryItemId!,
+          quantityToConsume: billItem.quantity.toInt(),
+          transactionType: 'SALE',
+          reason: 'Sale bill: ${bill.invoiceNumber}',
+          referenceId: bill.id,
+          consumedBy: widget.userMobile,
         );
-      }
-    } finally {
-      // Check if mounted before setState
-      if (mounted) {
-        setState(() => _isLoading = false);
+        
+        print('✅ Deducted ${billItem.quantity} ${inventoryItem.unit} from batches');
       } else {
-        print('⚠️ Widget disposed, cannot update loading state');
+        // For simple items - use adjustStock
+        print('🔄 Using simple deduction for ${inventoryItem.name}');
+        
+        await _inventoryService.adjustStock(
+          billItem.inventoryItemId!,
+          -billItem.quantity.toInt(), // Negative to reduce stock
+          'Sale from bill ${bill.invoiceNumber}',
+        );
+        
+        print('✅ Deducted ${billItem.quantity} ${inventoryItem.unit} from simple stock');
       }
+      
+    } catch (e) {
+      print('❌ Failed to deduct stock for ${billItem.description}: $e');
+      throw Exception('Stock deduction failed for ${billItem.description}: $e');
     }
   }
   
-  void _addItem() {
+  print('✅ Stock deduction completed for all items');
+}
+
+Future<void> _addStockForPurchaseBill(Bill bill) async {
+  print('📦 Adding stock from purchase bill ${bill.invoiceNumber}');
+  
+  for (final billItem in bill.items) {
+    if (billItem.inventoryItemId == null || billItem.inventoryItemId!.isEmpty) {
+      print('⚠️ Skipping item with no inventory ID: ${billItem.description}');
+      continue;
+    }
+    
+    try {
+      final inventoryItem = await _inventoryService.getInventoryItem(billItem.inventoryItemId!);
+      
+      if (inventoryItem.trackByBatch) {
+        // For batch-tracked items - create new batch
+        print('🔄 Creating new batch for ${inventoryItem.name}');
+        
+        await _inventoryService.purchaseStock(
+          inventoryId: billItem.inventoryItemId!,
+          quantity: billItem.quantity.toInt(),
+          purchasePrice: inventoryItem.cost,
+          expiryDate: DateTime.now().add(const Duration(days: 365)), // Default 1 year
+          purchaseDate: bill.date,
+          supplierInvoiceNo: bill.invoiceNumber,
+          supplierName: bill.partyName,
+        );
+        
+        print('✅ Added ${billItem.quantity} ${inventoryItem.unit} as new batch');
+      } else {
+        // For simple items - just add quantity
+        print('🔄 Adding to simple stock for ${inventoryItem.name}');
+        
+        await _inventoryService.adjustStock(
+          billItem.inventoryItemId!,
+          billItem.quantity.toInt(), // Positive to add stock
+          'Purchase from bill ${bill.invoiceNumber}',
+        );
+        
+        print('✅ Added ${billItem.quantity} ${inventoryItem.unit} to stock');
+      }
+      
+    } catch (e) {
+      print('❌ Failed to add stock for ${billItem.description}: $e');
+      throw Exception('Stock addition failed for ${billItem.description}: $e');
+    }
+  }
+  
+  print('✅ Stock addition completed for all items');
+}
+// Update your existing _handleInventoryUpdatesForNewBill method
+
+ void _addItem() {
   setState(() {
     _items.add(BillItem.create(
       description: 'Tap to select item',

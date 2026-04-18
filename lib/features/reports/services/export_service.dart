@@ -30,16 +30,16 @@ class ExportService {
 
   // Method to set user details from profile data
   void setUserDetailsFromProfile(Map<String, dynamic> userData) {
-    print('📋 Setting user details from profile: $userData');
+    //print('📋 Setting user details from profile: $userData');
     
     _userName = userData['name']?.toString();
     _businessName = userData['businessName']?.toString() ?? 'My Business';
     _location = userData['location']?.toString();
     
-    print('✅ Set values:');
-    print('  - userName: $_userName');
-    print('  - businessName: $_businessName');
-    print('  - location: $_location');
+    //print('✅ Set values:');
+    //print('  - userName: $_userName');
+    //print('  - businessName: $_businessName');
+    //print('  - location: $_location');
   }
   
   // Individual setter if needed
@@ -81,14 +81,14 @@ Future<String> exportToPdf({
   Map<String, dynamic>? userData,
 }) async {
   try {
-    print('📄 Starting PDF export for $reportType...');
+    //print('📄 Starting PDF export for $reportType...');
     
     // Set user details if provided
     if (userData != null) {
-      print('📋 User data received in exportToPdf');
+      //print('📋 User data received in exportToPdf');
       setUserDetailsFromProfile(userData);
     } else {
-      print('⚠️ No user data provided to exportToPdf');
+      //print('⚠️ No user data provided to exportToPdf');
     }
 
     List<Map<String, dynamic>> dataRows;
@@ -144,7 +144,7 @@ Future<String> exportToPdf({
       );
     }
   } catch (e) {
-    print('❌ PDF Export Error: $e');
+    //print('❌ PDF Export Error: $e');
     return 'Error exporting PDF: $e';
   }
 }  // ============ NEW: Inventory Report Parsing ============
@@ -173,7 +173,7 @@ Future<String> exportToPdf({
           'Status': status,
         });
       } catch (e) {
-        print('⚠️ Error parsing inventory report: $e');
+        //print('⚠️ Error parsing inventory report: $e');
       }
     }
     return rows;
@@ -204,7 +204,7 @@ Future<String> exportToPdf({
           'Outstanding': outstanding,
         });
       } catch (e) {
-        print('⚠️ Error parsing customer report: $e');
+        //print('⚠️ Error parsing customer report: $e');
       }
     }
     return rows;
@@ -241,7 +241,7 @@ List<Map<String, dynamic>> _parseSupplierReports(List<dynamic> reports) {
         'Last Order': lastOrderDate,
       });
     } catch (e) {
-      print('⚠️ Error parsing supplier report: $e');
+      //print('⚠️ Error parsing supplier report: $e');
     }
   }
   return rows;
@@ -255,7 +255,7 @@ Future<String> exportToExcel({
   required dynamic data,
 }) async {
   try {
-    print('📊 Starting Excel export for $reportType...');
+    //print('📊 Starting Excel export for $reportType...');
     
     String csvContent;
     
@@ -321,7 +321,7 @@ Future<String> exportToExcel({
       return await _saveCsvToMobile(csvContent, reportType);
     }
   } catch (e) {
-    print('❌ Excel Export Error: $e');
+    //print('❌ Excel Export Error: $e');
     return 'Error exporting Excel: $e';
   }
 }
@@ -363,7 +363,7 @@ Future<String> exportToExcel({
         
         csv += '"$name","$sku","$category","$quantity","${_currencyFormat.format(price)}","${_currencyFormat.format(total)}","$status"\n';
       } catch (e) {
-        print('⚠️ Error processing inventory for CSV: $e');
+        //print('⚠️ Error processing inventory for CSV: $e');
       }
     }
     
@@ -413,7 +413,7 @@ Future<String> exportToExcel({
         
         csv += '"$name","$mobile","$totalPurchases","${NumberFormat('#,##0.00').format(totalSpent)}","${_currencyFormat.format(outstanding)}"\n';
       } catch (e) {
-        print('⚠️ Error processing customer for CSV: $e');
+        //print('⚠️ Error processing customer for CSV: $e');
       }
     }
     
@@ -474,7 +474,7 @@ String _createSupplierCsvContent({
              '"${_currencyFormat.format(pendingPayment)}",'
              '"$lastOrderDate"\n';
     } catch (e) {
-      print('⚠️ Error processing supplier for CSV: $e');
+      //print('⚠️ Error processing supplier for CSV: $e');
     }
   }
   
@@ -524,7 +524,7 @@ String _createSupplierCsvContent({
           'Status': paymentStatus,
         });
       } catch (e) {
-        print('⚠️ Error parsing sales report: $e');
+        //print('⚠️ Error parsing sales report: $e');
       }
     }
     
@@ -562,7 +562,7 @@ String _createSupplierCsvContent({
           'Status': paymentStatus,
         });
       } catch (e) {
-        print('⚠️ Error parsing purchase report: $e');
+        //print('⚠️ Error parsing purchase report: $e');
       }
     }
     
@@ -738,7 +738,7 @@ String _createSupplierCsvContent({
                '"${_currencyFormat.format(amountDue)}",'
                '"${paymentStatus.toUpperCase()}"\n';
       } catch (e) {
-        print('⚠️ Error processing sales report for CSV: $e');
+        //print('⚠️ Error processing sales report for CSV: $e');
       }
     }
     
@@ -776,7 +776,7 @@ String _createSupplierCsvContent({
                  '"${_currencyFormat.format(total)}"\n';
         }
       } catch (e) {
-        print('⚠️ Error processing item details for CSV: $e');
+        //print('⚠️ Error processing item details for CSV: $e');
       }
     }
     
@@ -837,7 +837,7 @@ String _createSupplierCsvContent({
                '"${_currencyFormat.format(amountDue)}",'
                '"${paymentStatus.toUpperCase()}"\n';
       } catch (e) {
-        print('⚠️ Error processing purchase report for CSV: $e');
+        //print('⚠️ Error processing purchase report for CSV: $e');
       }
     }
     
@@ -875,7 +875,7 @@ String _createSupplierCsvContent({
                  '"${_currencyFormat.format(total)}"\n';
         }
       } catch (e) {
-        print('⚠️ Error processing purchase item details for CSV: $e');
+        //print('⚠️ Error processing purchase item details for CSV: $e');
       }
     }
     
@@ -909,7 +909,7 @@ String _createSupplierCsvContent({
           pendingCount++;
         }
       } catch (e) {
-        print('⚠️ Error calculating sales summary: $e');
+        //print('⚠️ Error calculating sales summary: $e');
       }
     }
     
@@ -948,7 +948,7 @@ String _createSupplierCsvContent({
           pendingCount++;
         }
       } catch (e) {
-        print('⚠️ Error calculating purchase summary: $e');
+        //print('⚠️ Error calculating purchase summary: $e');
       }
     }
     
@@ -1522,12 +1522,12 @@ String _createSupplierCsvContent({
       final bytes = await pdf.save();
       await file.writeAsBytes(bytes);
       
-      print('📄 PDF saved to: $filePath');
+      //print('📄 PDF saved to: $filePath');
       await openFile(filePath);
       
       return '✅ PDF saved to: $filePath';
     } catch (e) {
-      print('❌ Mobile PDF generation error: $e');
+      //print('❌ Mobile PDF generation error: $e');
       return 'Failed to generate PDF: $e';
     }
   }
@@ -1536,9 +1536,9 @@ String _createSupplierCsvContent({
   Future<void> openFile(String filePath) async {
     if (!kIsWeb) {
       final result = await OpenFile.open(filePath);
-      print('📂 Open file result: ${result.message}');
+      //print('📂 Open file result: ${result.message}');
     } else {
-      print('📂 On web, files are downloaded directly to browser');
+      //print('📂 On web, files are downloaded directly to browser');
     }
   }
 
@@ -1554,7 +1554,7 @@ String _createSupplierCsvContent({
       
       return '✅ CSV saved to: $filePath';
     } catch (e) {
-      print('❌ Error saving CSV: $e');
+      //print('❌ Error saving CSV: $e');
       return 'Failed to save CSV file: $e';
     }
   }
@@ -1579,10 +1579,10 @@ String _createSupplierCsvContent({
         html.Url.revokeObjectUrl(url);
       });
       
-      print('✅ PDF download initiated: $fileName');
+      //print('✅ PDF download initiated: $fileName');
       return true;
     } catch (e) {
-      print('❌ PDF download failed: $e');
+      //print('❌ PDF download failed: $e');
       return false;
     }
   }
@@ -1596,7 +1596,7 @@ String _createSupplierCsvContent({
       
       return await _downloadWithDataUri(content, fileName);
     } catch (e) {
-      print('❌ Real web download error: $e');
+      //print('❌ Real web download error: $e');
       return false;
     }
   }
@@ -1619,10 +1619,10 @@ String _createSupplierCsvContent({
         html.Url.revokeObjectUrl(url);
       });
       
-      print('✅ Download initiated via universal_html: $fileName');
+      //print('✅ Download initiated via universal_html: $fileName');
       return true;
     } catch (e) {
-      print('❌ Universal HTML download failed: $e');
+      //print('❌ Universal HTML download failed: $e');
       return false;
     }
   }
@@ -1642,10 +1642,10 @@ String _createSupplierCsvContent({
       
       _injectHtml(downloadLink);
       
-      print('✅ Download attempted via data URI: $fileName');
+      //print('✅ Download attempted via data URI: $fileName');
       return true;
     } catch (e) {
-      print('❌ Data URI download failed: $e');
+      //print('❌ Data URI download failed: $e');
       return false;
     }
   }
@@ -1719,7 +1719,7 @@ String _createSupplierCsvContent({
         rows.add(Map<String, dynamic>.from(data));
       }
     } catch (e) {
-      print('❌ Error parsing data: $e');
+      //print('❌ Error parsing data: $e');
     }
     
     return rows;

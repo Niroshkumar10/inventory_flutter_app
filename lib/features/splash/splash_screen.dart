@@ -85,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen> {
             const SizedBox(height: 25),
             
             Text(
-              'Inventory Pro',
+              'Kadai',
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,

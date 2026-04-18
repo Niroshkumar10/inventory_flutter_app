@@ -10,7 +10,7 @@
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
         android:minSdkVersion="30" />
     <application
-        android:label="Shop-Inventory"
+        android:label="Kadai"
         android:name="${applicationName}"
         android:icon="@mipmap/app_logo"
         android:requestLegacyExternalStorage="true">
