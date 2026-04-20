@@ -17,7 +17,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.inventory_app"
+    namespace = "com.pushpa.inventory"
     compileSdk = 36
 
     ndkVersion = flutter.ndkVersion
@@ -34,7 +34,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.inventory_app"
+        applicationId = "com.pushpa.inventory"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = flutter.versionCode

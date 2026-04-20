@@ -122,7 +122,9 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
               _buildBatchSummarySection(),
               const SizedBox(height: 24),
             ],
-            
+            _buildBatchDetailsSection(),  // ← ADD THIS LINE
+            const SizedBox(height: 24),
+
             _buildInfoSection(),
             const SizedBox(height: 24),
             _buildStockSection(),
@@ -409,30 +411,433 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
     );
   }
 
-  Widget _buildQuickActionButtons() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  // Widget _buildQuickActionButtons() {
+  //   final theme = Theme.of(context);
+  //   final colorScheme = theme.colorScheme;
     
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: _item.trackByBatch
-                ? () => _handlePurchase()
-                : () => _showStockAdjustmentDialog(),
-            icon: const Icon(Icons.shopping_cart),
-            label: Text(_item.trackByBatch ? 'Add Batch' : 'Purchase Stock'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
+  //   return Row(
+  //     children: [
+  //       Expanded(
+  //         child: ElevatedButton.icon(
+  //           onPressed: _item.trackByBatch
+  //               ? () => _handlePurchase()
+  //               : () => _showStockAdjustmentDialog(),
+  //           icon: const Icon(Icons.shopping_cart),
+  //           label: Text(_item.trackByBatch ? 'Add Batch' : 'Purchase Stock'),
+  //           style: ElevatedButton.styleFrom(
+  //             backgroundColor: colorScheme.primary,
+  //             foregroundColor: Colors.white,
+  //             padding: const EdgeInsets.symmetric(vertical: 12),
+  //           ),
+  //         ),
+  //       ),
+  //       const SizedBox(width: 12),
+  //     ],
+  //   );
+  // }
+  Widget _buildQuickActionButtons() {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  
+  return Row(
+    children: [
+      Expanded(
+        child: ElevatedButton.icon(
+          onPressed: _item.trackByBatch
+              ? () => _handlePurchase()
+              : () => _showStockAdjustmentDialog(),
+          icon: const Icon(Icons.shopping_cart),
+          label: Text(_item.trackByBatch ? 'Add Batch' : 'Purchase Stock'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
           ),
         ),
-        const SizedBox(width: 12),
-      ],
-    );
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: () => _showSellDialog(),
+          icon: const Icon(Icons.sell),
+          label: const Text('Sell Stock'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
+      ),
+      // ADD THIS NEW BUTTON
+      const SizedBox(width: 12),
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: () => _showSalesHistory(),
+          icon: const Icon(Icons.history),
+          label: const Text('Sales History'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+
+// Add this method to _InventoryItemScreenState
+
+Widget _buildBatchDetailsSection() {
+  if (!_item.trackByBatch) return const SizedBox.shrink();
+  
+  return FutureBuilder<List<Map<String, dynamic>>>(
+    future: widget.inventoryService.batchService.getBatchesWithDetails(_item.id),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        );
+      }
+      
+      if (snapshot.hasError) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: Text('Error loading batches: ${snapshot.error}'),
+            ),
+          ),
+        );
+      }
+      
+      final batches = snapshot.data ?? [];
+      
+      if (batches.isEmpty) {
+        return const Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(
+              child: Text('No batches found'),
+            ),
+          ),
+        );
+      }
+      
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.inventory_2, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Batch Details',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${batches.length} Batches',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              
+              // Batch List
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: batches.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final batchData = batches[index];
+                  final batch = batchData['batch'] as Batch;
+                  final totalSold = batchData['totalSold'] ?? 0;
+                  final remainingQty = batchData['remainingQuantity'] ?? 0;
+                  final totalQty = batchData['totalQuantity'] ?? 0;
+                  
+                  return _buildBatchDetailCard(
+                    batch: batch,
+                    totalSold: totalSold,
+                    remainingQty: remainingQty,
+                    totalQty: totalQty,
+                    batchNumber: index + 1,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _buildBatchDetailCard({
+  required Batch batch,
+  required int totalSold,
+  required int remainingQty,
+  required int totalQty,
+  required int batchNumber,
+}) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  
+  // Determine batch status
+  bool isExpired = batch.isExpired;
+  bool isNearExpiry = batch.isNearExpiry;
+  bool isLowStock = remainingQty <= 5;
+  
+  Color statusColor;
+  String statusText;
+  IconData statusIcon;
+  
+  if (isExpired) {
+    statusColor = Colors.red;
+    statusText = 'EXPIRED';
+    statusIcon = Icons.cancel;
+  } else if (isNearExpiry) {
+    statusColor = Colors.orange;
+    statusText = 'NEAR EXPIRY';
+    statusIcon = Icons.warning;
+  } else if (remainingQty == 0) {
+    statusColor = Colors.grey;
+    statusText = 'SOLD OUT';
+    statusIcon = Icons.check_circle;
+  } else if (isLowStock) {
+    statusColor = Colors.orange;
+    statusText = 'LOW STOCK';
+    statusIcon = Icons.inventory;
+  } else {
+    statusColor = Colors.green;
+    statusText = 'ACTIVE';
+    statusIcon = Icons.check_circle;
   }
+  
+  return Container(
+    decoration: BoxDecoration(
+      border: Border.all(color: statusColor.withOpacity(0.3)),
+      borderRadius: BorderRadius.circular(12),
+      color: statusColor.withOpacity(0.05),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with Batch Number and Status
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Batch #$batchNumber',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: statusColor),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 12, color: statusColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Stock Information Row
+          Row(
+            children: [
+              Expanded(
+                child: _buildBatchInfoTile(
+                  label: 'Total',
+                  value: '$totalQty ${_item.unit}',
+                  icon: Icons.production_quantity_limits,
+                  color: Colors.blue,
+                ),
+              ),
+              Expanded(
+                child: _buildBatchInfoTile(
+                  label: 'Remaining',
+                  value: '$remainingQty ${_item.unit}',
+                  icon: Icons.inventory,
+                  color: remainingQty > 0 ? Colors.green : Colors.red,
+                ),
+              ),
+              Expanded(
+                child: _buildBatchInfoTile(
+                  label: 'Sold',
+                  value: '$totalSold ${_item.unit}',
+                  icon: Icons.sell,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Expiry Information
+          Row(
+            children: [
+              Icon(Icons.event, size: 14, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(
+                'Expires: ${_formatDate(batch.expiryDate)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isExpired ? Colors.red : (isNearExpiry ? Colors.orange : Colors.grey),
+                  fontWeight: isExpired || isNearExpiry ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              const Spacer(),
+              if (!isExpired && !isNearExpiry)
+                Text(
+                  '${batch.daysUntilExpiry} days left',
+                  style: const TextStyle(fontSize: 11, color: Colors.green),
+                ),
+              if (isNearExpiry && !isExpired)
+                Text(
+                  '${batch.daysUntilExpiry} days left',
+                  style: const TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.bold),
+                ),
+            ],
+          ),
+          
+          // Purchase Info
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.shopping_cart, size: 14, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(
+                'Purchased: ${_formatDate(batch.purchaseDate)}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              const Spacer(),
+              Text(
+                '₹${batch.purchasePrice.toStringAsFixed(2)}/unit',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ],
+          ),
+          
+          // Supplier Info (if available)
+          if (batch.supplierName != null && batch.supplierName!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.local_shipping, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Supplier: ${batch.supplierName}',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                  if (batch.supplierInvoiceNo != null)
+                    Text(
+                      ' | Invoice: ${batch.supplierInvoiceNo}',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+          
+          // Progress bar for stock usage
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: remainingQty / totalQty,
+              backgroundColor: Colors.grey.shade200,
+              color: remainingQty == 0 
+                  ? Colors.red 
+                  : (isNearExpiry ? Colors.orange : Colors.green),
+              minHeight: 6,
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${((remainingQty / totalQty) * 100).toStringAsFixed(0)}% remaining',
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
+              Text(
+                '${((totalSold / totalQty) * 100).toStringAsFixed(0)}% sold',
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildBatchInfoTile({
+  required String label,
+  required String value,
+  required IconData icon,
+  required Color color,
+}) {
+  return Column(
+    children: [
+      Icon(icon, size: 16, color: color),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 10, color: Colors.grey),
+      ),
+    ],
+  );
+}
 
   Future<void> _handlePurchase() async {
     final result = await Navigator.push(
@@ -1031,6 +1436,306 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
       ),
     );
   }
+
+// Add this method to _InventoryItemScreenState class
+
+Future<void> _showSalesHistory() async {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      maxChildSize: 0.9,
+      minChildSize: 0.5,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: colorScheme.outline),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Sales History - ${_item.name}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: colorScheme.onSurface),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              // Content
+              Expanded(
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: widget.inventoryService.batchService.getSalesSummary(_item.id),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    
+                    final summary = snapshot.data ?? {};
+                    final totalSold = summary['totalSold'] ?? 0;
+                    final totalSalesCount = summary['totalSalesCount'] ?? 0;
+                    final recentSales = summary['recentSales'] as List<StockConsumption>? ?? [];
+                    
+                    return ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        // Summary Cards
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Card(
+                                color: colorScheme.primary.withOpacity(0.1),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        '$totalSold',
+                                        style: TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.primary,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Total Sold',
+                                        style: TextStyle(color: colorScheme.primary),
+                                      ),
+                                      Text(
+                                        '${_item.unit}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Card(
+                                color: colorScheme.secondary.withOpacity(0.1),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        '$totalSalesCount',
+                                        style: TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.secondary,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Total Transactions',
+                                        style: TextStyle(color: colorScheme.secondary),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 16),
+                        
+                        // Recent Sales List
+                        Text(
+                          'Recent Sales',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        
+                        if (recentSales.isEmpty)
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Text(
+                                'No sales recorded yet',
+                                style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                              ),
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: recentSales.length,
+                            separatorBuilder: (_, __) => const Divider(),
+                            itemBuilder: (context, index) {
+                              final sale = recentSales[index];
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: colorScheme.primary.withOpacity(0.1),
+                                  child: Icon(Icons.sell, color: colorScheme.primary, size: 20),
+                                ),
+                                title: Text(
+                                  'Sold: ${sale.quantityConsumed} ${_item.unit}',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: Text(
+                                  '${_formatDate(sale.consumedAt)} • ${sale.reason}',
+                                ),
+                                trailing: Text(
+                                  '₹${(sale.quantityConsumed * _item.price).toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        
+                        const SizedBox(height: 16),
+                        
+                        // View All Button
+                        if (recentSales.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showAllSalesHistory();
+                            },
+                            child: const Text('View All Sales History'),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Future<void> _showAllSalesHistory() async {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  
+  final consumptions = await widget.inventoryService.batchService.getConsumptionHistory(_item.id);
+  final sales = consumptions.where((c) => c.transactionType == 'SALE').toList();
+  
+  showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: Container(
+        width: double.maxFinite,
+        height: MediaQuery.of(context).size.height * 0.8,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'All Sales History',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: colorScheme.onSurface),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const Divider(),
+            Expanded(
+              child: sales.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No sales recorded',
+                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: sales.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder: (context, index) {
+                        final sale = sales[index];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            child: Text('${index + 1}'),
+                          ),
+                          title: Text('Sold: ${sale.quantityConsumed} ${_item.unit}'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Date: ${_formatDateTime(sale.consumedAt)}'),
+                              if (sale.referenceId != null)
+                                Text('Reference: ${sale.referenceId}', style: TextStyle(fontSize: 12)),
+                              Text('Reason: ${sale.reason}', style: TextStyle(fontSize: 12)),
+                            ],
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '₹${(sale.quantityConsumed * _item.price).toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              Text(
+                                _formatDate(sale.consumedAt),
+                                style: TextStyle(fontSize: 10, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
   Future<void> _deleteItem(BuildContext context, InventoryItem item) async {
     try {

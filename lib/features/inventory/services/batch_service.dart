@@ -295,6 +295,156 @@ class BatchService {
       };
     }
   }
+
+/// Get all batches with their consumption/sales details (NO COMPLEX INDEX NEEDED)
+Future<List<Map<String, dynamic>>> getBatchesWithDetails(String inventoryId) async {
+  try {
+    // Simple query - only filter by inventoryId (no complex indexes needed)
+    final batchesSnapshot = await _getBatchesCollection(inventoryId)
+        .get();  // Remove the where and orderBy clauses
+    
+    List<Map<String, dynamic>> batchDetails = [];
+    
+    for (var doc in batchesSnapshot.docs) {
+      final batch = Batch.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      
+      // Only include active batches (filter in memory)
+      if (!batch.isActive) continue;
+      
+      // Get consumption/sales history for this batch
+      final consumptionsSnapshot = await _getConsumptionsCollection(inventoryId, batch.id)
+          .get();
+      
+      int totalSold = 0;
+      List<Map<String, dynamic>> salesHistory = [];
+      
+      for (var consumptionDoc in consumptionsSnapshot.docs) {
+        final consumption = StockConsumption.fromMap(
+          consumptionDoc.data() as Map<String, dynamic>, 
+          consumptionDoc.id
+        );
+        totalSold += consumption.quantityConsumed;
+        salesHistory.add({
+          'quantity': consumption.quantityConsumed,
+          'date': consumption.consumedAt,
+          'type': consumption.transactionType,
+          'reference': consumption.referenceId,
+        });
+      }
+      
+      batchDetails.add({
+        'batch': batch,
+        'totalSold': totalSold,
+        'remainingQuantity': batch.remainingQuantity,
+        'totalQuantity': batch.quantity,
+        'salesHistory': salesHistory,
+      });
+    }
+    
+    // Sort by expiry date in memory (FIFO order)
+    batchDetails.sort((a, b) {
+      final batchA = a['batch'] as Batch;
+      final batchB = b['batch'] as Batch;
+      return batchA.expiryDate.compareTo(batchB.expiryDate);
+    });
+    
+    return batchDetails;
+    
+  } catch (e) {
+    print('❌ Error getting batches with details: $e');
+    return [];
+  }
+}
+/// Get consumption history for an inventory item
+Future<List<StockConsumption>> getConsumptionHistory(
+  String inventoryId, {
+  int limit = 50,
+  DateTime? startDate,
+  DateTime? endDate,
+}) async {
+  try {
+    // Get all batches first
+    final batchesSnapshot = await _getBatchesCollection(inventoryId)
+        .where('isActive', isEqualTo: true)
+        .get();
+    
+    List<StockConsumption> allConsumptions = [];
+    
+    // Collect consumptions from each batch
+    for (var batchDoc in batchesSnapshot.docs) {
+      final batchId = batchDoc.id;
+      final consumptionsSnapshot = await _getConsumptionsCollection(inventoryId, batchId)
+          .orderBy('consumedAt', descending: true)
+          .limit(limit)
+          .get();
+      
+      for (var consumptionDoc in consumptionsSnapshot.docs) {
+        final consumption = StockConsumption.fromMap(
+          consumptionDoc.data() as Map<String, dynamic>, 
+          consumptionDoc.id
+        );
+        
+        // Apply date filters if provided
+        if (startDate != null && consumption.consumedAt.isBefore(startDate)) continue;
+        if (endDate != null && consumption.consumedAt.isAfter(endDate)) continue;
+        
+        allConsumptions.add(consumption);
+      }
+    }
+    
+    // Sort by date (newest first)
+    allConsumptions.sort((a, b) => b.consumedAt.compareTo(a.consumedAt));
+    
+    // Apply limit
+    if (allConsumptions.length > limit) {
+      allConsumptions = allConsumptions.take(limit).toList();
+    }
+    
+    return allConsumptions;
+    
+  } catch (e) {
+    print('❌ Error getting consumption history: $e');
+    return [];
+  }
+}
+
+/// Get sales summary for an inventory item
+Future<Map<String, dynamic>> getSalesSummary(String inventoryId) async {
+  try {
+    final consumptions = await getConsumptionHistory(inventoryId);
+    
+    int totalSold = 0;
+    int totalSalesCount = 0;
+    Map<String, int> salesByMonth = {};
+    
+    for (var consumption in consumptions) {
+      if (consumption.transactionType == 'SALE') {
+        totalSold += consumption.quantityConsumed;
+        totalSalesCount++;
+        
+        // Group by month for chart data
+        final monthKey = '${consumption.consumedAt.year}-${consumption.consumedAt.month}';
+        salesByMonth[monthKey] = (salesByMonth[monthKey] ?? 0) + consumption.quantityConsumed;
+      }
+    }
+    
+    return {
+      'totalSold': totalSold,
+      'totalSalesCount': totalSalesCount,
+      'salesByMonth': salesByMonth,
+      'recentSales': consumptions.where((c) => c.transactionType == 'SALE').take(10).toList(),
+    };
+    
+  } catch (e) {
+    print('❌ Error getting sales summary: $e');
+    return {
+      'totalSold': 0,
+      'totalSalesCount': 0,
+      'salesByMonth': {},
+      'recentSales': [],
+    };
+  }
+}
   
   // Get batches that are near expiry (for alerts)
   Future<List<Batch>> getNearExpiryBatches(String inventoryId, {int daysThreshold = 30}) async {

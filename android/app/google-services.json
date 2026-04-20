@@ -26,6 +26,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:160026269130:android:631e0580fbbdb939c96b33",
+        "android_client_info": {
+          "package_name": "com.pushpa.inventory"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVyJwMIFQtWE-sde1EMNZl-o2v7s5_4cg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:160026269130:android:0be3980ca1ab29fbc96b33",
         "android_client_info": {
           "package_name": "inventory.app"
