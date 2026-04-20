@@ -355,6 +355,78 @@ Future<List<Map<String, dynamic>>> getBatchesWithDetails(String inventoryId) asy
     return [];
   }
 }
+
+/// Consume stock from a specific batch (instead of FIFO)
+Future<List<StockConsumption>> consumeStockFromSpecificBatch({
+  required String inventoryId,
+  required String batchId,
+  required int quantityToConsume,
+  required String transactionType,
+  required String reason,
+  String? referenceId,
+  required String consumedBy,
+}) async {
+  try {
+    print('📦 Consuming from specific batch: $batchId');
+    print('  Quantity: $quantityToConsume');
+    
+    // Get the batch
+    final batchDoc = await _getBatchesCollection(inventoryId).doc(batchId).get();
+    
+    if (!batchDoc.exists) {
+      throw Exception('Batch not found');
+    }
+    
+    final batch = Batch.fromMap(batchDoc.data() as Map<String, dynamic>, batchId);
+    
+    if (!batch.isActive) {
+      throw Exception('Batch is not active');
+    }
+    
+    if (batch.remainingQuantity < quantityToConsume) {
+      throw Exception('Insufficient stock in batch. Available: ${batch.remainingQuantity}');
+    }
+    
+    final newRemainingQuantity = batch.remainingQuantity - quantityToConsume;
+    
+    // Record consumption
+    final consumption = StockConsumption(
+      id: '',
+      inventoryId: inventoryId,
+      batchId: batchId,
+      quantityConsumed: quantityToConsume,
+      transactionType: transactionType,
+      referenceId: referenceId,
+      reason: reason,
+      consumedAt: DateTime.now(),
+      consumedBy: consumedBy,
+    );
+    
+    // Update batch
+    final batchRef = _getBatchesCollection(inventoryId).doc(batchId);
+    final consumptionRef = _getConsumptionsCollection(inventoryId, batchId).doc();
+    
+    final batchWrite = _firestore.batch();
+    batchWrite.update(batchRef, {
+      'remainingQuantity': newRemainingQuantity,
+      'isActive': newRemainingQuantity > 0,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batchWrite.set(consumptionRef, consumption.toMap());
+    await batchWrite.commit();
+    
+    // Update inventory totals
+    await _updateInventoryTotals(inventoryId);
+    
+    print('✅ Consumed $quantityToConsume from batch ${batch.batchNumber}');
+    return [consumption];
+    
+  } catch (e) {
+    print('❌ Error consuming from specific batch: $e');
+    throw Exception('Failed to consume from batch: $e');
+  }
+}
+
 /// Get consumption history for an inventory item
 Future<List<StockConsumption>> getConsumptionHistory(
   String inventoryId, {

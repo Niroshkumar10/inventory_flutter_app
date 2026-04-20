@@ -692,48 +692,70 @@ Future<Batch> purchaseStock({
     }
   }
   // Sell stock using FIFO for batch-tracked items
+// Sell stock using FIFO for batch-tracked items
 Future<List<StockConsumption>> sellStock({
-    required String inventoryId,
-    required int quantity,
-    required String saleId,
-    required String soldBy,
-  }) async {
-    try {
-      final item = await getInventoryItem(inventoryId);
-      
-      if (!item.trackByBatch) {
-        final newQuantity = item.quantity - quantity;
-        if (newQuantity < 0) throw Exception('Insufficient stock');
-        
-        await _userInventoryCollection.doc(inventoryId).update({
-          'quantity': newQuantity,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        final updatedItem = item.copyWith(quantity: newQuantity);
-        await _localStorage.updateInventoryItem(updatedItem);
-        return [];
+  required String inventoryId,
+  required int quantity,
+  required String saleId,
+  required String soldBy,
+  String? specificBatchId,  // ← ADD THIS PARAMETER
+}) async {
+  try {
+    final item = await getInventoryItem(inventoryId);
+    
+    if (!item.trackByBatch) {
+      // Simple stock deduction
+      final newQuantity = item.quantity - quantity;
+      if (newQuantity < 0) {
+        throw Exception('Insufficient stock');
       }
       
-      // Batch FIFO consumption
-      final consumptions = await _batchService.consumeStockFIFO(
+      await _userInventoryCollection.doc(inventoryId).update({
+        'quantity': newQuantity,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Update cache
+      final updatedItem = item.copyWith(quantity: newQuantity);
+      await _localStorage.updateInventoryItem(updatedItem);
+      
+      return []; // Return empty list for non-batch items
+    }
+    
+    // Initialize batch service if not already initialized
+    if (_batchService == null) {
+      _initBatchServices();
+    }
+    
+    // If specific batch is selected, sell from that batch only
+    if (specificBatchId != null && specificBatchId.isNotEmpty) {
+      return await _batchService.consumeStockFromSpecificBatch(
         inventoryId: inventoryId,
+        batchId: specificBatchId,
         quantityToConsume: quantity,
         transactionType: 'SALE',
         reason: 'Sale transaction: $saleId',
         referenceId: saleId,
         consumedBy: soldBy,
       );
-      
-      // ✅ KEY FIX: sync total batch quantity back to inventory item
-      await syncBatchQuantityToItem(inventoryId);
-      
-      return consumptions;
-      
-    } catch (e) {
-      //print('❌ Error selling stock: $e');
-      throw Exception('Failed to sell stock: $e');
     }
+    
+    // Otherwise use FIFO consumption
+    return await _batchService.consumeStockFIFO(
+      inventoryId: inventoryId,
+      quantityToConsume: quantity,
+      transactionType: 'SALE',
+      reason: 'Sale transaction: $saleId',
+      referenceId: saleId,
+      consumedBy: soldBy,
+    );
+    
+  } catch (e) {
+    print('❌ Error selling stock: $e');
+    throw Exception('Failed to sell stock: $e');
   }
+}
+
 // Sync batch total back to inventory item's quantity field
 Future<void> syncBatchQuantityToItem(String inventoryId) async {
   try {

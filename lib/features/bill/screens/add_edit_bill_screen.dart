@@ -10,6 +10,8 @@ import '../../party/models/customer_model.dart';
 import '../../inventory/services/inventory_repo_service.dart';
 import '../../inventory/models/inventory_item_model.dart';
 
+import '../../inventory/models/batch_model.dart';
+
 class AddEditBillScreen extends StatefulWidget {
   final String type; // 'sales' or 'purchase'
   final String userMobile;
@@ -115,106 +117,341 @@ Future<void> _loadInventoryData() async {
     print('❌ Error loading inventory data: $e');
   }
 }
-/// Handle inventory updates for NEW bills
-Future<void> _handleInventoryUpdatesForNewBill(Bill bill) async {
-  print('🔄 Handling inventory updates for new ${bill.type} bill');
-  print('  Invoice: ${bill.invoiceNumber}');
-  print('  Total items: ${bill.items.length}');
-  
-  for (int i = 0; i < bill.items.length; i++) {
-    final item = bill.items[i];
-    print('  Item ${i + 1}: ${item.description}');
-    print('    Quantity: ${item.quantity}');
-    print('    Inventory ID: ${item.inventoryItemId}');
-    print('    Unit: ${item.unit}');
-    
-    if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-      try {
-        final adjustment = bill.type == 'sales' ? -item.quantity : item.quantity;
-        print('    Adjustment: $adjustment (${bill.type == 'sales' ? 'decrease' : 'increase'})');
-        
-        await _inventoryService.adjustStock(
-          item.inventoryItemId!,
-          adjustment.toInt(),
-          '${bill.type == 'sales' ? 'Sold' : 'Purchased'} ${item.quantity} in bill ${bill.invoiceNumber}',
-        );
-        
-        print('    ✅ Stock update SUCCESS');
-        
-        // Verify the update worked
-        final updatedItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
-        print('    Verified stock: ${updatedItem.quantity}');
-        
-      } catch (e) {
-        print('    ❌ Stock update FAILED: $e');
-        print('    Stack trace: ${e.toString()}');
-      }
-    } else {
-      print('    ⚠️ No inventoryItemId - SKIPPING stock update');
-      print('    This means the item was not selected from inventory');
-    }
-  }
-}
 
 /// Handle inventory updates for EDITING bills
+/// Handle inventory updates for EDITING bills (UPDATED for batch tracking)
 Future<void> _handleInventoryUpdatesForEdit(Bill oldBill, Bill newBill) async {
   print('🔄 Handling inventory updates for edited bill');
-  print('  Old bill type: ${oldBill.type}, New bill type: ${newBill.type}');
   
-  // Track items by inventoryId to calculate differences
-  final Map<String, int> oldQuantities = {};
-  final Map<String, int> newQuantities = {};
+  // First, REVERSE the old bill's stock changes
+  print('  Step 1: Reversing old bill stock...');
+  await _reverseBillStock(oldBill);
   
-  // Collect old quantities
-  for (final item in oldBill.items) {
-    if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-      oldQuantities[item.inventoryItemId!] = item.quantity.toInt();
+  // Then, APPLY the new bill's stock changes
+  print('  Step 2: Applying new bill stock...');
+  await _handleInventoryUpdatesForNewBill(newBill);
+  
+  print('✅ Bill edit stock updates completed');
+}
+
+// Show batch selection dialog for sales (choose which batch to sell from)
+// Show batch selection dialog for sales (choose which batch to sell from)
+Future<void> _showBatchSelectionForSale(int itemIndex, InventoryItem inventoryItem) async {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  
+  // Get all active batches with remaining stock
+  final batchesData = await _inventoryService.batchService.getBatchesWithDetails(inventoryItem.id);
+  
+  // Filter active batches
+  final activeBatches = batchesData.where((batchData) {
+    final remaining = batchData['remainingQuantity'] ?? 0;
+    final batch = batchData['batch'];
+    // Check if batch is a Batch object
+    if (batch is Batch) {
+      return remaining > 0 && batch.isActive && !batch.isExpired;
     }
+    return false;
+  }).toList();
+  
+  if (activeBatches.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No active batches available to sell from')),
+    );
+    return;
   }
   
-  // Collect new quantities
-  for (final item in newBill.items) {
-    if (item.inventoryItemId != null && item.inventoryItemId!.isNotEmpty) {
-      newQuantities[item.inventoryItemId!] = item.quantity.toInt();
-    }
-  }
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: colorScheme.outline)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Select Batch to Sell - ${inventoryItem.name}',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: colorScheme.onSurface),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          
+          // Batch List
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: activeBatches.length,
+              itemBuilder: (context, index) {
+                final batchData = activeBatches[index];
+                final batch = batchData['batch'] as Batch;
+                final remainingQty = batchData['remainingQuantity'] ?? 0;
+                final totalSold = batchData['totalSold'] ?? 0;
+                final totalQty = batchData['totalQuantity'] ?? 0;
+                final isNearExpiry = batch.isNearExpiry;
+                
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  color: isNearExpiry 
+                      ? Colors.orange.withOpacity(0.1)
+                      : colorScheme.surface,
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: isNearExpiry ? Colors.orange : colorScheme.outline,
+                      width: isNearExpiry ? 1.5 : 1,
+                    ),
+                  ),
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      _addInventoryItemToBillWithBatch(
+                        itemIndex, 
+                        inventoryItem, 
+                        batchId: batch.id,
+                        batchNumber: batch.batchNumber,
+                        expiryDate: batch.expiryDate,
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Batch header
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primary,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      batch.batchNumber,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (isNearExpiry)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        'NEAR EXPIRY',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              Text(
+                                'Purchase: ₹${batch.purchasePrice.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 12),
+                          
+                          // Stock stats
+                          Row(
+                            children: [
+                              _buildBatchStat('Available', '$remainingQty ${inventoryItem.unit}', Colors.green),
+                              _buildBatchStat('Sold', '$totalSold ${inventoryItem.unit}', Colors.orange),
+                              _buildBatchStat('Total', '$totalQty ${inventoryItem.unit}', Colors.blue),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 8),
+                          
+                          // Expiry info
+                          Row(
+                            children: [
+                              Icon(Icons.event, size: 14, color: isNearExpiry ? Colors.orange : Colors.grey),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Expires: ${_formatDate(batch.expiryDate)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isNearExpiry ? Colors.orange : Colors.grey,
+                                  fontWeight: isNearExpiry ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${batch.daysUntilExpiry} days left',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isNearExpiry ? Colors.orange : Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          // Progress bar
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: remainingQty / totalQty,
+                              backgroundColor: Colors.grey.shade200,
+                              color: isNearExpiry ? Colors.orange : Colors.green,
+                              minHeight: 4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// Helper widget for batch stats
+Widget _buildBatchStat(String label, String value, Color color) {
+  return Expanded(
+    child: Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: Colors.grey),
+        ),
+      ],
+    ),
+  );
+}
+
+// Add item to bill with specific batch selection
+void _addInventoryItemToBillWithBatch(
+  int itemIndex, 
+  InventoryItem inventoryItem, {
+  required String batchId,
+  required String batchNumber,
+  required DateTime expiryDate,
+}) {
+  print('🔄 Adding inventory item with batch selection');
+  print('  Item: ${inventoryItem.name}');
+  print('  Batch: $batchNumber');
+  print('  Expiry: ${_formatDate(expiryDate)}');
   
-  // Calculate adjustments for each inventory item
-  final allItemIds = {
-    ...oldQuantities.keys,
-    ...newQuantities.keys,
-  };
+  final newBillItem = BillItem.create(
+    description: inventoryItem.name,
+    quantity: 1.0,
+    price: inventoryItem.price,
+    inventoryItemId: inventoryItem.id,
+    batchId: batchId,           // ← Store selected batch ID
+    batchNumber: batchNumber,   // ← Store batch number for reference
+    expiryDate: expiryDate,     // ← Store expiry date
+    purchasePrice: inventoryItem.cost,
+    unit: inventoryItem.unit,
+    category: inventoryItem.category,
+    name: inventoryItem.name,
+  );
   
-  for (final itemId in allItemIds) {
-    final oldQty = oldQuantities[itemId] ?? 0;
-    final newQty = newQuantities[itemId] ?? 0;
-    final difference = newQty - oldQty;
+  final List<BillItem> updatedItems = List.from(_items);
+  updatedItems[itemIndex] = newBillItem;
+  
+  setState(() {
+    _items = updatedItems;
+    _descControllers[itemIndex].text = '${inventoryItem.name} (Batch: $batchNumber)';
+    _qtyControllers[itemIndex].text = '1';
+    _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
+    _calculateTotals();
+  });
+}
+
+/// Reverse stock changes from a bill (for editing)
+Future<void> _reverseBillStock(Bill bill) async {
+  print('  Reversing stock for bill ${bill.invoiceNumber}');
+  
+  for (final item in bill.items) {
+    if (item.inventoryItemId == null || item.inventoryItemId!.isEmpty) continue;
     
-    if (difference != 0) {
-      try {
-        // Determine adjustment based on bill type
-        int adjustment = difference;
-        
-        if (newBill.type == 'sales') {
-          // For sales: if quantity increased, decrease more stock; if decreased, add back stock
-          adjustment = -difference;
+    try {
+      final inventoryItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
+      
+      if (bill.type == 'sales') {
+        // Sales reversal: ADD stock back
+        if (inventoryItem.trackByBatch) {
+          // For batch items, we can't easily reverse. Log warning.
+          print('    ⚠️ WARNING: Reversing batch sales not fully supported');
+          print('    Manual adjustment may be needed for ${inventoryItem.name}');
+        } else {
+          await _inventoryService.adjustStock(
+            item.inventoryItemId!,
+            item.quantity.toInt(),
+            'REVERSAL: Bill edit - ${bill.invoiceNumber}',
+          );
         }
-        // For purchases: if quantity increased, increase more stock; if decreased, decrease stock
-        
-        print('  📊 Adjusting stock for item $itemId: $oldQty → $newQty (diff: $difference, adj: $adjustment)');
-        
-        await _inventoryService.adjustStock(
-          itemId,
-          adjustment,
-          'Updated from $oldQty to $newQty in bill ${newBill.invoiceNumber}',
-        );
-        
-        print('  ✅ Stock adjustment completed for item $itemId');
-      } catch (e) {
-        print('  ❌ Error adjusting stock for item $itemId: $e');
+      } else if (bill.type == 'purchase') {
+        // Purchase reversal: REMOVE stock
+        if (inventoryItem.trackByBatch) {
+          // For batch items, warn about manual reversal
+          print('    ⚠️ WARNING: Reversing batch purchases not fully supported');
+        } else {
+          await _inventoryService.adjustStock(
+            item.inventoryItemId!,
+            -item.quantity.toInt(),
+            'REVERSAL: Bill edit - ${bill.invoiceNumber}',
+          );
+        }
       }
-    } else {
-      print('  ⏭️ No quantity change for item $itemId, skipping update');
+    } catch (e) {
+      print('    ❌ Error reversing stock for ${item.description}: $e');
     }
   }
 }
@@ -339,6 +576,134 @@ void _filterItems() {
       }
     }
   }
+
+// Show batch details dialog for purchase (expiry date and batch number)
+void _showBatchDetailsForPurchase(int itemIndex, InventoryItem inventoryItem) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  
+  final expiryDateController = TextEditingController();
+  final batchNumberController = TextEditingController();
+  DateTime? selectedExpiryDate;
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Batch Details - ${inventoryItem.name}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Batch Number
+          TextField(
+            controller: batchNumberController,
+            decoration: const InputDecoration(
+              labelText: 'Batch Number (Optional)',
+              hintText: 'e.g., BATCH-001',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Expiry Date
+          InkWell(
+            onTap: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now().add(const Duration(days: 365)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+              );
+              if (date != null) {
+                selectedExpiryDate = date;
+                expiryDateController.text = '${date.day}/${date.month}/${date.year}';
+              }
+            },
+            child: AbsorbPointer(
+              child: TextField(
+                controller: expiryDateController,
+                decoration: const InputDecoration(
+                  labelText: 'Expiry Date *',
+                  hintText: 'Select expiry date',
+                  border: OutlineInputBorder(),
+                  suffixIcon: Icon(Icons.calendar_today),
+                ),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          Text(
+            'Required for batch-tracked items',
+            style: TextStyle(fontSize: 12, color: colorScheme.primary),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (selectedExpiryDate == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please select expiry date')),
+              );
+              return;
+            }
+            Navigator.pop(context);
+            _addPurchaseItemWithBatch(
+              itemIndex, 
+              inventoryItem,
+              batchNumber: batchNumberController.text.isNotEmpty 
+                  ? batchNumberController.text 
+                  : null,
+              expiryDate: selectedExpiryDate!,
+            );
+          },
+          child: const Text('Add Item'),
+        ),
+      ],
+    ),
+  );
+}
+
+// Add purchase item with batch details
+void _addPurchaseItemWithBatch(
+  int itemIndex, 
+  InventoryItem inventoryItem, 
+  {String? batchNumber, 
+  required DateTime expiryDate}
+) {
+  print('🔄 Adding purchase item with batch details');
+  print('  Item: ${inventoryItem.name}');
+  print('  Batch: ${batchNumber ?? 'Auto-generated'}');
+  print('  Expiry: ${_formatDate(expiryDate)}');
+  
+  final newBillItem = BillItem.create(
+    description: inventoryItem.name,
+    quantity: 1.0,
+    price: inventoryItem.price,
+    inventoryItemId: inventoryItem.id,
+    batchNumber: batchNumber,
+    expiryDate: expiryDate,
+    purchasePrice: inventoryItem.cost,
+    unit: inventoryItem.unit,
+    category: inventoryItem.category,
+    name: inventoryItem.name,
+  );
+  
+  final List<BillItem> updatedItems = List.from(_items);
+  updatedItems[itemIndex] = newBillItem;
+  
+  setState(() {
+    _items = updatedItems;
+    _descControllers[itemIndex].text = inventoryItem.name;
+    _qtyControllers[itemIndex].text = '1';
+    _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
+    _calculateTotals();
+  });
+}
 
   void _showAddPartyDialog() {
     final theme = Theme.of(context);
@@ -514,6 +879,7 @@ void _filterItems() {
       },
     );
   }
+
 void _showInventorySelectionDialog(int itemIndex) {
   final theme = Theme.of(context);
   final colorScheme = theme.colorScheme;
@@ -529,7 +895,7 @@ void _showInventorySelectionDialog(int itemIndex) {
 
   showModalBottomSheet(
     context: context,
-    isScrollControlled: true, // This is important for keyboard handling
+    isScrollControlled: true,
     backgroundColor: Colors.transparent,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -538,7 +904,7 @@ void _showInventorySelectionDialog(int itemIndex) {
       return StatefulBuilder(
         builder: (context, setState) {
           return Container(
-            height: MediaQuery.of(context).size.height * 0.9, // Take 90% of screen height
+            height: MediaQuery.of(context).size.height * 0.9,
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -550,7 +916,6 @@ void _showInventorySelectionDialog(int itemIndex) {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      // Drag handle
                       Container(
                         width: 40,
                         height: 4,
@@ -560,7 +925,6 @@ void _showInventorySelectionDialog(int itemIndex) {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      // Title
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -609,7 +973,6 @@ void _showInventorySelectionDialog(int itemIndex) {
                     onChanged: (value) {
                       setState(() {
                         localSearchQuery = value;
-                        // Filter items based on search
                         if (value.isEmpty) {
                           localFilteredItems = _inventoryItems;
                         } else {
@@ -667,7 +1030,6 @@ void _showInventorySelectionDialog(int itemIndex) {
                       onChanged: (value) {
                         setState(() {
                           localSelectedCategory = value;
-                          // Filter items based on category
                           if (value == null || value == 'All') {
                             localFilteredItems = _inventoryItems;
                           } else {
@@ -676,7 +1038,6 @@ void _showInventorySelectionDialog(int itemIndex) {
                                 .toList();
                           }
                           
-                          // Apply search filter on top of category filter
                           if (localSearchQuery.isNotEmpty) {
                             final query = localSearchQuery.toLowerCase();
                             localFilteredItems = localFilteredItems.where((item) {
@@ -710,7 +1071,7 @@ void _showInventorySelectionDialog(int itemIndex) {
                 
                 const SizedBox(height: 8),
                 
-                // Items List - This will expand to fill remaining space
+                // Items List
                 Expanded(
                   child: localFilteredItems.isEmpty
                       ? Center(
@@ -749,165 +1110,224 @@ void _showInventorySelectionDialog(int itemIndex) {
                           itemCount: localFilteredItems.length,
                           itemBuilder: (context, index) {
                             final inventoryItem = localFilteredItems[index];
-                            return 
-                         // Update the ListView.builder section inside _showInventorySelectionDialog
-// Replace the Card widget with this more compact version:
-
-Card(
-  margin: const EdgeInsets.only(bottom: 6),
-  color: colorScheme.surface,
-  elevation: 0,
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(8),
-    side: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
-  ),
-  child: InkWell(
-    onTap: () {
-      _addInventoryItemToBill(itemIndex, inventoryItem);
-      Navigator.pop(context);
-    },
-    borderRadius: BorderRadius.circular(8),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          // Compact leading icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              Icons.inventory_2_outlined,
-              color: colorScheme.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          
-          // Item details - 2 lines max
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  inventoryItem.name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: colorScheme.onSurface,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    // SKU badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'SKU: ${inventoryItem.sku.substring(0, inventoryItem.sku.length > 6 ? 6 : inventoryItem.sku.length)}${inventoryItem.sku.length > 6 ? '..' : ''}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    // Stock badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: inventoryItem.quantity < inventoryItem.lowStockThreshold
-                            ? colorScheme.error.withOpacity(0.1)
-                            : colorScheme.secondary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        '${inventoryItem.quantity} ${inventoryItem.unit}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: inventoryItem.quantity < inventoryItem.lowStockThreshold
-                              ? colorScheme.error
-                              : colorScheme.secondary,
-                        ),
-                      ),
-                    ),
-                    // Category badge (optional, remove if too crowded)
-                    if (inventoryItem.category.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colorScheme.tertiary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          inventoryItem.category.length > 8 
-                              ? '${inventoryItem.category.substring(0, 8)}..' 
-                              : inventoryItem.category,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: colorScheme.tertiary,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          
-          // Price and status - right side
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '₹${inventoryItem.price.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: inventoryItem.quantity < inventoryItem.lowStockThreshold
-                      ? colorScheme.error.withOpacity(0.1)
-                      : colorScheme.secondary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  inventoryItem.quantity < inventoryItem.lowStockThreshold
-                      ? 'Low Stock'
-                      : 'In Stock',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
-                    color: inventoryItem.quantity < inventoryItem.lowStockThreshold
-                        ? colorScheme.error
-                        : colorScheme.secondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-  ),
-);
- },
+                            return FutureBuilder<Map<String, dynamic>?>(
+                              future: inventoryItem.trackByBatch 
+                                  ? _getBatchSummaryForItem(inventoryItem.id)
+                                  : Future.value(null),
+                              builder: (context, batchSnapshot) {
+                                final hasBatches = inventoryItem.trackByBatch && batchSnapshot.hasData;
+                                final batchSummary = batchSnapshot.data;
+                                final batchCount = batchSummary?['totalBatches'] ?? 0;
+                                final totalStock = hasBatches 
+                                    ? (batchSummary?['totalRemaining'] ?? 0)
+                                    : inventoryItem.quantity;
+                                
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  color: colorScheme.surface,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
+                                  ),
+                                  child: InkWell(
+                                    onTap: () async {
+                                      // Close the inventory dialog
+                                      Navigator.pop(context);
+                                      
+                                      if (widget.type == 'sales' && inventoryItem.trackByBatch && batchCount > 1) {
+                                        // For sales with multiple batches - show batch selection
+                                        await _showBatchSelectionForSale(itemIndex, inventoryItem);
+                                      } else if (widget.type == 'purchase' && inventoryItem.trackByBatch) {
+                                        // For purchases - show batch details input
+                                        _showBatchDetailsForPurchase(itemIndex, inventoryItem);
+                                      } else {
+                                        // Simple item or single batch - add directly
+                                        _addInventoryItemToBill(itemIndex, inventoryItem);
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      child: Row(
+                                        children: [
+                                          // Leading icon
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: colorScheme.primary.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Icon(
+                                              Icons.inventory_2_outlined,
+                                              color: colorScheme.primary,
+                                              size: 20,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          
+                                          // Item details
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        inventoryItem.name,
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.w600,
+                                                          fontSize: 14,
+                                                          color: colorScheme.onSurface,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                    if (hasBatches && batchCount > 1 && widget.type == 'sales')
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: colorScheme.primary.withOpacity(0.1),
+                                                          borderRadius: BorderRadius.circular(4),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Icon(Icons.inventory, size: 10, color: colorScheme.primary),
+                                                            const SizedBox(width: 2),
+                                                            Text(
+                                                              '$batchCount batches',
+                                                              style: TextStyle(fontSize: 9, color: colorScheme.primary),
+                                                            ),
+                                                            const SizedBox(width: 2),
+                                                            Icon(Icons.arrow_forward_ios, size: 8, color: colorScheme.primary),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Wrap(
+                                                  spacing: 8,
+                                                  children: [
+                                                    // SKU badge
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: colorScheme.primary.withOpacity(0.05),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        'SKU: ${inventoryItem.sku.length > 8 ? inventoryItem.sku.substring(0, 8) : inventoryItem.sku}',
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          color: colorScheme.primary,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    // Stock badge
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: totalStock < inventoryItem.lowStockThreshold
+                                                            ? colorScheme.error.withOpacity(0.1)
+                                                            : colorScheme.secondary.withOpacity(0.1),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        '$totalStock ${inventoryItem.unit}',
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          color: totalStock < inventoryItem.lowStockThreshold
+                                                              ? colorScheme.error
+                                                              : colorScheme.secondary,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    // Batch indicator for purchase
+                                                    if (widget.type == 'purchase' && inventoryItem.trackByBatch)
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.blue.withOpacity(0.1),
+                                                          borderRadius: BorderRadius.circular(4),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Icon(Icons.add, size: 10, color: Colors.blue),
+                                                            const SizedBox(width: 2),
+                                                            Text(
+                                                              'New Batch',
+                                                              style: TextStyle(fontSize: 9, color: Colors.blue),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                                // Show expiry warning for near expiry batches
+                                                if (hasBatches && batchSummary?['earliestExpiry'] != null && widget.type == 'sales')
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: 4),
+                                                    child: Text(
+                                                      '⚠️ Expires: ${_formatDate(batchSummary!['earliestExpiry'])}',
+                                                      style: const TextStyle(fontSize: 9, color: Colors.orange),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          
+                                          // Price
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                '₹${inventoryItem.price.toStringAsFixed(2)}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 15,
+                                                  color: colorScheme.primary,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: totalStock < inventoryItem.lowStockThreshold
+                                                      ? colorScheme.error.withOpacity(0.1)
+                                                      : colorScheme.secondary.withOpacity(0.1),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  totalStock < inventoryItem.lowStockThreshold
+                                                      ? 'Low Stock'
+                                                      : 'In Stock',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: totalStock < inventoryItem.lowStockThreshold
+                                                        ? colorScheme.error
+                                                        : colorScheme.secondary,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
                         ),
                 ),
               ],
@@ -2117,106 +2537,116 @@ Future<void> _saveBill() async {
     }
   }
 }
-// Add this method to handle stock deduction for sales
-Future<void> _deductStockForBill(Bill bill) async {
-  print('📦 Deducting stock for bill ${bill.invoiceNumber}');
-  
-  for (final billItem in bill.items) {
-    if (billItem.inventoryItemId == null || billItem.inventoryItemId!.isEmpty) {
-      print('⚠️ Skipping item with no inventory ID: ${billItem.description}');
-      continue;
-    }
-    
-    try {
-      final inventoryItem = await _inventoryService.getInventoryItem(billItem.inventoryItemId!);
-      
-      if (inventoryItem.trackByBatch) {
-        // For batch-tracked items - use FIFO consumption
-        print('🔄 Using batch FIFO for ${inventoryItem.name}');
-        
-        final batchService = _inventoryService.batchService;
-        
-        await batchService.consumeStockFIFO(
-          inventoryId: billItem.inventoryItemId!,
-          quantityToConsume: billItem.quantity.toInt(),
-          transactionType: 'SALE',
-          reason: 'Sale bill: ${bill.invoiceNumber}',
-          referenceId: bill.id,
-          consumedBy: widget.userMobile,
-        );
-        
-        print('✅ Deducted ${billItem.quantity} ${inventoryItem.unit} from batches');
-      } else {
-        // For simple items - use adjustStock
-        print('🔄 Using simple deduction for ${inventoryItem.name}');
-        
-        await _inventoryService.adjustStock(
-          billItem.inventoryItemId!,
-          -billItem.quantity.toInt(), // Negative to reduce stock
-          'Sale from bill ${bill.invoiceNumber}',
-        );
-        
-        print('✅ Deducted ${billItem.quantity} ${inventoryItem.unit} from simple stock');
-      }
-      
-    } catch (e) {
-      print('❌ Failed to deduct stock for ${billItem.description}: $e');
-      throw Exception('Stock deduction failed for ${billItem.description}: $e');
-    }
+
+// Helper method to get batch summary
+Future<Map<String, dynamic>?> _getBatchSummaryForItem(String inventoryId) async {
+  if (inventoryId.isEmpty) return null;
+  try {
+    return await _inventoryService.getBatchSummary(inventoryId);
+  } catch (e) {
+    return null;
   }
-  
-  print('✅ Stock deduction completed for all items');
 }
 
-Future<void> _addStockForPurchaseBill(Bill bill) async {
-  print('📦 Adding stock from purchase bill ${bill.invoiceNumber}');
+// Helper method for date formatting
+String _formatDate(DateTime date) {
+  return '${date.day}/${date.month}/${date.year}';
+}
+
+/// Handle inventory updates for NEW bills (UPDATED for batch tracking)
+Future<void> _handleInventoryUpdatesForNewBill(Bill bill) async {
+  print('📦 Processing inventory updates for new ${bill.type} bill');
+  print('  Invoice: ${bill.invoiceNumber}');
+  print('  Total items: ${bill.items.length}');
   
-  for (final billItem in bill.items) {
-    if (billItem.inventoryItemId == null || billItem.inventoryItemId!.isEmpty) {
-      print('⚠️ Skipping item with no inventory ID: ${billItem.description}');
+  for (int i = 0; i < bill.items.length; i++) {
+    final item = bill.items[i];
+    print('  Item ${i + 1}: ${item.description}');
+    print('    Quantity: ${item.quantity}');
+    print('    Inventory ID: ${item.inventoryItemId}');
+    print('    Bill Type: ${bill.type}');
+    
+    if (item.inventoryItemId == null || item.inventoryItemId!.isEmpty) {
+      print('    ⚠️ No inventoryItemId - SKIPPING');
       continue;
     }
     
     try {
-      final inventoryItem = await _inventoryService.getInventoryItem(billItem.inventoryItemId!);
+      final inventoryItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
       
+      if (bill.type == 'sales') {
+        // ========== SALES: DEDUCT STOCK ==========
+        if (inventoryItem.trackByBatch) {
+          // Batch-tracked item - use FIFO or specific batch
+          print('    🔄 Sales - Batch item: ${inventoryItem.name}');
+          
+          await _inventoryService.sellStock(
+            inventoryId: item.inventoryItemId!,
+            quantity: item.quantity.toInt(),
+            saleId: bill.id,
+            soldBy: widget.userMobile,
+            specificBatchId: item.batchId, // Will use specific batch if selected
+          );
+          print('    ✅ Stock deducted from batches (FIFO)');
+        } else {
+          // Simple item - use adjustStock
+          print('    🔄 Sales - Simple item: ${inventoryItem.name}');
+          await _inventoryService.adjustStock(
+            item.inventoryItemId!,
+            -item.quantity.toInt(),
+            'Sold in bill ${bill.invoiceNumber}',
+          );
+          print('    ✅ Stock deducted from simple stock');
+        }
+        
+      } else if (bill.type == 'purchase') {
+        // ========== PURCHASE: ADD STOCK ==========
+        if (inventoryItem.trackByBatch) {
+          // Batch-tracked item - create new batch
+          print('    🔄 Purchase - Batch item: ${inventoryItem.name}');
+          
+          // Use expiry date from item, or default to 1 year
+          final expiryDate = item.expiryDate ?? DateTime.now().add(const Duration(days: 365));
+          
+          await _inventoryService.purchaseStock(
+            inventoryId: item.inventoryItemId!,
+            quantity: item.quantity.toInt(),
+            purchasePrice: item.purchasePrice ?? inventoryItem.cost,
+            expiryDate: expiryDate,
+            purchaseDate: bill.date,
+            supplierInvoiceNo: item.batchNumber ?? bill.invoiceNumber,
+            supplierName: bill.partyName,
+          );
+          print('    ✅ New batch created with expiry: ${expiryDate.toLocal().toString().split(' ')[0]}');
+        } else {
+          // Simple item - just add quantity
+          print('    🔄 Purchase - Simple item: ${inventoryItem.name}');
+          await _inventoryService.adjustStock(
+            item.inventoryItemId!,
+            item.quantity.toInt(),
+            'Purchased in bill ${bill.invoiceNumber}',
+          );
+          print('    ✅ Stock added to simple stock');
+        }
+      }
+      
+      // Verify the update worked
       if (inventoryItem.trackByBatch) {
-        // For batch-tracked items - create new batch
-        print('🔄 Creating new batch for ${inventoryItem.name}');
-        
-        await _inventoryService.purchaseStock(
-          inventoryId: billItem.inventoryItemId!,
-          quantity: billItem.quantity.toInt(),
-          purchasePrice: inventoryItem.cost,
-          expiryDate: DateTime.now().add(const Duration(days: 365)), // Default 1 year
-          purchaseDate: bill.date,
-          supplierInvoiceNo: bill.invoiceNumber,
-          supplierName: bill.partyName,
-        );
-        
-        print('✅ Added ${billItem.quantity} ${inventoryItem.unit} as new batch');
+        final batchSummary = await _inventoryService.getBatchSummary(item.inventoryItemId!);
+        print('    Verified: Total stock from batches: ${batchSummary['totalRemaining']}');
       } else {
-        // For simple items - just add quantity
-        print('🔄 Adding to simple stock for ${inventoryItem.name}');
-        
-        await _inventoryService.adjustStock(
-          billItem.inventoryItemId!,
-          billItem.quantity.toInt(), // Positive to add stock
-          'Purchase from bill ${bill.invoiceNumber}',
-        );
-        
-        print('✅ Added ${billItem.quantity} ${inventoryItem.unit} to stock');
+        final updatedItem = await _inventoryService.getInventoryItem(item.inventoryItemId!);
+        print('    Verified: New quantity: ${updatedItem.quantity}');
       }
       
     } catch (e) {
-      print('❌ Failed to add stock for ${billItem.description}: $e');
-      throw Exception('Stock addition failed for ${billItem.description}: $e');
+      print('    ❌ Stock update FAILED: $e');
+      // Don't throw - log error but continue
     }
   }
   
-  print('✅ Stock addition completed for all items');
+  print('✅ Inventory updates completed for bill ${bill.invoiceNumber}');
 }
-// Update your existing _handleInventoryUpdatesForNewBill method
 
  void _addItem() {
   setState(() {

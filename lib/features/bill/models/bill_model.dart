@@ -200,6 +200,7 @@ class Bill {
     }
   }
 }
+
 class BillItem {
   String id;
   String description;
@@ -207,10 +208,13 @@ class BillItem {
   double price;
   double total;
   String? inventoryItemId;
+  String? batchId;           // ← ADD THIS (for sales - which batch to sell from)
+  String? batchNumber;       // ← ADD THIS (for purchases - batch number)
+  DateTime? expiryDate;      // ← ADD THIS (for purchases - batch expiry)
+  double? purchasePrice;     // ← ADD THIS (for purchases - actual cost)
   String? unit;
   String? category;
   String? name;
-  
 
   BillItem({
     required this.id,
@@ -219,10 +223,13 @@ class BillItem {
     required this.price,
     required this.total,
     this.inventoryItemId,
+    this.batchId,             // ← ADD THIS
+    this.batchNumber,         // ← ADD THIS
+    this.expiryDate,          // ← ADD THIS
+    this.purchasePrice,       // ← ADD THIS
     this.unit,
     this.category,
     this.name,
-    
   });
 
   Map<String, dynamic> toMap() {
@@ -233,6 +240,10 @@ class BillItem {
       'price': price,
       'total': total,
       'inventoryItemId': inventoryItemId,
+      'batchId': batchId,               // ← ADD THIS
+      'batchNumber': batchNumber,       // ← ADD THIS
+      'expiryDate': expiryDate?.toIso8601String(),  // ← ADD THIS
+      'purchasePrice': purchasePrice,   // ← ADD THIS
       'unit': unit,
       'category': category,
       'name': name,
@@ -247,18 +258,30 @@ class BillItem {
       price: (map['price'] as num?)?.toDouble() ?? 0.0,
       total: (map['total'] as num?)?.toDouble() ?? 0.0,
       inventoryItemId: map['inventoryItemId']?.toString(),
+      batchId: map['batchId']?.toString(),           // ← ADD THIS
+      batchNumber: map['batchNumber']?.toString(),   // ← ADD THIS
+      expiryDate: map['expiryDate'] != null 
+          ? DateTime.tryParse(map['expiryDate']) 
+          : null,                                    // ← ADD THIS
+      purchasePrice: map['purchasePrice']?.toDouble(), // ← ADD THIS
       unit: map['unit']?.toString(),
-    category: map['category']?.toString() ?? 'Uncategorized', // Add fallback
+      category: map['category']?.toString() ?? 'Uncategorized',
       name: map['name']?.toString(),
     );
   }
 
+
   // Factory method to create a new BillItem
+// Factory method to create a new BillItem
   factory BillItem.create({
     required String description,
     required double quantity,
     required double price,
     String? inventoryItemId,
+    String? batchId,           // ← ADD THIS
+    String? batchNumber,       // ← ADD THIS
+    DateTime? expiryDate,      // ← ADD THIS
+    double? purchasePrice,     // ← ADD THIS
     String? unit,
     String? category,
     String? name,
@@ -270,6 +293,10 @@ class BillItem {
       price: price,
       total: quantity * price,
       inventoryItemId: inventoryItemId,
+      batchId: batchId,         // ← ADD THIS
+      batchNumber: batchNumber, // ← ADD THIS
+      expiryDate: expiryDate,   // ← ADD THIS
+      purchasePrice: purchasePrice, // ← ADD THIS
       unit: unit,
       category: category,
       name: name,
@@ -282,6 +309,10 @@ class BillItem {
     double? quantity,
     double? price,
     String? inventoryItemId,
+    String? batchId,           // ← ADD THIS
+    String? batchNumber,       // ← ADD THIS
+    DateTime? expiryDate,      // ← ADD THIS
+    double? purchasePrice,     // ← ADD THIS
     String? unit,
     String? category,
     String? name,
@@ -296,6 +327,10 @@ class BillItem {
       price: newPrice,
       total: newQuantity * newPrice,
       inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+      batchId: batchId ?? this.batchId,               // ← ADD THIS
+      batchNumber: batchNumber ?? this.batchNumber,   // ← ADD THIS
+      expiryDate: expiryDate ?? this.expiryDate,      // ← ADD THIS
+      purchasePrice: purchasePrice ?? this.purchasePrice, // ← ADD THIS
       unit: unit ?? this.unit,
       category: category ?? this.category,
       name: name ?? this.name,

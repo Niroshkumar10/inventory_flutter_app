@@ -454,18 +454,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12),
           ),
         ),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: OutlinedButton.icon(
-          onPressed: () => _showSellDialog(),
-          icon: const Icon(Icons.sell),
-          label: const Text('Sell Stock'),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-          ),
-        ),
-      ),
+      ),      
       // ADD THIS NEW BUTTON
       const SizedBox(width: 12),
       Expanded(
