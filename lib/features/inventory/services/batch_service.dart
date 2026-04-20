@@ -217,35 +217,55 @@ class BatchService {
   }
   
   
-  // Add stock to existing batch (restocking)
-  Future<void> restockBatch(String inventoryId, String batchId, int additionalQuantity) async {
-    try {
-      final batchRef = _getBatchesCollection(inventoryId).doc(batchId);
+ // In batch_service.dart, replace the restockBatch method
+
+Future<void> restockBatch({
+  required String inventoryId,
+  required String batchId,
+  required int additionalQuantity,
+  required double purchasePrice,
+  required String supplierInvoiceNo,
+  required String supplierName,
+}) async {
+  try {
+    final batchRef = _getBatchesCollection(inventoryId).doc(batchId);
+    
+    await _firestore.runTransaction((transaction) async {
+      final doc = await transaction.get(batchRef);
+      if (!doc.exists) {
+        throw Exception('Batch not found');
+      }
       
-      await _firestore.runTransaction((transaction) async {
-        final doc = await transaction.get(batchRef);
-        if (!doc.exists) {
-          throw Exception('Batch not found');
-        }
-        
-        final currentBatch = Batch.fromMap(doc.data() as Map<String, dynamic>, batchId);
-        final newRemainingQuantity = currentBatch.remainingQuantity + additionalQuantity;
-        final newTotalQuantity = currentBatch.quantity + additionalQuantity;
-        
-        transaction.update(batchRef, {
-          'quantity': newTotalQuantity,
-          'remainingQuantity': newRemainingQuantity,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+      final currentBatch = Batch.fromMap(doc.data() as Map<String, dynamic>, batchId);
+      
+      // Calculate new quantities
+      final newRemainingQuantity = currentBatch.remainingQuantity + additionalQuantity;
+      final newTotalQuantity = currentBatch.quantity + additionalQuantity;
+      
+      // Calculate average purchase price (optional)
+      final totalCost = (currentBatch.purchasePrice * currentBatch.quantity) + (purchasePrice * additionalQuantity);
+      final avgPurchasePrice = totalCost / newTotalQuantity;
+      
+      transaction.update(batchRef, {
+        'quantity': newTotalQuantity,
+        'remainingQuantity': newRemainingQuantity,
+        'purchasePrice': avgPurchasePrice, // Update to average price
+        'supplierInvoiceNo': supplierInvoiceNo,
+        'supplierName': supplierName,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
-      
-      await _updateInventoryTotals(inventoryId);
-      
-    } catch (e) {
-      //print('❌ Error restocking batch: $e');
-      throw Exception('Failed to restock batch: $e');
-    }
+    });
+    
+    // Update inventory totals
+    await _updateInventoryTotals(inventoryId);
+    
+    print('✅ Restocked batch: +$additionalQuantity units');
+    
+  } catch (e) {
+    print('❌ Error restocking batch: $e');
+    throw Exception('Failed to restock batch: $e');
   }
+}
   
   // Get available stock summary for an item
   Future<Map<String, dynamic>> getStockSummary(String inventoryId) async {
@@ -587,12 +607,21 @@ Future<Map<String, dynamic>> getSalesSummary(String inventoryId) async {
   });
 }
   // Generate unique batch number
-  String _generateBatchNumber(String inventoryId) {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final shortId = inventoryId.length > 6 ? inventoryId.substring(0, 6) : inventoryId;
-    return 'BATCH-${shortId.toUpperCase()}-$timestamp';
-  }
+// In batch_service.dart, update _generateBatchNumber method:
+
+String _generateBatchNumber(String inventoryId) {
+  // Get current date in YYYYMMDD format
+  final now = DateTime.now();
+  final dateStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
   
+  // Get a short unique sequence (last 4 digits of timestamp)
+  final timestamp = now.millisecondsSinceEpoch;
+  final sequence = (timestamp % 10000).toString().padLeft(4, '0');
+  
+  // Return user-friendly batch number
+  return 'BATCH-$dateStr-$sequence';
+}
+
   // Write off expired batches
   Future<int> writeOffExpiredBatches(String inventoryId, String consumedBy) async {
     try {

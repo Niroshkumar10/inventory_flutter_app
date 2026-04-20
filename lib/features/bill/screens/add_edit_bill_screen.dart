@@ -134,70 +134,76 @@ Future<void> _handleInventoryUpdatesForEdit(Bill oldBill, Bill newBill) async {
   print('✅ Bill edit stock updates completed');
 }
 
-// Show batch selection dialog for sales (choose which batch to sell from)
-// Show batch selection dialog for sales (choose which batch to sell from)
 Future<void> _showBatchSelectionForSale(int itemIndex, InventoryItem inventoryItem) async {
   final theme = Theme.of(context);
   final colorScheme = theme.colorScheme;
-  
-  // Get all active batches with remaining stock
+
   final batchesData = await _inventoryService.batchService.getBatchesWithDetails(inventoryItem.id);
-  
-  // Filter active batches
+
   final activeBatches = batchesData.where((batchData) {
     final remaining = batchData['remainingQuantity'] ?? 0;
     final batch = batchData['batch'];
-    // Check if batch is a Batch object
     if (batch is Batch) {
       return remaining > 0 && batch.isActive && !batch.isExpired;
     }
     return false;
   }).toList();
-  
+
   if (activeBatches.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('No active batches available to sell from')),
     );
     return;
   }
-  
+
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (context) => Container(
-      height: MediaQuery.of(context).size.height * 0.7,
+      height: MediaQuery.of(context).size.height * 0.6,
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
-          // Header
+          // ── FIXED HEADER ──
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: colorScheme.outline)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'Select Batch to Sell - ${inventoryItem.name}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
+                // Title takes all remaining space and ellipsizes
+                Expanded(
+                  child: Text(
+                    'Select Batch to Sell - ${inventoryItem.name}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                // Close button has fixed width, never pushed out
                 IconButton(
                   icon: Icon(Icons.close, color: colorScheme.onSurface),
                   onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
                 ),
               ],
             ),
           ),
-          
+
           // Batch List
           Expanded(
             child: ListView.builder(
@@ -210,10 +216,13 @@ Future<void> _showBatchSelectionForSale(int itemIndex, InventoryItem inventoryIt
                 final totalSold = batchData['totalSold'] ?? 0;
                 final totalQty = batchData['totalQuantity'] ?? 0;
                 final isNearExpiry = batch.isNearExpiry;
-                
+
+                final expiryDateStr = _formatDate(batch.expiryDate);
+                final batchLabel = 'Batch ${index + 1} (Expires: $expiryDateStr)';
+
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  color: isNearExpiry 
+                  color: isNearExpiry
                       ? Colors.orange.withOpacity(0.1)
                       : colorScheme.surface,
                   elevation: 2,
@@ -228,8 +237,8 @@ Future<void> _showBatchSelectionForSale(int itemIndex, InventoryItem inventoryIt
                     onTap: () {
                       Navigator.pop(context);
                       _addInventoryItemToBillWithBatch(
-                        itemIndex, 
-                        inventoryItem, 
+                        itemIndex,
+                        inventoryItem,
                         batchId: batch.id,
                         batchNumber: batch.batchNumber,
                         expiryDate: batch.expiryDate,
@@ -241,48 +250,35 @@ Future<void> _showBatchSelectionForSale(int itemIndex, InventoryItem inventoryIt
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Batch header
+                          // ── FIXED BATCH HEADER ROW ──
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primary,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      batch.batchNumber,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                              // Chip shrinks if needed
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primary,
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  const SizedBox(width: 8),
-                                  if (isNearExpiry)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Text(
-                                        'NEAR EXPIRY',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                                  child: Text(
+                                    batchLabel,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                ],
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
                               ),
+                              const SizedBox(width: 8),
+                              // Price never wraps, sits right of chip
                               Text(
-                                'Purchase: ₹${batch.purchasePrice.toStringAsFixed(2)}',
+                                '₹${batch.purchasePrice.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: colorScheme.onSurface.withOpacity(0.6),
@@ -290,31 +286,83 @@ Future<void> _showBatchSelectionForSale(int itemIndex, InventoryItem inventoryIt
                               ),
                             ],
                           ),
-                          
+
                           const SizedBox(height: 12),
-                          
+
                           // Stock stats
                           Row(
                             children: [
-                              _buildBatchStat('Available', '$remainingQty ${inventoryItem.unit}', Colors.green),
-                              _buildBatchStat('Sold', '$totalSold ${inventoryItem.unit}', Colors.orange),
-                              _buildBatchStat('Total', '$totalQty ${inventoryItem.unit}', Colors.blue),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      '$remainingQty',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                    const Text('Available',
+                                        style: TextStyle(
+                                            fontSize: 10, color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      '$totalSold',
+                                      style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    const Text('Sold',
+                                        style: TextStyle(
+                                            fontSize: 10, color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      '$totalQty',
+                                      style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    const Text('Total',
+                                        style: TextStyle(
+                                            fontSize: 10, color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
-                          
+
                           const SizedBox(height: 8),
-                          
+
                           // Expiry info
                           Row(
                             children: [
-                              Icon(Icons.event, size: 14, color: isNearExpiry ? Colors.orange : Colors.grey),
+                              Icon(Icons.event,
+                                  size: 14,
+                                  color: isNearExpiry
+                                      ? Colors.orange
+                                      : Colors.grey),
                               const SizedBox(width: 4),
                               Text(
-                                'Expires: ${_formatDate(batch.expiryDate)}',
+                                'Expires: $expiryDateStr',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isNearExpiry ? Colors.orange : Colors.grey,
-                                  fontWeight: isNearExpiry ? FontWeight.bold : FontWeight.normal,
+                                  color: isNearExpiry
+                                      ? Colors.orange
+                                      : Colors.grey,
+                                  fontWeight: isNearExpiry
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                 ),
                               ),
                               const Spacer(),
@@ -322,18 +370,21 @@ Future<void> _showBatchSelectionForSale(int itemIndex, InventoryItem inventoryIt
                                 '${batch.daysUntilExpiry} days left',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: isNearExpiry ? Colors.orange : Colors.green,
+                                  color: isNearExpiry
+                                      ? Colors.orange
+                                      : Colors.green,
                                 ),
                               ),
                             ],
                           ),
-                          
-                          // Progress bar
+
                           const SizedBox(height: 8),
+
+                          // Progress bar
                           ClipRRect(
                             borderRadius: BorderRadius.circular(4),
                             child: LinearProgressIndicator(
-                              value: remainingQty / totalQty,
+                              value: totalQty > 0 ? remainingQty / totalQty : 0,
                               backgroundColor: Colors.grey.shade200,
                               color: isNearExpiry ? Colors.orange : Colors.green,
                               minHeight: 4,
@@ -383,19 +434,17 @@ void _addInventoryItemToBillWithBatch(
   required String batchNumber,
   required DateTime expiryDate,
 }) {
-  print('🔄 Adding inventory item with batch selection');
-  print('  Item: ${inventoryItem.name}');
-  print('  Batch: $batchNumber');
-  print('  Expiry: ${_formatDate(expiryDate)}');
+  // Create user-friendly description (hide technical batch number)
+  final userFriendlyDescription = '${inventoryItem.name} (Exp: ${_formatDate(expiryDate)})';
   
   final newBillItem = BillItem.create(
-    description: inventoryItem.name,
+    description: userFriendlyDescription,
     quantity: 1.0,
     price: inventoryItem.price,
     inventoryItemId: inventoryItem.id,
-    batchId: batchId,           // ← Store selected batch ID
-    batchNumber: batchNumber,   // ← Store batch number for reference
-    expiryDate: expiryDate,     // ← Store expiry date
+    batchId: batchId,
+    batchNumber: batchNumber,
+    expiryDate: expiryDate,
     purchasePrice: inventoryItem.cost,
     unit: inventoryItem.unit,
     category: inventoryItem.category,
@@ -407,13 +456,12 @@ void _addInventoryItemToBillWithBatch(
   
   setState(() {
     _items = updatedItems;
-    _descControllers[itemIndex].text = '${inventoryItem.name} (Batch: $batchNumber)';
+    _descControllers[itemIndex].text = userFriendlyDescription;
     _qtyControllers[itemIndex].text = '1';
     _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
     _calculateTotals();
   });
 }
-
 /// Reverse stock changes from a bill (for editing)
 Future<void> _reverseBillStock(Bill bill) async {
   print('  Reversing stock for bill ${bill.invoiceNumber}');
@@ -578,7 +626,76 @@ void _filterItems() {
   }
 
 // Show batch details dialog for purchase (expiry date and batch number)
-void _showBatchDetailsForPurchase(int itemIndex, InventoryItem inventoryItem) {
+// Show batch details dialog for purchase with option to restock existing batch
+void _showBatchDetailsForPurchase(int itemIndex, InventoryItem inventoryItem) async {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  
+  // First, check if there are existing batches
+  final existingBatches = await _inventoryService.batchService.getBatchesWithDetails(inventoryItem.id);
+  final activeBatches = existingBatches.where((b) {
+    final batch = b['batch'] as Batch;
+    return batch.isActive && !batch.isExpired;
+  }).toList();
+  
+  if (activeBatches.isNotEmpty) {
+    // Show option to restock existing batch or create new batch
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: colorScheme.outline)),
+              ),
+              child: Text(
+                'Add Stock to ${inventoryItem.name}',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.add_circle, color: colorScheme.primary),
+              title: const Text('Create New Batch'),
+              subtitle: Text('Create a new batch with new expiry date'),
+              onTap: () {
+                Navigator.pop(context);
+                _showNewBatchDialog(itemIndex, inventoryItem);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.inventory, color: Colors.orange),
+              title: const Text('Add to Existing Batch'),
+              subtitle: Text('Restock an existing batch'),
+              onTap: () {
+                Navigator.pop(context);
+                _showRestockBatchDialog(itemIndex, inventoryItem, activeBatches);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  } else {
+    // No existing batches, create new batch
+    _showNewBatchDialog(itemIndex, inventoryItem);
+  }
+}
+
+// Show dialog for creating a new batch
+void _showNewBatchDialog(int itemIndex, InventoryItem inventoryItem) {
   final theme = Theme.of(context);
   final colorScheme = theme.colorScheme;
   
@@ -589,16 +706,16 @@ void _showBatchDetailsForPurchase(int itemIndex, InventoryItem inventoryItem) {
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text('Batch Details - ${inventoryItem.name}'),
+      title: Text('New Batch - ${inventoryItem.name}'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Batch Number
           TextField(
             controller: batchNumberController,
-            decoration: const InputDecoration(
+            decoration:  InputDecoration(
               labelText: 'Batch Number (Optional)',
-              hintText: 'e.g., BATCH-001',
+              hintText: 'Leave empty for auto-generated',
               border: OutlineInputBorder(),
             ),
           ),
@@ -630,12 +747,6 @@ void _showBatchDetailsForPurchase(int itemIndex, InventoryItem inventoryItem) {
               ),
             ),
           ),
-          
-          const SizedBox(height: 8),
-          Text(
-            'Required for batch-tracked items',
-            style: TextStyle(fontSize: 12, color: colorScheme.primary),
-          ),
         ],
       ),
       actions: [
@@ -659,29 +770,307 @@ void _showBatchDetailsForPurchase(int itemIndex, InventoryItem inventoryItem) {
                   ? batchNumberController.text 
                   : null,
               expiryDate: selectedExpiryDate!,
+              isNewBatch: true,
             );
           },
-          child: const Text('Add Item'),
+          child: const Text('Create Batch'),
         ),
       ],
     ),
   );
 }
 
-// Add purchase item with batch details
+// Show dialog for restocking existing batch
+void _showRestockBatchDialog(int itemIndex, InventoryItem inventoryItem, List<Map<String, dynamic>> batches) {
+  final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
+  final isDark = theme.brightness == Brightness.dark;
+
+  Batch? selectedBatch;
+  final quantityController = TextEditingController();
+
+  showDialog(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        backgroundColor: colorScheme.surface,
+        title: Text(
+          'Restock Batch - ${inventoryItem.name}',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.85,
+            maxHeight: MediaQuery.of(context).size.height * 0.5,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Batch Selection Dropdown
+                DropdownButtonFormField<Batch>(
+                  isExpanded: true,
+                  value: selectedBatch,
+                  dropdownColor: colorScheme.surface,
+                  decoration: InputDecoration(
+                    labelText: 'Select Batch',
+                    labelStyle: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: isDark
+                        ? colorScheme.surfaceContainerHighest
+                        : Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.onSurface,
+                  ),
+                  hint: Text(
+                    'Choose a batch',
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.4),
+                      fontSize: 13,
+                    ),
+                  ),
+                  items: batches.asMap().entries.map((entry) {
+                    final index = entry.key + 1;
+                    final batchData = entry.value;
+                    final batch = batchData['batch'] as Batch;
+                    final remaining = batchData['remainingQuantity'] ?? 0;
+                    final expiryDate = batch.expiryDate;
+
+                    // User-friendly label (hide technical ID)
+                    final label =
+                        'Batch $index · Exp: ${_formatDate(expiryDate)} · Stock: $remaining ${inventoryItem.unit}';
+
+                    return DropdownMenuItem<Batch>(
+                      value: batch,
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colorScheme.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedBatch = value;
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Selected batch info card
+                if (selectedBatch != null)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withOpacity(0.07),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: colorScheme.primary.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Expires: ${_formatDate(selectedBatch!.expiryDate)}  ·  '
+                            'Purchase: ₹${selectedBatch!.purchasePrice.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.primary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 16),
+
+                // Quantity to add
+                TextField(
+                  controller: quantityController,
+                  style: TextStyle(color: colorScheme.onSurface),
+                  decoration: InputDecoration(
+                    labelText: 'Quantity to Add *',
+                    labelStyle: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: isDark
+                        ? colorScheme.surfaceContainerHighest
+                        : Colors.white,
+                    suffixText: inventoryItem.unit,
+                    suffixStyle: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: colorScheme.onSurface.withOpacity(0.6),
+            ),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (selectedBatch == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Please select a batch'),
+                    backgroundColor: colorScheme.error,
+                  ),
+                );
+                return;
+              }
+              final quantity = int.tryParse(quantityController.text);
+              if (quantity == null || quantity <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Please enter a valid quantity'),
+                    backgroundColor: colorScheme.error,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context);
+              _addRestockToBill(itemIndex, inventoryItem, selectedBatch!, quantity);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Restock'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// Add restock item to bill
+void _addRestockToBill(int itemIndex, InventoryItem inventoryItem, Batch batch, int quantity) {
+  print('🔄 Adding restock to bill');
+  print('  Item: ${inventoryItem.name}');
+  print('  Batch: ${batch.batchNumber}');
+  print('  Quantity: $quantity');
+  
+  // Create user-friendly description (hide technical batch number)
+  String userFriendlyDescription;
+  if (batch.batchNumber.startsWith('BATCH-')) {
+    // For auto-generated batches, show expiry date only
+    userFriendlyDescription = '${inventoryItem.name} (Restock - Exp: ${_formatDate(batch.expiryDate)})';
+  } else {
+    // For custom batches, show batch number
+    userFriendlyDescription = '${inventoryItem.name} (Restock: ${batch.batchNumber})';
+  }
+  
+  final newBillItem = BillItem.create(
+    description: userFriendlyDescription,  // User-friendly description
+    quantity: quantity.toDouble(),
+    price: inventoryItem.price,
+    inventoryItemId: inventoryItem.id,
+    batchId: batch.id,  // Keep batch ID for backend
+    batchNumber: batch.batchNumber,
+    expiryDate: batch.expiryDate,
+    purchasePrice: inventoryItem.cost,
+    unit: inventoryItem.unit,
+    category: inventoryItem.category,
+    name: inventoryItem.name,
+  );
+  
+  final List<BillItem> updatedItems = List.from(_items);
+  updatedItems[itemIndex] = newBillItem;
+  
+  setState(() {
+    _items = updatedItems;
+    _descControllers[itemIndex].text = userFriendlyDescription;
+    _qtyControllers[itemIndex].text = quantity.toString();
+    _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
+    _calculateTotals();
+  });
+}
+
+// Update existing purchase item with batch (add isNewBatch parameter)
 void _addPurchaseItemWithBatch(
   int itemIndex, 
   InventoryItem inventoryItem, 
   {String? batchNumber, 
-  required DateTime expiryDate}
-) {
+  required DateTime expiryDate,
+  bool isNewBatch = true,  // ← ADD THIS PARAMETER
+}) {
   print('🔄 Adding purchase item with batch details');
   print('  Item: ${inventoryItem.name}');
   print('  Batch: ${batchNumber ?? 'Auto-generated'}');
   print('  Expiry: ${_formatDate(expiryDate)}');
+  print('  Type: ${isNewBatch ? "New Batch" : "Restock"}');
   
   final newBillItem = BillItem.create(
-    description: inventoryItem.name,
+    description: isNewBatch 
+        ? '${inventoryItem.name} (New Batch)'
+        : '${inventoryItem.name} (Restock)',
     quantity: 1.0,
     price: inventoryItem.price,
     inventoryItemId: inventoryItem.id,
@@ -704,7 +1093,6 @@ void _addPurchaseItemWithBatch(
     _calculateTotals();
   });
 }
-
   void _showAddPartyDialog() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -2599,36 +2987,51 @@ Future<void> _handleInventoryUpdatesForNewBill(Bill bill) async {
           print('    ✅ Stock deducted from simple stock');
         }
         
-      } else if (bill.type == 'purchase') {
-        // ========== PURCHASE: ADD STOCK ==========
-        if (inventoryItem.trackByBatch) {
-          // Batch-tracked item - create new batch
-          print('    🔄 Purchase - Batch item: ${inventoryItem.name}');
-          
-          // Use expiry date from item, or default to 1 year
-          final expiryDate = item.expiryDate ?? DateTime.now().add(const Duration(days: 365));
-          
-          await _inventoryService.purchaseStock(
-            inventoryId: item.inventoryItemId!,
-            quantity: item.quantity.toInt(),
-            purchasePrice: item.purchasePrice ?? inventoryItem.cost,
-            expiryDate: expiryDate,
-            purchaseDate: bill.date,
-            supplierInvoiceNo: item.batchNumber ?? bill.invoiceNumber,
-            supplierName: bill.partyName,
-          );
-          print('    ✅ New batch created with expiry: ${expiryDate.toLocal().toString().split(' ')[0]}');
-        } else {
-          // Simple item - just add quantity
-          print('    🔄 Purchase - Simple item: ${inventoryItem.name}');
-          await _inventoryService.adjustStock(
-            item.inventoryItemId!,
-            item.quantity.toInt(),
-            'Purchased in bill ${bill.invoiceNumber}',
-          );
-          print('    ✅ Stock added to simple stock');
-        }
-      }
+   } else if (bill.type == 'purchase') {
+  // ========== PURCHASE: ADD STOCK ==========
+  if (inventoryItem.trackByBatch) {
+    // Check if this is a restock (has batchId)
+    if (item.batchId != null && item.batchId!.isNotEmpty) {
+      // This is a restock to existing batch
+      print('    🔄 Purchase - Restocking existing batch');
+      
+      await _inventoryService.restockBatch(
+        inventoryId: item.inventoryItemId!,
+        batchId: item.batchId!,
+        additionalQuantity: item.quantity.toInt(),
+        purchasePrice: item.purchasePrice ?? inventoryItem.cost,
+        supplierInvoiceNo: item.batchNumber ?? bill.invoiceNumber,
+        supplierName: bill.partyName,
+      );
+      print('    ✅ Batch restocked successfully');
+    } else {
+      // This is a new batch
+      print('    🔄 Purchase - Creating new batch');
+      
+      final expiryDate = item.expiryDate ?? DateTime.now().add(const Duration(days: 365));
+      
+      await _inventoryService.purchaseStock(
+        inventoryId: item.inventoryItemId!,
+        quantity: item.quantity.toInt(),
+        purchasePrice: item.purchasePrice ?? inventoryItem.cost,
+        expiryDate: expiryDate,
+        purchaseDate: bill.date,
+        supplierInvoiceNo: item.batchNumber ?? bill.invoiceNumber,
+        supplierName: bill.partyName,
+      );
+      print('    ✅ New batch created with expiry: ${expiryDate.toLocal().toString().split(' ')[0]}');
+    }
+  } else {
+    // Simple item - just add quantity
+    print('    🔄 Purchase - Simple item: ${inventoryItem.name}');
+    await _inventoryService.adjustStock(
+      item.inventoryItemId!,
+      item.quantity.toInt(),
+      'Purchased in bill ${bill.invoiceNumber}',
+    );
+    print('    ✅ Stock added to simple stock');
+  }
+}
       
       // Verify the update worked
       if (inventoryItem.trackByBatch) {
