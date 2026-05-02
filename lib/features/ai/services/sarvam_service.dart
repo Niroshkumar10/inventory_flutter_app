@@ -5,9 +5,11 @@ import 'package:http/http.dart' as http;
 import '../../inventory/services/inventory_repo_service.dart';
 import '../../inventory/models/inventory_item_model.dart';
 import '../../feedback/services/feedback_service.dart';
+import '../../inventory/models/batch_model.dart';
 import '../../feedback/models/feedback_model.dart';
 import '../../party/models/customer_model.dart';
 import '../../party/models/supplier_model.dart';
+import '../../inventory/services/batch_service.dart';
 
 class SarvamService {
   final String apiKey;
@@ -92,105 +94,163 @@ class SarvamService {
   }
 
   // Get inventory context with expiry information
-  Future<Map<String, dynamic>> _getInventoryContext() async {
-    try {
-      final items = await inventoryRepo.getAllInventoryItems();
-      final stats = await inventoryRepo.getInventoryStats();
+Future<Map<String, dynamic>> _getInventoryContext() async {
+  try {
+    final items = await inventoryRepo.getAllInventoryItems();
+    final stats = await inventoryRepo.getInventoryStats();
+    
+    // Calculate values by category
+    Map<String, double> categoryValues = {};
+    Map<String, int> categoryCounts = {};
+    
+    // Expiry tracking
+    List<Map<String, dynamic>> expiringSoon = [];
+    List<Map<String, dynamic>> expiredItems = [];
+    
+    // ========== NEW: Batch tracking ==========
+    List<Map<String, dynamic>> batchTrackedItems = [];
+    List<Map<String, dynamic>> nearExpiryBatches = [];
+    List<Map<String, dynamic>> expiredBatches = [];
+    int totalBatches = 0;
+    int totalBatchStock = 0;
+    
+    for (var item in items) {
+      final category = item.category;
+      final value = item.price * item.quantity;
       
-      // Calculate values by category
-      Map<String, double> categoryValues = {};
-      Map<String, int> categoryCounts = {};
+      categoryValues[category] = (categoryValues[category] ?? 0) + value;
+      categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
       
-      // Expiry tracking
-      List<Map<String, dynamic>> expiringSoon = [];
-      List<Map<String, dynamic>> expiredItems = [];
-      
-      for (var item in items) {
-        final category = item.category;
-        final value = item.price * item.quantity;
-        
-        categoryValues[category] = (categoryValues[category] ?? 0) + value;
-        categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
-        
-        if (item.trackExpiry && item.expiryDate != null) {
-          if (item.isExpired) {
-            expiredItems.add({
-              'name': item.name,
-              'sku': item.sku,
-              'expiryDate': item.expiryDate,
-              'quantity': item.quantity,
-              'daysOverdue': -item.daysUntilExpiry,
-            });
-          } else if (item.isNearExpiry) {
-            expiringSoon.add({
-              'name': item.name,
-              'sku': item.sku,
-              'expiryDate': item.expiryDate,
-              'daysLeft': item.daysUntilExpiry,
-              'quantity': item.quantity,
-              'status': item.expiryStatus,
-            });
-          }
+      if (item.trackExpiry && item.expiryDate != null) {
+        if (item.isExpired) {
+          expiredItems.add({
+            'name': item.name,
+            'sku': item.sku,
+            'expiryDate': item.expiryDate,
+            'quantity': item.quantity,
+            'daysOverdue': -item.daysUntilExpiry,
+          });
+        } else if (item.isNearExpiry) {
+          expiringSoon.add({
+            'name': item.name,
+            'sku': item.sku,
+            'expiryDate': item.expiryDate,
+            'daysLeft': item.daysUntilExpiry,
+            'quantity': item.quantity,
+            'status': item.expiryStatus,
+          });
         }
       }
       
-      expiringSoon.sort((a, b) => a['daysLeft'].compareTo(b['daysLeft']));
-      
-      final itemsList = items.map((item) => {
-        'id': item.id,
-        'name': item.name,
-        'sku': item.sku,
-        'quantity': item.quantity,
-        'price': item.price,
-        'cost': item.cost,
-        'category': item.category,
-        'location': item.location,
-        'supplier': item.supplierName,
-        'isLowStock': item.isLowStock,
-        'totalValue': item.totalValue,
-        'trackExpiry': item.trackExpiry,
-        'expiryDate': item.expiryDate?.toIso8601String(),
-        'isExpired': item.isExpired,
-        'isNearExpiry': item.isNearExpiry,
-        'daysUntilExpiry': item.daysUntilExpiry,
-        'expiryStatus': item.expiryStatus,
-      }).toList();
-      
-      final suppliers = items
-          .map((i) => i.supplierName)
-          .where((s) => s != null && s.isNotEmpty)
-          .toSet()
-          .toList();
-          
-      final locations = items
-          .map((i) => i.location)
-          .where((l) => l != null && l.isNotEmpty)
-          .toSet()
-          .toList();
-      
-      final itemsWithExpiry = items.where((i) => i.trackExpiry && i.expiryDate != null).length;
-      
-      return {
-        'stats': stats,
-        'items': itemsList,
-        'itemsCount': items.length,
-        'lowStockItems': items.where((i) => i.isLowStock).map((i) => i.toMap()).toList(),
-        'categories': items.map((i) => i.category).toSet().toList(),
-        'categoryValues': categoryValues,
-        'categoryCounts': categoryCounts,
-        'totalValue': stats['totalValue'] ?? 0,
-        'suppliers': suppliers,
-        'locations': locations,
-        'expiringSoon': expiringSoon,
-        'expiredItems': expiredItems,
-        'itemsWithExpiry': itemsWithExpiry,
-      };
-    } catch (e) {
-      print('Error getting inventory context: $e');
-      return {};
+      // ========== NEW: Process batch-tracked items ==========
+      if (item.trackByBatch) {
+        final batchSummary = await _getBatchSummaryForItem(item.id);
+        final batchDetails = await _getBatchDetails(item.id);
+        
+totalBatches += (batchSummary['totalBatches'] as num?)?.toInt() ?? 0;
+totalBatchStock += (batchSummary['totalRemaining'] as num?)?.toInt() ?? 0;
+        
+        // Collect near expiry batches
+        for (var batch in batchDetails) {
+          if (batch['isNearExpiry'] == true && !batch['isExpired']) {
+            nearExpiryBatches.add({
+              'itemName': item.name,
+              'batchNumber': batch['batchNumber'],
+              'remainingQuantity': batch['remainingQuantity'],
+              'expiryDate': batch['expiryDate'],
+              'daysUntilExpiry': batch['daysUntilExpiry'],
+            });
+          }
+          if (batch['isExpired'] == true) {
+            expiredBatches.add({
+              'itemName': item.name,
+              'batchNumber': batch['batchNumber'],
+              'remainingQuantity': batch['remainingQuantity'],
+              'expiryDate': batch['expiryDate'],
+            });
+          }
+        }
+        
+        batchTrackedItems.add({
+          'id': item.id,
+          'name': item.name,
+          'sku': item.sku,
+          'unit': item.unit,
+          'totalStock': batchSummary['totalRemaining'],
+          'batchCount': batchSummary['totalBatches'],
+          'expiredBatches': batchSummary['expiredBatches'],
+          'nearExpiryBatches': batchSummary['nearExpiryBatches'],
+          'earliestExpiry': batchSummary['earliestExpiry']?.toIso8601String(),
+          'batches': batchDetails,
+        });
+      }
     }
+    
+    expiringSoon.sort((a, b) => a['daysLeft'].compareTo(b['daysLeft']));
+    
+    final itemsList = items.map((item) => {
+      'id': item.id,
+      'name': item.name,
+      'sku': item.sku,
+      'quantity': item.quantity,
+      'price': item.price,
+      'cost': item.cost,
+      'category': item.category,
+      'location': item.location,
+      'supplier': item.supplierName,
+      'isLowStock': item.isLowStock,
+      'totalValue': item.totalValue,
+      'trackExpiry': item.trackExpiry,
+      'trackByBatch': item.trackByBatch,  // ← ADD THIS
+      'expiryDate': item.expiryDate?.toIso8601String(),
+      'isExpired': item.isExpired,
+      'isNearExpiry': item.isNearExpiry,
+      'daysUntilExpiry': item.daysUntilExpiry,
+      'expiryStatus': item.expiryStatus,
+    }).toList();
+    
+    final suppliers = items
+        .map((i) => i.supplierName)
+        .where((s) => s != null && s.isNotEmpty)
+        .toSet()
+        .toList();
+        
+    final locations = items
+        .map((i) => i.location)
+        .where((l) => l != null && l.isNotEmpty)
+        .toSet()
+        .toList();
+    
+    final itemsWithExpiry = items.where((i) => i.trackExpiry && i.expiryDate != null).length;
+    final itemsWithBatch = items.where((i) => i.trackByBatch).length;
+    
+    return {
+      'stats': stats,
+      'items': itemsList,
+      'itemsCount': items.length,
+      'lowStockItems': items.where((i) => i.isLowStock).map((i) => i.toMap()).toList(),
+      'categories': items.map((i) => i.category).toSet().toList(),
+      'categoryValues': categoryValues,
+      'categoryCounts': categoryCounts,
+      'totalValue': stats['totalValue'] ?? 0,
+      'suppliers': suppliers,
+      'locations': locations,
+      'expiringSoon': expiringSoon,
+      'expiredItems': expiredItems,
+      'itemsWithExpiry': itemsWithExpiry,
+      // ========== NEW: Batch tracking context ==========
+      'itemsWithBatch': itemsWithBatch,
+      'totalBatches': totalBatches,
+      'totalBatchStock': totalBatchStock,
+      'batchTrackedItems': batchTrackedItems,
+      'nearExpiryBatches': nearExpiryBatches,
+      'expiredBatches': expiredBatches,
+    };
+  } catch (e) {
+    print('Error getting inventory context: $e');
+    return {};
   }
-
+}
   // Get feedback context with proper null handling
   Future<Map<String, int>> _getFeedbackContext() async {
     if (_feedbackService == null) {
@@ -251,14 +311,20 @@ class SarvamService {
       final query = userQuery.toLowerCase().trim();
       
       // ========== GREETINGS ==========
-      if (query == 'hi' || query == 'hello' || query == 'hey' || query == 'help') {
-        String response = '''👋 Hello! I'm your AI inventory assistant.
+      // ========== GREETINGS ==========
+if (query == 'hi' || query == 'hello' || query == 'hey' || query == 'help') {
+  String response = '''👋 Hello! I'm your AI inventory assistant.
 
 📊 **Inventory Summary:**
 • Total Items: **$itemsCount**
 • Categories: **${categories.length}**
 • Low Stock Items: **${context['lowStockItems'].length}**
 • Total Value: **₹${totalValue.toStringAsFixed(2)}**
+
+📦 **Batch Tracking Summary:**
+• Batch Items: **${context['itemsWithBatch']}**
+• Total Batches: **${context['totalBatches']}**
+• Total Batch Stock: **${context['totalBatchStock']} units**
 
 👥 **Parties Summary:**
 • Customers: **${customers.length}**
@@ -273,18 +339,102 @@ class SarvamService {
 • Avg Rating: **${feedbackContext['avgRating']}/5**
 • Pending: **${feedbackContext['pending']}**
 
-💡 **You can ask me:**
-• "List all items"
-• "Show customers" / "Show suppliers"
-• "Low stock items"
-• "Expiring soon"
-• "expired items"
-• "Feedback summary"
-• "Pending feedback"
-• "Search [item name]"''';
-        return response;
-      }
-      
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💬 **What can I help you with?**
+
+📦 **BATCH TRACKING COMMANDS:**
+• "batch items" - Show all batch-tracked items
+• "batches of [item name]" - Show batches for a specific item
+• "near expiry batches" - Batches expiring in next 30 days
+• "expired batches" - Show expired batches
+• "batch summary" - Complete batch overview
+• "stock of batch [number]" - Check specific batch stock
+• "batch sales of [number]" - Batch sales history
+• "which batch to use" - FIFO recommendations
+• "restock recommendations" - Items needing restock
+• "batch performance" - Sell-through rates
+• "expiry alert details" - Detailed expiry alerts
+
+📋 **INVENTORY COMMANDS:**
+• "list all items" - Show all inventory items
+• "low stock items" - Items below threshold
+• "inventory value" - Total value by category
+• "search [item name]" - Find specific items
+
+👥 **PARTY COMMANDS:**
+• "show customers" - List all customers
+• "show suppliers" - List all suppliers
+• "search customer [name]" - Find customer
+• "how many customers?" - Customer count
+• "how many suppliers?" - Supplier count
+
+⏰ **EXPIRY COMMANDS:**
+• "expiring soon" - Items expiring in 30 days
+• "expired items" - Show expired items
+
+⭐ **FEEDBACK COMMANDS:**
+• "feedback summary" - Overall feedback stats
+• "pending feedback" - Unresolved feedback
+• "average rating" - Rating analysis
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 **Tip:** Just type what you want to know!''';
+  return response;
+}
+// ========== SHOW COMMANDS MENU ==========
+else if (query == 'menu' || query == 'commands' || query == 'what can you do' || query == 'help menu') {
+  return '''📋 **Available Commands Menu**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 **BATCH TRACKING**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• "batch items" - Show all batch-tracked items
+• "batches of [item]" - Show batches for an item
+• "near expiry batches" - Batches expiring soon
+• "expired batches" - Show expired batches
+• "batch summary" - Complete batch overview
+• "stock of batch [number]" - Check batch stock
+• "batch sales of [number]" - Batch sales history
+• "which batch to use" - FIFO recommendations
+• "restock recommendations" - Low stock alerts
+• "batch performance" - Sell-through rates
+• "expiry alert details" - Detailed expiry alerts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 **INVENTORY**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• "list all items" - All inventory items
+• "low stock items" - Below threshold
+• "inventory value" - Total value
+• "search [item name]" - Find items
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👥 **PARTIES**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• "show customers" - List customers
+• "show suppliers" - List suppliers
+• "search customer [name]"
+• "how many customers?"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ **EXPIRY**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• "expiring soon" - Items expiring in 30 days
+• "expired items" - Expired items
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⭐ **FEEDBACK**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• "feedback summary" - Overall stats
+• "pending feedback" - Unresolved
+• "average rating" - Rating analysis
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Type "help" to see full summary with your data.''';
+}
       // ========== SHOW CUSTOMERS ==========
       else if (query.contains('show customers') || 
                query.contains('list customers') || 
@@ -635,6 +785,442 @@ Please go to the **Feedback** section in the app to:
         }
         return response;
       }
+      // Add these inside the queryInventory method after the existing patterns
+
+// ========== BATCH: SHOW BATCH-TRACKED ITEMS ==========
+else if (query.contains('batch items') || 
+         query.contains('batch tracked') || 
+         query.contains('batches')) {
+  
+  final batchTrackedItems = context['batchTrackedItems'] as List? ?? [];
+  final totalBatches = context['totalBatches'] ?? 0;
+  
+  if (batchTrackedItems.isEmpty) {
+    return '📦 **No batch-tracked items found.**\n\n'
+        '💡 To enable batch tracking:\n'
+        '1. Go to Add/Edit Item\n'
+        '2. Enable "Track Expiry"\n'
+        '3. Enable "Batch Tracking"\n\n'
+        'Batch tracking helps you manage items with expiry dates like food, medicine, etc.';
+  }
+  
+  String response = '📦 **Batch-Tracked Items (${batchTrackedItems.length})**\n\n';
+  for (var item in batchTrackedItems) {
+    response += '• **${item['name']}**\n';
+    response += '  📊 Total Stock: ${item['totalStock']} ${item['unit']}\n';
+    response += '  📦 Batches: ${item['batchCount']}\n';
+    response += '  ⚠️ Near Expiry: ${item['nearExpiryBatches']}\n';
+    response += '  ❌ Expired: ${item['expiredBatches']}\n\n';
+  }
+  response += '\n📊 **Summary:**\n';
+  response += '• Total Batches: **$totalBatches**\n';
+  response += '• Total Batch Stock: **${context['totalBatchStock']} units**\n';
+  return response;
+}
+
+// ========== BATCH: SHOW BATCHES FOR A SPECIFIC ITEM ==========
+else if (query.contains('batches of') || 
+         query.contains('batch details for') || 
+         query.contains('show batches')) {
+  
+  // Extract item name from query
+  String itemName = query
+      .replaceAll('batches of', '')
+      .replaceAll('batch details for', '')
+      .replaceAll('show batches for', '')
+      .replaceAll('show batches of', '')
+      .trim();
+  
+  if (itemName.isEmpty) {
+    return '🔍 Please specify an item name.\n\nExample: "batches of rice" or "show batches for oil"';
+  }
+  
+  final batchTrackedItems = context['batchTrackedItems'] as List? ?? [];
+  final matchedItem = batchTrackedItems.firstWhere(
+    (item) => item['name'].toString().toLowerCase().contains(itemName.toLowerCase()),
+    orElse: () => null,
+  );
+  
+  if (matchedItem == null) {
+    return '❌ No batch-tracked item found matching "$itemName".\n\n'
+        'Type "batch items" to see all batch-tracked items.';
+  }
+  
+  final batches = matchedItem['batches'] as List? ?? [];
+  
+  if (batches.isEmpty) {
+    return '📦 **${matchedItem['name']}** has no batches yet.\n\n'
+        '💡 To add a batch:\n'
+        '1. Go to the item details\n'
+        '2. Tap "Add Batch"\n'
+        '3. Enter quantity and expiry date';
+  }
+  
+  String response = '📦 **Batches for ${matchedItem['name']}**\n\n';
+  for (int i = 0; i < batches.length; i++) {
+    final batch = batches[i];
+    final remaining = batch['remainingQuantity'];
+    final total = batch['quantity'];
+    final expiryDate = batch['expiryDate'] != null 
+        ? _formatDate(DateTime.parse(batch['expiryDate'])) 
+        : 'Unknown';
+    final isNearExpiry = batch['isNearExpiry'] == true;
+    final isExpired = batch['isExpired'] == true;
+    
+    String statusIcon = '🟢';
+    if (isExpired) {
+      statusIcon = '❌';
+    } else if (isNearExpiry) {
+      statusIcon = '⚠️';
+    }
+    
+    response += '$statusIcon **Batch ${i + 1}**\n';
+    response += '  • Remaining: $remaining units\n';
+    response += '  • Sold: ${batch['soldQuantity']} units\n';
+    response += '  • Total: $total units\n';
+    response += '  • Expires: $expiryDate\n';
+    if (batch['supplierName'] != null && batch['supplierName'].isNotEmpty) {
+      response += '  • Supplier: ${batch['supplierName']}\n';
+    }
+    response += '\n';
+  }
+  
+  return response;
+}
+
+// ========== BATCH: NEAR EXPIRY BATCHES ==========
+else if (query.contains('near expiry batches') || 
+         query.contains('batches expiring soon')) {
+  
+  final nearExpiryBatches = context['nearExpiryBatches'] as List? ?? [];
+  
+  if (nearExpiryBatches.isEmpty) {
+    return '✅ **No batches expiring soon.**\n\n'
+        'All batches have more than 30 days until expiry.';
+  }
+  
+  String response = '⚠️ **${nearExpiryBatches.length} batches expiring soon:**\n\n';
+  for (var batch in nearExpiryBatches) {
+    response += '• **${batch['itemName']}**\n';
+    response += '  Batch: ${batch['batchNumber']}\n';
+    response += '  Remaining: ${batch['remainingQuantity']} units\n';
+    response += '  Expires in: ${batch['daysUntilExpiry']} days\n\n';
+  }
+  return response;
+}
+
+// ========== BATCH: EXPIRED BATCHES ==========
+else if (query.contains('expired batches')) {
+  
+  final expiredBatches = context['expiredBatches'] as List? ?? [];
+  
+  if (expiredBatches.isEmpty) {
+    return '✅ **No expired batches found.**\n\n'
+        'All batches are within their expiry period.';
+  }
+  
+  String response = '❌ **${expiredBatches.length} expired batches:**\n\n';
+  for (var batch in expiredBatches) {
+    response += '• **${batch['itemName']}**\n';
+    response += '  Batch: ${batch['batchNumber']}\n';
+    response += '  Remaining: ${batch['remainingQuantity']} units (should be written off)\n';
+    response += '  Expired on: ${_formatDate(DateTime.parse(batch['expiryDate']))}\n\n';
+  }
+  response += '\n💡 **Recommendation:** Write off expired batches to maintain accurate inventory.';
+  return response;
+}
+
+// ========== BATCH: BATCH SUMMARY ==========
+else if (query.contains('batch summary') || 
+         query.contains('batch overview')) {
+  
+  final batchTrackedItems = context['batchTrackedItems'] as List? ?? [];
+  final totalBatches = context['totalBatches'] ?? 0;
+  final totalBatchStock = context['totalBatchStock'] ?? 0;
+  final nearExpiryCount = context['nearExpiryBatches'] as List? ?? [];
+  final expiredCount = context['expiredBatches'] as List? ?? [];
+  
+  if (batchTrackedItems.isEmpty) {
+    return '📦 **No batch-tracked items found.**\n\n'
+        'Enable batch tracking on items with expiry dates.';
+  }
+  
+  String response = '📊 **Batch Tracking Summary**\n\n';
+  response += '📦 **Overview:**\n';
+  response += '• Batch-Tracked Items: **${batchTrackedItems.length}**\n';
+  response += '• Total Batches: **$totalBatches**\n';
+  response += '• Total Stock: **$totalBatchStock units**\n\n';
+  
+  response += '⚠️ **Expiry Status:**\n';
+  response += '• Near Expiry Batches: **${nearExpiryCount.length}**\n';
+  response += '• Expired Batches: **${expiredCount.length}**\n\n';
+  
+  response += '📋 **Items with Batches:**\n';
+  for (var item in batchTrackedItems) {
+    response += '• **${item['name']}** - ${item['batchCount']} batches, ${item['totalStock']} units\n';
+  }
+  
+  return response;
+}
+// ========== BATCH: TOTAL STOCK OF A SPECIFIC BATCH ==========
+else if (query.contains('stock of batch') || 
+         query.contains('batch stock') ||
+         (query.contains('how many') && query.contains('batch'))) {
+  
+  // Extract batch number or item name from query
+  String searchTerm = query
+      .replaceAll('stock of batch', '')
+      .replaceAll('batch stock of', '')
+      .replaceAll('how many in batch', '')
+      .replaceAll('how many', '')
+      .trim();
+  
+  if (searchTerm.isEmpty) {
+    return '🔍 Please specify a batch number or item name.\n\nExample: "stock of batch BATCH-20250420-1234" or "batch stock of oil"';
+  }
+  
+  final batchTrackedItems = context['batchTrackedItems'] as List? ?? [];
+  bool found = false;
+  String response = '📊 **Batch Stock Information**\n\n';
+  
+  // Search for specific batch number
+  for (var item in batchTrackedItems) {
+    final batches = item['batches'] as List? ?? [];
+    for (var batch in batches) {
+      final batchNumber = batch['batchNumber'];
+      if (batchNumber.toString().toLowerCase().contains(searchTerm.toLowerCase())) {
+        found = true;
+        response += '📦 **${item['name']}**\n';
+        response += '• Batch: $batchNumber\n';
+        response += '• Remaining: ${batch['remainingQuantity']} ${item['unit']}\n';
+        response += '• Total Original: ${batch['quantity']} ${item['unit']}\n';
+        response += '• Sold: ${batch['soldQuantity']} ${item['unit']}\n';
+        response += '• Purchase Price: ₹${batch['purchasePrice']}\n';
+        response += '• Expiry: ${_formatDate(DateTime.parse(batch['expiryDate']))}\n';
+        response += '• Status: ${batch['isExpired'] ? "❌ EXPIRED" : (batch['isNearExpiry'] ? "⚠️ Near Expiry" : "✅ Active")}\n\n';
+      }
+    }
+  }
+  
+  if (!found) {
+    return '❌ No batch found matching "$searchTerm".\n\nType "batch items" to see all batch-tracked items.';
+  }
+  
+  return response;
+}
+
+// ========== BATCH: BATCH HISTORY/SALES ==========
+else if (query.contains('batch sales') || 
+         query.contains('batch history') ||
+         query.contains('sold from batch')) {
+  
+  String searchTerm = query
+      .replaceAll('batch sales of', '')
+      .replaceAll('batch history of', '')
+      .replaceAll('sold from batch', '')
+      .trim();
+  
+  if (searchTerm.isEmpty) {
+    return '🔍 Please specify a batch number.\n\nExample: "batch sales of BATCH-20250420-1234"';
+  }
+  
+  final batchTrackedItems = context['batchTrackedItems'] as List? ?? [];
+  bool found = false;
+  String response = '📈 **Batch Sales History**\n\n';
+  
+  for (var item in batchTrackedItems) {
+    final batches = item['batches'] as List? ?? [];
+    for (var batch in batches) {
+      final batchNumber = batch['batchNumber'];
+      if (batchNumber.toString().toLowerCase().contains(searchTerm.toLowerCase())) {
+        found = true;
+        response += '📦 **${item['name']} - $batchNumber**\n';
+        response += '• Total Sold: ${batch['soldQuantity']} ${item['unit']}\n';
+        response += '• Remaining: ${batch['remainingQuantity']} ${item['unit']}\n';
+        response += '• Total: ${batch['quantity']} ${item['unit']}\n';
+        response += '• Sales Rate: ${((batch['soldQuantity'] / batch['quantity']) * 100).toStringAsFixed(1)}% sold\n\n';
+      }
+    }
+  }
+  
+  if (!found) {
+    return '❌ No batch found matching "$searchTerm".';
+  }
+  
+  return response;
+}
+
+// ========== BATCH: RECOMMENDATIONS (WHICH BATCH TO USE FIRST) ==========
+else if (query.contains('which batch to use') || 
+         query.contains('recommend batch') ||
+         query.contains('use first')) {
+  
+  final batchTrackedItems = context['batchTrackedItems'] as List? ?? [];
+  
+  if (batchTrackedItems.isEmpty) {
+    return '📦 No batch-tracked items found.\n\nEnable batch tracking on items with expiry dates.';
+  }
+  
+  String response = '📋 **FIFO Recommendations (Use earliest expiry first)**\n\n';
+  
+  for (var item in batchTrackedItems) {
+    final batches = item['batches'] as List? ?? [];
+    if (batches.isEmpty) continue;
+    
+    // Sort batches by expiry date to find earliest
+    batches.sort((a, b) {
+      final dateA = DateTime.parse(a['expiryDate']);
+      final dateB = DateTime.parse(b['expiryDate']);
+      return dateA.compareTo(dateB);
+    });
+    
+    final earliestBatch = batches.first;
+    final earliestDate = _formatDate(DateTime.parse(earliestBatch['expiryDate']));
+    final daysLeft = earliestBatch['daysUntilExpiry'];
+    
+    response += '• **${item['name']}**\n';
+    response += '  ↳ Use batch expiring on **$earliestDate** ($daysLeft days left)\n';
+    response += '  ↳ Remaining: ${earliestBatch['remainingQuantity']} ${item['unit']}\n\n';
+  }
+  
+  response += '\n💡 **Tip:** Always use batches with earliest expiry dates first (FIFO) to minimize waste.';
+  return response;
+}
+
+// ========== BATCH: RESTOCK RECOMMENDATIONS ==========
+else if (query.contains('restock recommendations') || 
+         query.contains('what to restock') ||
+         query.contains('low stock batches')) {
+  
+  final batchTrackedItems = context['batchTrackedItems'] as List? ?? [];
+  
+  List<Map<String, dynamic>> lowStockBatches = [];
+  
+  for (var item in batchTrackedItems) {
+    final batches = item['batches'] as List? ?? [];
+    final totalStock = item['totalStock'] ?? 0;
+    final lowStockThreshold = 10; // Default threshold
+    
+    if (totalStock < lowStockThreshold) {
+      lowStockBatches.add({
+        'name': item['name'],
+        'unit': item['unit'],
+        'totalStock': totalStock,
+        'batches': batches,
+      });
+    }
+  }
+  
+  if (lowStockBatches.isEmpty) {
+    return '✅ **All batch-tracked items have adequate stock.**\n\nNo immediate restock needed.';
+  }
+  
+  String response = '⚠️ **Restock Recommendations**\n\n';
+  response += 'The following items are running low on stock:\n\n';
+  
+  for (var item in lowStockBatches) {
+    response += '📦 **${item['name']}**\n';
+    response += '• Total Stock: ${item['totalStock']} ${item['unit']}\n';
+    
+    // Find earliest expiry batch
+    final batches = item['batches'] as List;
+    if (batches.isNotEmpty) {
+      batches.sort((a, b) {
+        final dateA = DateTime.parse(a['expiryDate']);
+        final dateB = DateTime.parse(b['expiryDate']);
+        return dateA.compareTo(dateB);
+      });
+      final earliestBatch = batches.first;
+      response += '• Earliest Expiry: ${_formatDate(DateTime.parse(earliestBatch['expiryDate']))}\n';
+    }
+    response += '\n';
+  }
+  
+  response += '💡 **Action:** Consider restocking these items soon to avoid stockouts.';
+  return response;
+}
+
+// ========== BATCH: BATCH EFFICIENCY/SELL-THROUGH RATE ==========
+else if (query.contains('sell through rate') || 
+         query.contains('batch efficiency') ||
+         query.contains('batch performance')) {
+  
+  final batchTrackedItems = context['batchTrackedItems'] as List? ?? [];
+  
+  if (batchTrackedItems.isEmpty) {
+    return '📦 No batch-tracked items found.';
+  }
+  
+  String response = '📊 **Batch Performance / Sell-Through Rate**\n\n';
+  
+  for (var item in batchTrackedItems) {
+    final batches = item['batches'] as List? ?? [];
+    if (batches.isEmpty) continue;
+    
+    response += '📦 **${item['name']}**\n';
+    
+    for (int i = 0; i < batches.length; i++) {
+      final batch = batches[i];
+      final total = batch['quantity'];
+      final sold = batch['soldQuantity'];
+      final sellThroughRate = total > 0 ? (sold / total * 100).toStringAsFixed(1) : '0';
+      
+      String performanceIcon = '🟢';
+      if (double.parse(sellThroughRate) >= 70) {
+        performanceIcon = '🏆';
+      } else if (double.parse(sellThroughRate) >= 40) {
+        performanceIcon = '📈';
+      } else if (double.parse(sellThroughRate) >= 20) {
+        performanceIcon = '📊';
+      } else {
+        performanceIcon = '🔴';
+      }
+      
+      response += '  $performanceIcon Batch ${i + 1}: $sellThroughRate% sold (${sold}/${total} ${item['unit']})\n';
+    }
+    response += '\n';
+  }
+  
+  return response;
+}
+
+// ========== BATCH: EXPIRY ALERT DETAILS ==========
+else if (query.contains('expiry alert details') || 
+         query.contains('detailed expiry') ||
+         query.contains('which batches expiring')) {
+  
+  final nearExpiryBatches = context['nearExpiryBatches'] as List? ?? [];
+  final expiredBatches = context['expiredBatches'] as List? ?? [];
+  
+  if (nearExpiryBatches.isEmpty && expiredBatches.isEmpty) {
+    return '✅ **No expiry alerts.**\n\nAll batches are valid and have more than 30 days until expiry.';
+  }
+  
+  String response = '⚠️ **Detailed Expiry Alerts**\n\n';
+  
+  if (nearExpiryBatches.isNotEmpty) {
+    response += '**🟡 NEAR EXPIRY (Within 30 days)**\n';
+    for (var batch in nearExpiryBatches) {
+      response += '• **${batch['itemName']}**\n';
+      response += '  Batch: ${batch['batchNumber']}\n';
+      response += '  Remaining: ${batch['remainingQuantity']} units\n';
+      response += '  Expires in: ${batch['daysUntilExpiry']} days\n';
+      response += '  ⚡ **Action:** Use immediately or run promotion\n\n';
+    }
+  }
+  
+  if (expiredBatches.isNotEmpty) {
+    response += '**🔴 EXPIRED**\n';
+    for (var batch in expiredBatches) {
+      response += '• **${batch['itemName']}**\n';
+      response += '  Batch: ${batch['batchNumber']}\n';
+      response += '  Remaining: ${batch['remainingQuantity']} units\n';
+      response += '  ⚡ **Action:** Write off immediately\n\n';
+    }
+  }
+  
+  return response;
+}
       
       // ========== DEFAULT RESPONSE ==========
       else {
@@ -683,4 +1269,59 @@ Type "help" to see this menu again.''';
   Future<List<InventoryItem>> searchWithAI(String query) async {
     return inventoryRepo.searchLocally(query);
   }
+  // Get batch summary for a specific item
+Future<Map<String, dynamic>> _getBatchSummaryForItem(String itemId) async {
+  try {
+    final batchSummary = await inventoryRepo.getBatchSummary(itemId);
+    return batchSummary;
+  } catch (e) {
+    print('Error getting batch summary for $itemId: $e');
+    return {
+      'totalRemaining': 0,
+      'totalBatches': 0,
+      'expiredBatches': 0,
+      'nearExpiryBatches': 0,
+      'earliestExpiry': null,
+    };
+  }
+}
+
+// Get detailed batch information for a specific item
+// Get detailed batch information for a specific item
+Future<List<Map<String, dynamic>>> _getBatchDetails(String itemId) async {
+  try {
+    final batchesWithDetails = await inventoryRepo.batchService.getBatchesWithDetails(itemId);
+    return batchesWithDetails.map((batchData) {
+      // Safely extract batch
+      final batchRaw = batchData['batch'];
+      if (batchRaw == null) return null;
+      
+      // Since batchRaw might be a Batch object or a Map
+      Batch batch;
+      if (batchRaw is Batch) {
+        batch = batchRaw;
+      } else {
+        // If it's a Map, convert it
+        return null;
+      }
+      
+      return {
+        'batchNumber': batch.batchNumber,
+        'quantity': batch.quantity,
+        'remainingQuantity': batch.remainingQuantity,
+        'soldQuantity': batchData['totalSold'] ?? 0,
+        'purchasePrice': batch.purchasePrice,
+        'expiryDate': batch.expiryDate.toIso8601String(),
+        'isExpired': batch.isExpired,
+        'daysUntilExpiry': batch.daysUntilExpiry,
+        'isNearExpiry': batch.isNearExpiry,
+        'supplierName': batch.supplierName,
+        'supplierInvoiceNo': batch.supplierInvoiceNo,
+      };
+    }).where((item) => item != null).toList().cast<Map<String, dynamic>>();
+  } catch (e) {
+    print('Error getting batch details for $itemId: $e');
+    return [];
+  }
+}
 }
