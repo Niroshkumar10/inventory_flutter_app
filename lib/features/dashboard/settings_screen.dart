@@ -1,4 +1,4 @@
-// lib/features/dashboard/screens/settings_screen.dart
+﻿// lib/features/dashboard/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +7,7 @@ import '../settings/settings_service.dart';
 import '../settings/auto_sync_service.dart';
 import '../reports/services/export_service.dart';
 import 'dart:async';
+import 'package:inventory_app/core/utils/app_logger.dart';
 class SettingsScreen extends StatefulWidget {
   final String userMobile;
 
@@ -24,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ExportService _exportService = ExportService();
   final AutoSyncService _autoSyncService = AutoSyncService();
   
+  bool _notificationsEnabled = true;
   bool _darkModeEnabled = false;
   bool _autoSyncEnabled = true;
   String _selectedLanguage = 'English';
@@ -106,6 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final settings = await _settingsService.loadSettings(widget.userMobile);
 
       setState(() {
+        _notificationsEnabled = settings['notifications'] ?? true;
         _darkModeEnabled = settings['darkMode'] ?? false;
         _autoSyncEnabled = settings['autoSync'] ?? true;
         _selectedLanguage = settings['language'] ?? 'English';
@@ -162,6 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       try {
         final settings = {
+          'notifications': _notificationsEnabled,
           'darkMode': _darkModeEnabled,
           'autoSync': _autoSyncEnabled,
           'language': _selectedLanguage,
@@ -327,7 +331,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'backupDate': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      print('Error fetching backup data: $e');
+      appLogger.d('Error fetching backup data: $e');
       return {'error': 'Failed to fetch data for backup'};
     }
   }
@@ -428,6 +432,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.settings,
             title: 'App Preferences',
             children: [
+              _buildDivider(isSmallScreen),
+              _buildSwitchTile(
+                icon: Icons.notifications_outlined,
+                title: 'Notifications',
+                subtitle: _notificationsEnabled
+                    ? 'Expiry alerts and updates are ON'
+                    : 'All notifications are OFF',
+                value: _notificationsEnabled,
+                onChanged: (value) {
+                  setState(() => _notificationsEnabled = value);
+                  _autoSaveSettings();
+                },
+              ),
               _buildDivider(isSmallScreen),
               _buildSwitchTile(
                 icon: Icons.dark_mode_outlined,

@@ -1,6 +1,8 @@
-// lib/features/bill/services/bill_service.dart
+﻿// lib/features/bill/services/bill_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bill_model.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
+import 'package:inventory_app/core/utils/paginated_query.dart';
 
 class BillService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -25,7 +27,7 @@ class BillService {
       final docRef = await _userBillsCollection.add(billData);
       return docRef.id;
     } catch (e) {
-      //print('❌ Error adding bill: $e');
+      //appLogger.e('❌ Error adding bill: $e');
       throw Exception('Failed to add bill: $e');
     }
   }
@@ -42,7 +44,7 @@ class BillService {
       
       await _userBillsCollection.doc(bill.id).update(updateData);
     } catch (e) {
-      //print('❌ Error updating bill: $e');
+      //appLogger.e('❌ Error updating bill: $e');
       throw Exception('Failed to update bill: $e');
     }
   }
@@ -52,7 +54,7 @@ class BillService {
     try {
       await _userBillsCollection.doc(id).delete();
     } catch (e) {
-      //print('❌ Error deleting bill: $e');
+      //appLogger.e('❌ Error deleting bill: $e');
       throw Exception('Failed to delete bill: $e');
     }
   }
@@ -89,7 +91,7 @@ Stream<List<Bill>> getBills({String? filter}) {
       return filteredBills;
     });
   } catch (e) {
-    //print('❌ Error in getBills: $e');
+    //appLogger.e('❌ Error in getBills: $e');
     // Return empty stream on error
     return Stream.value(<Bill>[]);
   }
@@ -103,7 +105,7 @@ Stream<List<Bill>> getBills({String? filter}) {
       }
       throw Exception('Bill not found');
     } catch (e) {
-      //print('❌ Error getting bill: $e');
+      //appLogger.e('❌ Error getting bill: $e');
       rethrow;
     }
   }
@@ -128,7 +130,7 @@ Stream<List<Bill>> getBills({String? filter}) {
               ))
           .toList();
     }).handleError((error) {
-      //print('❌ Stream error in searchBills: $error');
+      //appLogger.e('❌ Stream error in searchBills: $error');
       return [];
     });
   }
@@ -201,7 +203,7 @@ Stream<BillSummary> getBillSummary() {
       
       return '$prefix-$currentYear-${(maxNumber + 1).toString().padLeft(3, '0')}';
     } catch (e) {
-      //print('❌ Error getting next invoice number: $e');
+      //appLogger.e('❌ Error getting next invoice number: $e');
       // Fallback if there's an error
       return '${type == 'sales' ? 'SALE' : 'PUR'}-${DateTime.now().year}-001';
     }
@@ -221,8 +223,40 @@ Stream<BillSummary> getBillSummary() {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      //print('❌ Error adding payment: $e');
+      //appLogger.e('❌ Error adding payment: $e');
       throw Exception('Failed to add payment: $e');
+    }
+  }
+
+  // Paginated fetch — one page of bills, ordered newest first.
+  Future<PaginatedResult<Bill>> getBillsPaginated({
+    String? filter,
+    int pageSize = kDefaultPageSize,
+    DocumentSnapshot? lastDocument,
+  }) async {
+    try {
+      final base = _userBillsCollection.orderBy('date', descending: true);
+      final query = applyPagination(base, pageSize: pageSize, lastDocument: lastDocument);
+      final snapshot = await query.get();
+
+      List<Bill> bills = snapshot.docs.map((doc) {
+        return Bill.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      }).toList();
+
+      if (filter != null && filter != 'all') {
+        bills = filter == 'due'
+            ? bills.where((b) => b.amountDue > 0).toList()
+            : bills.where((b) => b.type == filter).toList();
+      }
+
+      return PaginatedResult(
+        items: bills,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } catch (e) {
+      appLogger.e('❌ Error fetching paginated bills: $e');
+      return const PaginatedResult(items: [], lastDocument: null, hasMore: false);
     }
   }
 
@@ -244,7 +278,7 @@ Stream<BillSummary> getBillSummary() {
       
       return allNames.toList()..sort();
     } catch (e) {
-      //print('❌ Error getting party names: $e');
+      //appLogger.e('❌ Error getting party names: $e');
       return [];
     }
   }

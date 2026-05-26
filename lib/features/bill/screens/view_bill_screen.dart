@@ -1,10 +1,8 @@
 // lib/features/bill/screens/view_bill_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'add_edit_bill_screen.dart';
 import '../services/bill_service.dart';
 import '../models/bill_model.dart';
-import '../../inventory/services/inventory_repo_service.dart';
 import '../../../core/providers/app_providers.dart';
 
 class ViewBillScreen extends StatelessWidget {

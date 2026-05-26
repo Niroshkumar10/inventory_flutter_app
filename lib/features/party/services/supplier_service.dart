@@ -1,8 +1,9 @@
-
+﻿
 // lib/features/party/services/supplier_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/supplier_model.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class SupplierService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -25,7 +26,7 @@ class SupplierService {
       final docRef = await _userSuppliersCollection.add(supplierData);
       return docRef.id;
     } catch (e) {
-      print('❌ Error adding supplier: $e');
+      appLogger.e('❌ Error adding supplier: $e');
       throw Exception('Failed to add supplier: $e');
     }
   }
@@ -59,7 +60,7 @@ class SupplierService {
 
       await _userSuppliersCollection.doc(supplier.id).update(data);
     } catch (e) {
-      print('❌ Error updating supplier: $e');
+      appLogger.e('❌ Error updating supplier: $e');
       throw Exception('Failed to update supplier: $e');
     }
   }
@@ -69,7 +70,7 @@ class SupplierService {
     try {
       await _userSuppliersCollection.doc(id).delete();
     } catch (e) {
-      print('❌ Error deleting supplier: $e');
+      appLogger.e('❌ Error deleting supplier: $e');
       throw Exception('Failed to delete supplier: $e');
     }
   }
@@ -80,7 +81,7 @@ class SupplierService {
         .orderBy('name')
         .snapshots()
         .handleError((error) {
-          print('❌ Stream error: $error');
+          appLogger.e('❌ Stream error: $error');
         })
         .map((snapshot) {
           if (snapshot.docs.isEmpty) return [];
@@ -102,7 +103,7 @@ class SupplierService {
       }
       throw Exception('Supplier not found');
     } catch (e) {
-      print('❌ Error getting supplier: $e');
+      appLogger.e('❌ Error getting supplier: $e');
       rethrow;
     }
   }

@@ -1,9 +1,10 @@
-// lib/features/ai/screens/ai_chat_screen.dart
+﻿// lib/features/ai/screens/ai_chat_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/ai_provider.dart';
 import '../../inventory/services/inventory_repo_service.dart';
 import '../../feedback/services/feedback_service.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class AiChatScreen extends StatefulWidget {
   final String? userMobile;
@@ -44,7 +45,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         return;
       }
       
-      print('📱 AI Chat Screen - Initializing with user: $userMobile');
+      appLogger.d('📱 AI Chat Screen - Initializing with user: $userMobile');
       
       // Initialize AI Provider if not already initialized
       if (!aiProvider.isInitialized) {
@@ -66,7 +67,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         }
       }
       
-      print('✅ AI Chat Screen - Initialized successfully');
+      appLogger.i('✅ AI Chat Screen - Initialized successfully');
       
       // Add welcome message with actual data
       if (aiProvider.isAvailable && aiProvider.sarvamService != null) {
@@ -85,7 +86,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
       }
     } catch (e) {
-      print('❌ AI Chat Screen - Error: $e');
+      appLogger.e('❌ AI Chat Screen - Error: $e');
       setState(() {
         _messages.add(ChatMessage(
           content: '❌ Failed to initialize AI assistant: $e\n\nPlease try again or contact support.',
@@ -140,7 +141,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
       }
     } catch (e) {
-      print('Error sending message: $e');
+      appLogger.d('Error sending message: $e');
       setState(() {
         _messages.add(ChatMessage(
           content: '❌ Sorry, I encountered an error: $e\n\nPlease try again or type "help" for assistance.',

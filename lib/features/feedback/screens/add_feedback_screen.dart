@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/feedback_model.dart';
 import '../services/feedback_service.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class AddFeedbackScreen extends StatefulWidget {
   final FeedbackService feedbackService;
@@ -92,7 +93,7 @@ class _AddFeedbackScreenState extends State<AddFeedbackScreen> {
         _isLoadingParties = false;
       });
     } catch (e) {
-      print('Error loading parties: $e');
+      appLogger.d('Error loading parties: $e');
       setState(() => _isLoadingParties = false);
     }
   }

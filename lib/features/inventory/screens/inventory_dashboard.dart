@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/inventory_item_model.dart';
 import './add_edit_item_screen.dart';
 import './inventory_item_screen.dart';
 import './categories_screen.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class InventoryDashboard extends StatefulWidget {
   final InventoryService inventoryService;
@@ -86,7 +87,7 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
       }
 
     } catch (e) {
-      print('Error loading data: $e');
+      appLogger.d('Error loading data: $e');
       setState(() {
         _isLoading = false;
       });

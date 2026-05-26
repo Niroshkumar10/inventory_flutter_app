@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/ledger_service.dart';
 import '../models/ledger_model.dart';
 import 'add_ledger_entry_screen.dart';
@@ -7,7 +8,7 @@ class PartyLedgerScreen extends StatefulWidget {
   final String userMobile;
   final dynamic party;
   final String partyType;
-  
+
   const PartyLedgerScreen({
     super.key,
     required this.userMobile,
@@ -23,78 +24,60 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
   late final LedgerService _ledgerService;
   double _currentBalance = 0;
 
+  final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+
+  String get _partyId => widget.party.id as String;
+  String get _partyName => widget.party.name as String;
+  String get _partyContact => widget.partyType == 'customer'
+      ? widget.party.mobile as String
+      : widget.party.phone as String;
+
   @override
   void initState() {
     super.initState();
     _ledgerService = LedgerService(widget.userMobile);
-    _loadCurrentBalance();
+    _loadBalance();
   }
 
-  Future<void> _loadCurrentBalance() async {
-    final balance = await _ledgerService.getPartyBalance(widget.party.id);
-    if (mounted) {
-      setState(() => _currentBalance = balance);
-    }
+  Future<void> _loadBalance() async {
+    final balance = await _ledgerService.getPartyBalance(_partyId);
+    if (mounted) setState(() => _currentBalance = balance);
   }
-
-Future<void> _markAsPaid(LedgerEntry entry) async {
-  final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
-
-  try {
-    await _ledgerService.updateLedgerStatus(entry.id, 'paid');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Marked as paid'),
-          backgroundColor: colorScheme.secondary,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      _loadCurrentBalance(); // Refresh balance
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-}
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final isCustomer = widget.partyType == 'customer';
 
     return Scaffold(
-      backgroundColor: isDark ? colorScheme.background : const Color(0xffF5F6FA),
+      backgroundColor:
+          isDark ? cs.surface : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: Text(
-          '${widget.party.name} Ledger',
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
+        title: Text('$_partyName Ledger',
+            style: TextStyle(color: cs.onSurface)),
+        backgroundColor: cs.surface,
+        foregroundColor: cs.onSurface,
         elevation: 0.5,
-        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        iconTheme: IconThemeData(color: cs.onSurface),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addTransaction,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Add Transaction',
+            style: TextStyle(color: Colors.white)),
+        backgroundColor: cs.primary,
       ),
       body: Column(
         children: [
-          // Balance Card
+          // ── Balance card ────────────────────────────────────────────
           Card(
             margin: const EdgeInsets.all(16),
-            color: colorScheme.surface,
+            color: cs.surface,
             elevation: isDark ? 4 : 2,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+                borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -102,20 +85,19 @@ Future<void> _markAsPaid(LedgerEntry entry) async {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Text('Current Balance',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: cs.onSurface)),
                       Text(
-                        'Current Balance',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      Text(
-                        '₹${_currentBalance.toStringAsFixed(2)}',
+                        _currency.format(_currentBalance.abs()),
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: _currentBalance >= 0 ? colorScheme.secondary : colorScheme.error,
+                          color: _currentBalance >= 0
+                              ? cs.secondary
+                              : cs.error,
                         ),
                       ),
                     ],
@@ -130,99 +112,86 @@ Future<void> _markAsPaid(LedgerEntry entry) async {
                             ? 'You owe supplier'
                             : 'Supplier owes you'),
                     style: TextStyle(
-                      color: colorScheme.onSurface.withOpacity(0.6),
-                      fontSize: 12,
-                    ),
+                        color: cs.onSurface.withValues(alpha: 0.6),
+                        fontSize: 12),
                   ),
                 ],
               ),
             ),
           ),
-          
-          // Party Info
+
+          // ── Party info ────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Card(
-              color: colorScheme.surface,
+              color: cs.surface,
               elevation: isDark ? 4 : 2,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  borderRadius: BorderRadius.circular(12)),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: isCustomer 
-                      ? colorScheme.secondary.withOpacity(0.2)
-                      : colorScheme.tertiary.withOpacity(0.2),
+                  backgroundColor: (isCustomer
+                          ? cs.secondary
+                          : cs.tertiary)
+                      .withValues(alpha: 0.2),
                   child: Icon(
                     isCustomer ? Icons.person : Icons.store,
-                    color: isCustomer ? colorScheme.secondary : colorScheme.tertiary,
+                    color:
+                        isCustomer ? cs.secondary : cs.tertiary,
                   ),
                 ),
-                title: Text(
-                  widget.party.name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                subtitle: Text(
-                  isCustomer 
-                      ? widget.party.mobile 
-                      : widget.party.phone,
-                  style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
-                ),
+                title: Text(_partyName,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface)),
+                subtitle: Text(_partyContact,
+                    style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.6))),
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
-          // Transaction History
+
+          // ── Transaction history ───────────────────────────────────
           Expanded(
             child: StreamBuilder<List<LedgerEntry>>(
               stream: _ledgerService.getLedgerEntries(
-                partyId: widget.party.id,
+                partyId: _partyId,
                 partyType: widget.partyType,
               ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
-                    child: CircularProgressIndicator(color: colorScheme.primary),
-                  );
+                      child: CircularProgressIndicator(color: cs.primary));
                 }
-                
+
                 if (snapshot.hasError) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error, color: colorScheme.error, size: 50),
+                        Icon(Icons.error, color: cs.error, size: 50),
                         const SizedBox(height: 10),
-                        Text(
-                          'Error: ${snapshot.error}',
-                          style: TextStyle(color: colorScheme.onSurface),
-                        ),
+                        Text('Error: ${snapshot.error}',
+                            style: TextStyle(color: cs.onSurface)),
                       ],
                     ),
                   );
                 }
-                
+
                 final entries = snapshot.data ?? [];
-                
-                if (entries.isEmpty) {
-                  return _emptyState();
-                }
-                
+                if (entries.isEmpty) return _emptyState(cs);
+
                 return RefreshIndicator(
-                  onRefresh: _loadCurrentBalance,
-                  color: colorScheme.primary,
-                  backgroundColor: colorScheme.surface,
+                  onRefresh: _loadBalance,
+                  color: cs.primary,
+                  backgroundColor: cs.surface,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 96),
                     itemCount: entries.length,
-                    itemBuilder: (context, index) {
-                      return _transactionItem(entries[index]);
-                    },
+                    itemBuilder: (ctx, i) =>
+                        _transactionCard(entries[i], cs, isDark),
                   ),
                 );
               },
@@ -233,290 +202,249 @@ Future<void> _markAsPaid(LedgerEntry entry) async {
     );
   }
 
-Widget _transactionItem(LedgerEntry entry) {
-  final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
-  final isDark = theme.brightness == Brightness.dark;
-
-  // Determine status color and label
-  Color getStatusColor() {
-    final status = entry.status.toLowerCase();
-    if (status == 'paid' || status == 'completed') {
-      return Colors.green;
-    } else if (status == 'pending' || status == 'due') {
-      return Colors.orange;
-    } else if (status == 'overdue') {
-      return Colors.red;
-    } else if (status == 'cancelled') {
-      return Colors.grey;
-    }
-    return Colors.grey;
-  }
-
-  String getStatusLabel() {
-    final status = entry.status.toLowerCase();
-    if (status == 'paid' || status == 'completed') {
-      return 'Paid';
-    } else if (status == 'pending' || status == 'due') {
-      return 'Pending';
-    } else if (status == 'overdue') {
-      return 'Overdue';
-    } else if (status == 'cancelled') {
-      return 'Cancelled';
-    }
-    return entry.status;
-  }
-
-  final statusColor = getStatusColor();
-  final statusLabel = getStatusLabel();
-
-  return Card(
-    margin: const EdgeInsets.only(bottom: 12),
-    elevation: isDark ? 4 : 2,
-    color: colorScheme.surface,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: ListTile(
-      leading: CircleAvatar(
-        backgroundColor: entry.typeColor.withOpacity(0.2),
-        child: Icon(entry.typeIcon, color: entry.typeColor, size: 20),
-      ),
-      title: Text(
-        entry.description,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: colorScheme.onSurface,
+  Widget _transactionCard(
+      LedgerEntry entry, ColorScheme cs, bool isDark) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: isDark ? 4 : 2,
+      color: cs.surface,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: entry.typeColor.withValues(alpha: 0.2),
+          child: Icon(entry.typeIcon, color: entry.typeColor, size: 20),
         ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        children: [
-          // Type chip
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: entry.typeColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: entry.typeColor.withOpacity(0.3)),
-            ),
-            child: Text(
-              entry.typeLabel,
-              style: TextStyle(color: entry.typeColor, fontSize: 10),
-            ),
-          ),
-          // Date
-          Text(
-            _formatDate(entry.date),
+        title: Text(entry.description,
             style: TextStyle(
-              fontSize: 11,
-              color: colorScheme.onSurface.withOpacity(0.5),
+                fontWeight: FontWeight.w600, color: cs.onSurface),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis),
+        subtitle: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: entry.typeColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                    color: entry.typeColor.withValues(alpha: 0.3)),
+              ),
+              child: Text(entry.typeLabel,
+                  style:
+                      TextStyle(color: entry.typeColor, fontSize: 10)),
             ),
-          ),
-        ],
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Amount (at the top)
-          Text(
-            '₹${entry.amount.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: entry.isDebit() ? colorScheme.secondary : colorScheme.error,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Status badge (below the amount)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: statusColor.withOpacity(0.3)),
-            ),
-            child: Text(
-              statusLabel,
+            Text(
+              '${entry.date.day}/${entry.date.month}/${entry.date.year}',
               style: TextStyle(
-                fontSize: 10,
+                  fontSize: 11,
+                  color: cs.onSurface.withValues(alpha: 0.5)),
+            ),
+            if (entry.dueDate != null && entry.status == 'pending')
+              Text(
+                'Due: ${entry.dueDate!.day}/${entry.dueDate!.month}/${entry.dueDate!.year}',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: entry.isOverdue ? Colors.red : Colors.orange,
+                    fontWeight: FontWeight.w500),
+              ),
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '₹${entry.amount.toStringAsFixed(2)}',
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: statusColor,
+                color: entry.isDebit() ? cs.secondary : cs.error,
+                fontSize: 16,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: entry.statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                    color: entry.statusColor.withValues(alpha: 0.3)),
+              ),
+              child: Text(entry.statusLabel,
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: entry.statusColor)),
+            ),
+          ],
+        ),
+        onTap: () => _showEntryDetails(entry, cs),
       ),
-      onTap: () => _showEntryDetails(entry),
-    ),
-  );
-}
-  Widget _emptyState() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    );
+  }
 
+  Widget _emptyState(ColorScheme cs) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.receipt_long, 
-            size: 80, 
-            color: colorScheme.onSurface.withOpacity(0.2),
-          ),
+          Icon(Icons.receipt_long,
+              size: 80, color: cs.onSurface.withValues(alpha: 0.2)),
           const SizedBox(height: 12),
-          Text(
-            'No transactions yet',
-            style: TextStyle(
-              color: colorScheme.onSurface.withOpacity(0.5),
-              fontSize: 16,
-            ),
-          ),
+          Text('No transactions yet',
+              style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.5),
+                  fontSize: 16)),
           const SizedBox(height: 8),
-          Text(
-            'Add your first transaction with ${widget.party.name}',
-            style: TextStyle(
-              color: colorScheme.onSurface.withOpacity(0.5),
-              fontSize: 14,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          Text('Tap + Add Transaction to get started',
+              style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.5),
+                  fontSize: 14)),
         ],
       ),
     );
   }
-void _showEntryDetails(LedgerEntry entry) {
-  final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
 
-  // Determine status color and label
-  Color getStatusColor() {
-    final status = entry.status.toLowerCase();
-    if (status == 'paid' || status == 'completed') {
-      return Colors.green;
-    } else if (status == 'pending' || status == 'due') {
-      return Colors.orange;
-    }
-    return Colors.grey;
-  }
-
-  String getStatusLabel() {
-    final status = entry.status.toLowerCase();
-    if (status == 'paid' || status == 'completed') {
-      return 'Paid';
-    } else if (status == 'pending' || status == 'due') {
-      return 'Pending';
-    }
-    return entry.status;
-  }
-
-  final statusColor = getStatusColor();
-  final statusLabel = getStatusLabel();
-
-  showDialog(
-    context: context,
-    builder: (_) => AlertDialog(
-      backgroundColor: colorScheme.surface,
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Transaction Details',
-              style: TextStyle(color: colorScheme.onSurface),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: statusColor.withOpacity(0.3)),
-            ),
-            child: Text(
-              statusLabel,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: statusColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+  void _showEntryDetails(LedgerEntry entry, ColorScheme cs) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: cs.surface,
+        title: Row(
           children: [
-            _detailRow('Date', _formatDate(entry.date), colorScheme),
-            _detailRow('Type', entry.typeLabel, colorScheme),
-            _detailRow('Description', entry.description, colorScheme),
-            _detailRow('Reference', entry.reference.isNotEmpty ? entry.reference : 'N/A', colorScheme),
-            _detailRow('Amount', '₹${entry.amount.toStringAsFixed(2)}', colorScheme),
-            _detailRow('Balance', '₹${entry.balance.toStringAsFixed(2)}', colorScheme),
-            if (entry.notes.isNotEmpty) _detailRow('Notes', entry.notes, colorScheme),
+            Expanded(
+              child: Text('Transaction Details',
+                  style: TextStyle(color: cs.onSurface)),
+            ),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: entry.statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                    color: entry.statusColor.withValues(alpha: 0.3)),
+              ),
+              child: Text(entry.statusLabel,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: entry.statusColor)),
+            ),
           ],
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Close',
-            style: TextStyle(color: colorScheme.primary),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _detailRow('Date',
+                  '${entry.date.day}/${entry.date.month}/${entry.date.year}',
+                  cs),
+              _detailRow('Type', entry.typeLabel, cs),
+              _detailRow('Description', entry.description, cs),
+              _detailRow('Reference',
+                  entry.reference.isNotEmpty ? entry.reference : 'N/A',
+                  cs),
+              _detailRow(
+                  'Amount', '₹${entry.amount.toStringAsFixed(2)}', cs),
+              _detailRow(
+                  'Balance', '₹${entry.balance.toStringAsFixed(2)}', cs),
+              if (entry.dueDate != null)
+                _detailRow(
+                    'Due Date',
+                    '${entry.dueDate!.day}/${entry.dueDate!.month}/${entry.dueDate!.year}',
+                    cs),
+              if (entry.notes.isNotEmpty)
+                _detailRow('Notes', entry.notes, cs),
+            ],
           ),
         ),
-        if (entry.status.toLowerCase() == 'pending')
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _markAsPaid(entry);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Mark as Paid'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: cs.primary)),
           ),
-      ],
-    ),
-  );
-}
+          if (entry.status == 'pending')
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _markPaid(entry);
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white),
+              child: const Text('Mark as Paid'),
+            ),
+        ],
+      ),
+    );
+  }
 
-  Widget _detailRow(String label, String value, ColorScheme colorScheme) {
+  Widget _detailRow(String label, String value, ColorScheme cs) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
-            ),
+            width: 90,
+            child: Text('$label:',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: cs.onSurface)),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.8)),
-            ),
+            child: Text(value,
+                style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.8))),
           ),
         ],
       ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+  Future<void> _addTransaction() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddLedgerEntryScreen(
+          userMobile: widget.userMobile,
+          initialPartyType: widget.partyType,
+          initialPartyId: _partyId,
+          initialPartyName: _partyName,
+        ),
+      ),
+    );
+    if (mounted) _loadBalance();
+  }
+
+  Future<void> _markPaid(LedgerEntry entry) async {
+    final cs = Theme.of(context).colorScheme;
+    try {
+      await _ledgerService.updateLedgerStatus(entry.id, 'paid');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Marked as paid'),
+          backgroundColor: cs.secondary,
+          behavior: SnackBarBehavior.floating,
+        ));
+        _loadBalance();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: cs.error,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 }

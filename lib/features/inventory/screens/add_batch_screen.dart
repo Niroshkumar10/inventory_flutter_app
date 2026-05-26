@@ -1,7 +1,6 @@
 // lib/features/inventory/screens/add_batch_screen.dart
 import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
-import '../models/batch_model.dart';
 
 class AddBatchScreen extends StatefulWidget {
   final InventoryService inventoryService;

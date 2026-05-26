@@ -1,7 +1,8 @@
-// lib/features/auth/services/password_auth_service.dart
+﻿// lib/features/auth/services/password_auth_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class PasswordAuthService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -24,7 +25,7 @@ class PasswordAuthService {
       });
       return true;
     } catch (e) {
-      print('Error setting password: $e');
+      appLogger.d('Error setting password: $e');
       return false;
     }
   }
@@ -48,7 +49,7 @@ class PasswordAuthService {
       final inputHash = _hashPassword(password);
       return storedHash == inputHash;
     } catch (e) {
-      print('Error verifying password: $e');
+      appLogger.d('Error verifying password: $e');
       return false;
     }
   }

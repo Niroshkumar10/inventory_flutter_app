@@ -1,8 +1,10 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/ledger_model.dart';
 import '../../reports/services/export_service.dart';
-import '../models/ledger_report_model.dart'; // ADD THIS IMPORT
+import '../models/ledger_report_model.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
+import 'package:inventory_app/core/utils/paginated_query.dart';
 
 
 class LedgerService {
@@ -23,44 +25,38 @@ class LedgerService {
   // ✅ ADD LEDGER ENTRY with balance calculation
   Future<String> addLedgerEntry(LedgerEntry entry) async {
     try {
-      // Get ALL entries for this party and calculate balance manually
-      final allEntries = await _userLedgerCollection
-          .where('partyId', isEqualTo: entry.partyId)
-          .get();
-      
-      // Calculate current balance from all existing entries
-      double currentBalance = 0;
-      for (final doc in allEntries.docs) {
-        final existingEntry = LedgerEntry.fromMap(
-          doc.data() as Map<String, dynamic>,
-          doc.id,
-        );
-        
-        if (existingEntry.type == 'sale' || existingEntry.type == 'payment') {
-          currentBalance = currentBalance + existingEntry.debit - existingEntry.credit;
+      double newBalance = 0;
+
+      // income/expense are not party-based — skip balance calculation
+      if (entry.isPartyTransaction && entry.partyId.isNotEmpty) {
+        final allEntries = await _userLedgerCollection
+            .where('partyId', isEqualTo: entry.partyId)
+            .get();
+
+        double currentBalance = 0;
+        for (final doc in allEntries.docs) {
+          final e = LedgerEntry.fromMap(
+            doc.data() as Map<String, dynamic>,
+            doc.id,
+          );
+          if (e.type == 'sale' || e.type == 'payment') {
+            currentBalance = currentBalance + e.debit - e.credit;
+          } else {
+            currentBalance = currentBalance - e.debit + e.credit;
+          }
+        }
+
+        if (entry.type == 'sale' || entry.type == 'payment') {
+          newBalance = currentBalance + entry.debit - entry.credit;
         } else {
-          currentBalance = currentBalance - existingEntry.debit + existingEntry.credit;
+          newBalance = currentBalance - entry.debit + entry.credit;
         }
       }
-      
-      // Calculate new balance for this entry
-      double newBalance;
-      if (entry.type == 'sale' || entry.type == 'payment') {
-        newBalance = currentBalance + entry.debit - entry.credit;
-      } else {
-        newBalance = currentBalance - entry.debit + entry.credit;
-      }
-      
-      // Update entry with calculated balance
+
       final updatedEntry = entry.copyWith(balance: newBalance);
-      
-      // Save to Firestore
       final docRef = await _userLedgerCollection.add(updatedEntry.toMap());
-      
-      //print('✅ Ledger entry added: ${docRef.id}');
       return docRef.id;
     } catch (e) {
-      //print('❌ Error adding ledger entry: $e');
       throw Exception('Failed to add ledger entry: $e');
     }
   }
@@ -76,16 +72,16 @@ class LedgerService {
       }
       
       await batch.commit();
-      //print('✅ ${entries.length} ledger entries added in bulk');
+      //appLogger.i('✅ ${entries.length} ledger entries added in bulk');
     } catch (e) {
-      //print('❌ Error bulk adding ledger entries: $e');
+      //appLogger.e('❌ Error bulk adding ledger entries: $e');
       throw Exception('Failed to add ledger entries: $e');
     }
   }
 // Add this method to your LedgerService class
 Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5}) async {
   try {
-    //print('📊 Fetching ledger entries for party: $partyId');
+    //appLogger.d('📊 Fetching ledger entries for party: $partyId');
     
     // Create query with filtering and sorting
     Query query = _userLedgerCollection
@@ -100,7 +96,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
     final snapshot = await query.get();
     
     if (snapshot.docs.isEmpty) {
-      //print('📭 No ledger entries found for party: $partyId');
+      //appLogger.d('📭 No ledger entries found for party: $partyId');
       return [];
     }
     
@@ -112,10 +108,10 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       );
     }).toList();
     
-    //print('✅ Found ${entries.length} entries for party: $partyId');
+    //appLogger.i('✅ Found ${entries.length} entries for party: $partyId');
     return entries;
   } catch (e) {
-    //print('❌ Error getting party ledger entries: $e');
+    //appLogger.e('❌ Error getting party ledger entries: $e');
     return [];
   }
 }
@@ -146,7 +142,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       
       return balance;
     } catch (e) {
-      //print('⚠️ Using fallback balance calculation: $e');
+      //appLogger.w('⚠️ Using fallback balance calculation: $e');
       return 0.0;
     }
   }
@@ -245,7 +241,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
         summary: summary,
       );
     } catch (e) {
-      //print('❌ Error getting ledger report: $e');
+      //appLogger.e('❌ Error getting ledger report: $e');
       throw Exception('Failed to generate ledger report: $e');
     }
   }
@@ -381,7 +377,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
         'pendingCount': pendingCount,
       };
     } catch (e) {
-      //print('❌ Error getting statistics: $e');
+      //appLogger.e('❌ Error getting statistics: $e');
       return {
         'totalSales': 0,
         'totalPurchases': 0,
@@ -434,7 +430,7 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       
       return balances;
     } catch (e) {
-      //print('❌ Error getting party balances: $e');
+      //appLogger.e('❌ Error getting party balances: $e');
       return {};
     }
   }
@@ -443,9 +439,9 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
   Future<void> deleteLedgerEntry(String id) async {
     try {
       await _userLedgerCollection.doc(id).delete();
-      //print('✅ Ledger entry deleted: $id');
+      //appLogger.i('✅ Ledger entry deleted: $id');
     } catch (e) {
-      //print('❌ Error deleting ledger entry: $e');
+      //appLogger.e('❌ Error deleting ledger entry: $e');
       throw Exception('Failed to delete ledger entry: $e');
     }
   }
@@ -456,19 +452,25 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       if (entry.id.isEmpty) {
         throw Exception('Entry ID is required for update');
       }
-      
+
       await _userLedgerCollection.doc(entry.id).update({
+        'type': entry.type,
+        'partyId': entry.partyId,
+        'partyName': entry.partyName,
+        'partyType': entry.partyType,
+        'date': Timestamp.fromDate(entry.date),
         'description': entry.description,
         'debit': entry.debit,
         'credit': entry.credit,
         'reference': entry.reference,
         'notes': entry.notes,
         'status': entry.status,
+        'dueDate': entry.dueDate != null
+            ? Timestamp.fromDate(entry.dueDate!)
+            : null,
+        'category': entry.category,
       });
-      
-      //print('✅ Ledger entry updated: ${entry.id}');
     } catch (e) {
-      //print('❌ Error updating ledger entry: $e');
       throw Exception('Failed to update ledger entry: $e');
     }
   }
@@ -479,9 +481,9 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
       await _userLedgerCollection.doc(id).update({
         'status': status,
       });
-      //print('✅ Ledger status updated: $id -> $status');
+      //appLogger.i('✅ Ledger status updated: $id -> $status');
     } catch (e) {
-      //print('❌ Error updating ledger status: $e');
+      //appLogger.e('❌ Error updating ledger status: $e');
       throw Exception('Failed to update ledger status: $e');
     }
   }
@@ -540,9 +542,95 @@ Future<List<LedgerEntry>> getPartyLedgerEntries(String partyId, {int limit = 5})
         );
       }
     } catch (e) {
-      //print('❌ Error exporting ledger report: $e');
+      //appLogger.e('❌ Error exporting ledger report: $e');
       throw Exception('Failed to export ledger report: $e');
     }
+  }
+
+  // Paginated fetch — one page of entries, newest first.
+  Future<PaginatedResult<LedgerEntry>> getLedgerEntriesPaginated({
+    String? partyId,
+    String? partyType,
+    String? type,
+    int pageSize = kDefaultPageSize,
+    DocumentSnapshot? lastDocument,
+  }) async {
+    try {
+      Query base = _userLedgerCollection.orderBy('date', descending: true);
+
+      if (partyId != null && partyId.isNotEmpty) {
+        base = base.where('partyId', isEqualTo: partyId);
+      }
+      if (partyType != null && partyType.isNotEmpty) {
+        base = base.where('partyType', isEqualTo: partyType);
+      }
+      if (type != null && type.isNotEmpty) {
+        base = base.where('type', isEqualTo: type);
+      }
+
+      final query = applyPagination(base, pageSize: pageSize, lastDocument: lastDocument);
+      final snapshot = await query.get();
+
+      final entries = snapshot.docs.map((doc) {
+        return LedgerEntry.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      }).toList();
+
+      return PaginatedResult(
+        items: entries,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } catch (e) {
+      appLogger.e('❌ Error fetching paginated ledger entries: $e');
+      return const PaginatedResult(items: [], lastDocument: null, hasMore: false);
+    }
+  }
+
+  // ✅ GET OUTSTANDING DUES (all pending party entries)
+  Future<List<LedgerEntry>> getOutstandingDues() async {
+    try {
+      final snapshot = await _userLedgerCollection
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      final entries = snapshot.docs
+          .map((doc) =>
+              LedgerEntry.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .where((e) => e.isPartyTransaction && e.partyId.isNotEmpty)
+          .toList();
+
+      // oldest first so most overdue appears at top
+      entries.sort((a, b) => a.date.compareTo(b.date));
+      return entries;
+    } catch (e) {
+      appLogger.e('❌ Error fetching outstanding dues: $e');
+      return [];
+    }
+  }
+
+  // ✅ GET INCOME / EXPENSE ENTRIES
+  Stream<List<LedgerEntry>> getIncomeExpenseEntries({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    return _userLedgerCollection.snapshots().map((snapshot) {
+      final entries = snapshot.docs
+          .map((doc) =>
+              LedgerEntry.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .where((e) => e.type == 'income' || e.type == 'expense')
+          .toList();
+
+      var filtered = entries;
+      if (startDate != null) {
+        filtered =
+            filtered.where((e) => !e.date.isBefore(startDate)).toList();
+      }
+      if (endDate != null) {
+        filtered = filtered.where((e) => !e.date.isAfter(endDate)).toList();
+      }
+      filtered.sort((a, b) => b.date.compareTo(a.date));
+      return filtered;
+    });
   }
 
   // ✅ SEARCH LEDGER ENTRIES

@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/inventory_item_model.dart';
 import './inventory_item_screen.dart';
 import './add_edit_item_screen.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class InventoryHomeScreen extends StatefulWidget {
   final String userMobile;
@@ -40,7 +41,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
         _categories = categories;
       });
     } catch (e) {
-      print('Error loading categories: $e');
+      appLogger.d('Error loading categories: $e');
     }
   }
 
@@ -230,8 +231,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
     );
   }
 
-// Find this method and update the trailing property:
-Widget _buildInventoryItem(InventoryItem item) {
+Widget _buildInventoryItemCard(InventoryItem item) {
   return Card(
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     child: ListTile(
@@ -261,6 +261,21 @@ Widget _buildInventoryItem(InventoryItem item) {
   );
 }
 
+
+  void _editItem(InventoryItem item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddEditItemScreen(
+          inventoryService: _inventoryService,
+          item: item,
+          userMobile: widget.userMobile,
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteItemDialog(InventoryItem item) => _showDeleteDialog(item);
 
   void _handleMenuItemSelected(String value, InventoryItem item) {
     switch (value) {

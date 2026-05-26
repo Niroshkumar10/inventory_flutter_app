@@ -1,7 +1,8 @@
-// lib/features/auth/services/user_service.dart
+﻿// lib/features/auth/services/user_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class UserService {
   final _auth = FirebaseAuth.instance;
@@ -63,7 +64,7 @@ Future<bool> hasPassword(String mobile) async {
     final data = doc.data();
     return doc.exists && data != null && data.containsKey('password') && data['password'] != null;
   } catch (e) {
-    print('Error checking password: $e');
+    appLogger.d('Error checking password: $e');
     return false;
   }
 }

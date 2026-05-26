@@ -1,8 +1,9 @@
-// lib/features/settings/services/auto_sync_service.dart
+﻿// lib/features/settings/services/auto_sync_service.dart
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class AutoSyncService {
   static final AutoSyncService _instance = AutoSyncService._internal();
@@ -24,7 +25,7 @@ class AutoSyncService {
     
     stopAutoSync(); // Stop any existing timer
     
-    print('🔄 Auto-sync started with interval: ${interval.inMinutes} minutes');
+    appLogger.d('🔄 Auto-sync started with interval: ${interval.inMinutes} minutes');
     
     _syncTimer = Timer.periodic(interval, (timer) async {
       if (!_isDisposed) {
@@ -40,7 +41,7 @@ class AutoSyncService {
   void stopAutoSync() {
     _syncTimer?.cancel();
     _syncTimer = null;
-    print('🔄 Auto-sync stopped');
+    appLogger.d('🔄 Auto-sync stopped');
   }
 
   // Helper method to convert any Timestamp to String
@@ -64,7 +65,7 @@ class AutoSyncService {
   // Perform sync
   Future<void> _performSync(String userMobile) async {
     if (_isSyncing || _isDisposed) {
-      print('⚠️ Sync already in progress or disposed, skipping...');
+      appLogger.w('⚠️ Sync already in progress or disposed, skipping...');
       return;
     }
 
@@ -75,7 +76,7 @@ class AutoSyncService {
     }
 
     try {
-      print('🔄 Starting sync for user: $userMobile');
+      appLogger.d('🔄 Starting sync for user: $userMobile');
       
       // Sync inventory data
       await _syncInventory(userMobile);
@@ -95,10 +96,10 @@ class AutoSyncService {
         ));
       }
       
-      print('✅ Sync completed at ${_lastSyncTime}');
+      appLogger.i('✅ Sync completed at ${_lastSyncTime}');
       
     } catch (e) {
-      print('❌ Sync failed: $e');
+      appLogger.e('❌ Sync failed: $e');
       if (!_isDisposed && !_syncStatusController.isClosed) {
         _syncStatusController.add(SyncStatus.failed(
           message: 'Sync failed: ${e.toString()}',
@@ -131,10 +132,10 @@ class AutoSyncService {
       }).toList();
       
       await prefs.setString('cached_inventory', jsonEncode(inventoryData));
-      print('✅ Inventory sync completed: ${inventoryData.length} items');
+      appLogger.i('✅ Inventory sync completed: ${inventoryData.length} items');
       
     } catch (e) {
-      print('❌ Inventory sync failed: $e');
+      appLogger.e('❌ Inventory sync failed: $e');
       rethrow;
     }
   }
@@ -161,10 +162,10 @@ class AutoSyncService {
       }).toList();
       
       await prefs.setString('cached_transactions', jsonEncode(transactionsData));
-      print('✅ Transactions sync completed: ${transactionsData.length} items');
+      appLogger.i('✅ Transactions sync completed: ${transactionsData.length} items');
       
     } catch (e) {
-      print('❌ Transactions sync failed: $e');
+      appLogger.e('❌ Transactions sync failed: $e');
       rethrow;
     }
   }
@@ -189,11 +190,11 @@ class AutoSyncService {
           convertedData[key] = _convertValue(value);
         });
         await prefs.setString('user_settings', jsonEncode(convertedData));
-        print('✅ Settings sync completed');
+        appLogger.i('✅ Settings sync completed');
       }
       
     } catch (e) {
-      print('❌ Settings sync failed: $e');
+      appLogger.e('❌ Settings sync failed: $e');
       rethrow;
     }
   }

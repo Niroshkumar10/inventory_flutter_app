@@ -1,10 +1,11 @@
-// screens/categories_screen.dart
+﻿// screens/categories_screen.dart
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/inventory_item_model.dart';
 import './category_dashboard_screen.dart';
 import './add_edit_category_screen.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class CategoriesScreen extends StatefulWidget {
   final String userMobile;
@@ -77,7 +78,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading data: $e');
+      appLogger.d('Error loading data: $e');
       setState(() {
         _isLoading = false;
       });
@@ -89,7 +90,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       final itemsStream = _inventoryService.getInventoryItems();
       return await itemsStream.first;
     } catch (e) {
-      print('Error getting items: $e');
+      appLogger.d('Error getting items: $e');
       return [];
     }
   }
@@ -323,7 +324,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
+      // AFTER - hide FAB when no categories exist
+floatingActionButton: _categories.isEmpty
+    ? null
+    : FloatingActionButton.extended(
         onPressed: _navigateToAddCategory,
         backgroundColor: colorScheme.primary,
         icon: const Icon(Icons.add, color: Colors.white),

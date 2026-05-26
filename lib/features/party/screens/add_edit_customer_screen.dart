@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/customer_model.dart';
 import '../services/customer_service.dart';
 import 'location_picker.dart'; // Make sure this import path is correct
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class AddEditCustomerScreen extends StatefulWidget {
   final String userMobile;
@@ -119,7 +120,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
           });
         }
       }, onError: (error) {
-        print('Error loading customers: $error');
+        appLogger.d('Error loading customers: $error');
         if (mounted) {
           setState(() {
             _isDataLoaded = true;
@@ -128,7 +129,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       });
       
     } catch (e) {
-      print('Error setting up customer stream: $e');
+      appLogger.d('Error setting up customer stream: $e');
       if (mounted) {
         setState(() {
           _isDataLoaded = true;

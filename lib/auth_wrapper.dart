@@ -50,8 +50,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
     // Show login if no userMobile
     if (_userMobile == null || _userMobile!.isEmpty) {
       return LoginScreen(
-        onLoginSuccess: () {
-          _checkAuth();
+        onLoginSuccess: (String mobile) {
+          setState(() {
+            _userMobile = mobile;
+            _isLoading = false;
+          });
         },
       );
     }

@@ -1,7 +1,8 @@
-// lib/features/settings/services/settings_service.dart
+﻿// lib/features/settings/services/settings_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class SettingsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -22,7 +23,7 @@ class SettingsService {
       // Also save to local SharedPreferences for offline access
       await _saveToLocal(settings);
     } catch (e) {
-      print('Error saving settings: $e');
+      appLogger.d('Error saving settings: $e');
       rethrow;
     }
   }
@@ -47,7 +48,7 @@ class SettingsService {
         return _getDefaultSettings();
       }
     } catch (e) {
-      print('Error loading settings: $e');
+      appLogger.d('Error loading settings: $e');
       // Try to load from local storage if Firebase fails
       return await _loadFromLocal() ?? _getDefaultSettings();
     }
@@ -91,7 +92,7 @@ class SettingsService {
       await prefs.remove('cached_data');
       // Add other cache clearing logic here
     } catch (e) {
-      print('Error clearing cache: $e');
+      appLogger.d('Error clearing cache: $e');
       rethrow;
     }
   }

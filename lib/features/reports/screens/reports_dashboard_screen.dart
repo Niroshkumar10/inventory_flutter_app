@@ -1,13 +1,13 @@
-// lib/features/reports/screens/reports_dashboard_screen.dart
+﻿// lib/features/reports/screens/reports_dashboard_screen.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/report_service.dart';
 import '../models/report_model.dart';
 import '../../session/session_service_new.dart';
 import '../services/export_service.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class ReportsDashboardScreen extends StatefulWidget {
   const ReportsDashboardScreen({super.key});
@@ -2492,7 +2492,7 @@ Future<void> _handleExport(String format) async {
 
   try {
     // IMPORTANT: Fetch the user data from Firestore
-    print('📱 Fetching user data for: $_userMobile');
+    appLogger.d('📱 Fetching user data for: $_userMobile');
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
         .doc(_userMobile!)
@@ -2501,12 +2501,12 @@ Future<void> _handleExport(String format) async {
     Map<String, dynamic>? userData;
     if (userDoc.exists) {
       userData = userDoc.data() as Map<String, dynamic>;
-      print('✅ User data fetched:');
-      print('  - name: ${userData['name']}');
-      print('  - businessName: ${userData['businessName']}');
-      print('  - location: ${userData['location']}');
+      appLogger.i('✅ User data fetched:');
+      appLogger.d('  - name: ${userData['name']}');
+      appLogger.d('  - businessName: ${userData['businessName']}');
+      appLogger.d('  - location: ${userData['location']}');
     } else {
-      print('⚠️ No user document found for $_userMobile');
+      appLogger.w('⚠️ No user document found for $_userMobile');
     }
 
     final reportType = _getCurrentReportType();
@@ -2550,7 +2550,7 @@ Future<void> _handleExport(String format) async {
       _showSuccess('Excel exported successfully!');
     }
   } catch (e) {
-    print('❌ Export error: $e');
+    appLogger.e('❌ Export error: $e');
     _showError('Export failed: ${e.toString()}');
   } finally {
     setState(() => _isExporting = false);

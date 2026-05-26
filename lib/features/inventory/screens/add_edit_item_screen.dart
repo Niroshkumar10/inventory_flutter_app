@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/inventory_item_model.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class AddEditItemScreen extends StatefulWidget {
   final InventoryService inventoryService;
@@ -292,7 +293,7 @@ void _showBatchTrackingInfo() {
         _categories = categories;
       });
     } catch (e) {
-      print('Error loading categories: $e');
+      appLogger.d('Error loading categories: $e');
     }
   }
 
@@ -303,7 +304,7 @@ void _showBatchTrackingInfo() {
         _suppliers = suppliers;
       });
     } catch (e) {
-      print('Error loading suppliers: $e');
+      appLogger.d('Error loading suppliers: $e');
     }
   }
 
@@ -444,7 +445,7 @@ Future<void> _saveItem() async {
         final supplierDetails = await widget.inventoryService.getSupplierDetails(supplierName);
         supplierId = supplierDetails?['id'] as String?;
       } catch (e) {
-        print('⚠️ Could not find supplier ID for name: $supplierName');
+        appLogger.w('⚠️ Could not find supplier ID for name: $supplierName');
       }
     }
 
@@ -484,9 +485,9 @@ Future<void> _saveItem() async {
             supplierInvoiceNo: null,
             supplierName: supplierName.isNotEmpty ? supplierName : null,
           );
-          print('✅ Initial batch created with $quantity units');
+          appLogger.i('✅ Initial batch created with $quantity units');
         } catch (batchError) {
-          print('⚠️ Could not create initial batch: $batchError');
+          appLogger.w('⚠️ Could not create initial batch: $batchError');
           // Don't fail the whole operation, item was created successfully
         }
       }
@@ -531,12 +532,12 @@ Future<void> _saveItem() async {
       );
       
       // Debug print to verify values
-      print('📝 Updating item with:');
-      print('  - Name: $name');
-      print('  - Track Expiry: $_trackExpiry');
-      print('  - Track By Batch: $_trackByBatch');
-      print('  - Expiry Date: ${_expiryDate != null ? _expiryDate!.toIso8601String() : 'null'}');
-      print('  - Is Enabling Batch: $isEnablingBatchTracking');
+      appLogger.d('📝 Updating item with:');
+      appLogger.d('  - Name: $name');
+      appLogger.d('  - Track Expiry: $_trackExpiry');
+      appLogger.d('  - Track By Batch: $_trackByBatch');
+      appLogger.d('  - Expiry Date: ${_expiryDate != null ? _expiryDate!.toIso8601String() : 'null'}');
+      appLogger.d('  - Is Enabling Batch: $isEnablingBatchTracking');
       
       await widget.inventoryService.updateInventoryItem(updatedItem);
       
@@ -552,7 +553,7 @@ Future<void> _saveItem() async {
             supplierInvoiceNo: null,
             supplierName: supplierName.isNotEmpty ? supplierName : widget.item!.supplierName,
           );
-          print('✅ Existing stock converted to batch: $quantity units');
+          appLogger.i('✅ Existing stock converted to batch: $quantity units');
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -564,7 +565,7 @@ Future<void> _saveItem() async {
             );
           }
         } catch (batchError) {
-          print('⚠️ Could not convert existing stock to batch: $batchError');
+          appLogger.w('⚠️ Could not convert existing stock to batch: $batchError');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -596,8 +597,8 @@ Future<void> _saveItem() async {
       Navigator.pop(context, true);
     }
   } catch (e, stackTrace) {
-    print('❌ Error saving item: $e');
-    print('Stack trace: $stackTrace');
+    appLogger.e('❌ Error saving item: $e');
+    appLogger.d('Stack trace: $stackTrace');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

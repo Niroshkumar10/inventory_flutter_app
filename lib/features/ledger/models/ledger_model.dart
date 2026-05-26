@@ -17,6 +17,8 @@ class LedgerEntry {
   final String status;
   final String? createdBy;
   final DateTime? createdAt;
+  final DateTime? dueDate;
+  final String? category;
 
   LedgerEntry({
     required this.id,
@@ -34,42 +36,47 @@ class LedgerEntry {
     this.status = 'pending',
     this.createdBy,
     this.createdAt,
+    this.dueDate,
+    this.category,
   });
 
-  // Factory constructor for creating new entries
   factory LedgerEntry.create({
     required String type,
-    required String partyId,
-    required String partyType,
-    required String partyName,
     required String description,
     required double debit,
     required double credit,
+    String partyId = '',
+    String partyType = '',
+    String partyName = '',
     String reference = '',
     String notes = '',
     String status = 'pending',
+    String? category,
+    DateTime? date,
+    DateTime? dueDate,
     required String userMobile,
   }) {
     return LedgerEntry(
-      id: '', // Will be assigned by Firestore
+      id: '',
       partyId: partyId,
       partyName: partyName,
       partyType: partyType,
-      date: DateTime.now(),
+      date: date ?? DateTime.now(),
       type: type,
       description: description,
       debit: debit,
       credit: credit,
-      balance: 0, // Will be calculated by service
+      balance: 0,
       reference: reference,
       notes: notes,
       status: status,
+      category: category,
+      dueDate: dueDate,
       createdBy: userMobile,
       createdAt: DateTime.now(),
     );
   }
 
-  // Factory method to create from map (for Firestore)
   factory LedgerEntry.fromMap(Map<String, dynamic> map, String documentId) {
     return LedgerEntry(
       id: documentId,
@@ -86,13 +93,16 @@ class LedgerEntry {
       notes: map['notes'] ?? '',
       status: map['status'] ?? 'pending',
       createdBy: map['createdBy'],
-      createdAt: map['createdAt'] != null 
-          ? (map['createdAt'] as Timestamp).toDate() 
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
           : null,
+      dueDate: map['dueDate'] != null
+          ? (map['dueDate'] as Timestamp).toDate()
+          : null,
+      category: map['category'],
     );
   }
 
-  // Convert to map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'partyId': partyId,
@@ -109,10 +119,11 @@ class LedgerEntry {
       'status': status,
       'createdBy': createdBy,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
+      'dueDate': dueDate != null ? Timestamp.fromDate(dueDate!) : null,
+      'category': category,
     };
   }
 
-  // Copy with method
   LedgerEntry copyWith({
     String? id,
     String? partyId,
@@ -129,6 +140,9 @@ class LedgerEntry {
     String? status,
     String? createdBy,
     DateTime? createdAt,
+    DateTime? dueDate,
+    bool clearDueDate = false,
+    String? category,
   }) {
     return LedgerEntry(
       id: id ?? this.id,
@@ -146,10 +160,23 @@ class LedgerEntry {
       status: status ?? this.status,
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
+      dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
+      category: category ?? this.category,
     );
   }
 
-  // Helper getters for UI
+  bool get isOverdue {
+    if (status == 'paid' || status == 'completed' || status == 'cancelled') return false;
+    if (dueDate == null) return false;
+    return DateTime.now().isAfter(dueDate!);
+  }
+
+  bool get isPartyTransaction =>
+      type == 'sale' ||
+      type == 'purchase' ||
+      type == 'payment' ||
+      type == 'receipt';
+
   String get typeLabel {
     switch (type) {
       case 'sale':
@@ -160,6 +187,10 @@ class LedgerEntry {
         return 'Payment Received';
       case 'receipt':
         return 'Payment Made';
+      case 'income':
+        return 'Income';
+      case 'expense':
+        return 'Expense';
       default:
         return type;
     }
@@ -175,6 +206,10 @@ class LedgerEntry {
         return Icons.download;
       case 'receipt':
         return Icons.upload;
+      case 'income':
+        return Icons.trending_up;
+      case 'expense':
+        return Icons.trending_down;
       default:
         return Icons.receipt;
     }
@@ -190,15 +225,19 @@ class LedgerEntry {
         return Colors.blue;
       case 'receipt':
         return Colors.purple;
+      case 'income':
+        return Colors.teal;
+      case 'expense':
+        return Colors.deepOrange;
       default:
         return Colors.grey;
     }
   }
 
-  // Status color getter
   Color get statusColor {
-    final statusLower = status.toLowerCase();
-    switch (statusLower) {
+    if (isOverdue) return Colors.red;
+    final s = status.toLowerCase();
+    switch (s) {
       case 'paid':
       case 'completed':
         return Colors.green;
@@ -214,10 +253,10 @@ class LedgerEntry {
     }
   }
 
-  // Status label getter
   String get statusLabel {
-    final statusLower = status.toLowerCase();
-    switch (statusLower) {
+    if (isOverdue) return 'Overdue';
+    final s = status.toLowerCase();
+    switch (s) {
       case 'paid':
       case 'completed':
         return 'Paid';
@@ -235,7 +274,7 @@ class LedgerEntry {
   }
 
   bool isDebit() {
-    return type == 'sale' || type == 'payment';
+    return type == 'sale' || type == 'payment' || type == 'income';
   }
 
   double get amount {

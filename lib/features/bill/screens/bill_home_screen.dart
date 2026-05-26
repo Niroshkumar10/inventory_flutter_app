@@ -6,7 +6,6 @@ import '../services/bill_service.dart';
 import '../models/bill_model.dart';
 import 'add_edit_bill_screen.dart';
 import 'view_bill_screen.dart';
-import '../../inventory/services/inventory_repo_service.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../analytics/services/analytics_service.dart';
 

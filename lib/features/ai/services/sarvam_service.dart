@@ -1,15 +1,10 @@
-// lib/features/ai/services/sarvam_service.dart
-import 'dart:convert';
+﻿// lib/features/ai/services/sarvam_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
 import '../../inventory/services/inventory_repo_service.dart';
 import '../../inventory/models/inventory_item_model.dart';
 import '../../feedback/services/feedback_service.dart';
 import '../../inventory/models/batch_model.dart';
-import '../../feedback/models/feedback_model.dart';
-import '../../party/models/customer_model.dart';
-import '../../party/models/supplier_model.dart';
-import '../../inventory/services/batch_service.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class SarvamService {
   final String apiKey;
@@ -58,7 +53,7 @@ class SarvamService {
         };
       }).toList();
     } catch (e) {
-      print('Error getting customers: $e');
+      appLogger.d('Error getting customers: $e');
       return [];
     }
   }
@@ -88,7 +83,7 @@ class SarvamService {
         };
       }).toList();
     } catch (e) {
-      print('Error getting suppliers: $e');
+      appLogger.d('Error getting suppliers: $e');
       return [];
     }
   }
@@ -247,7 +242,7 @@ totalBatchStock += (batchSummary['totalRemaining'] as num?)?.toInt() ?? 0;
       'expiredBatches': expiredBatches,
     };
   } catch (e) {
-    print('Error getting inventory context: $e');
+    appLogger.d('Error getting inventory context: $e');
     return {};
   }
 }
@@ -277,7 +272,7 @@ totalBatchStock += (batchSummary['totalRemaining'] as num?)?.toInt() ?? 0;
         'avgRating': stats['avgRating'] ?? 0,
       };
     } catch (e) {
-      print('Error getting feedback context: $e');
+      appLogger.d('Error getting feedback context: $e');
       return {
         'total': 0,
         'pending': 0,
@@ -1254,7 +1249,7 @@ Here's what I can help you with:
 Type "help" to see this menu again.''';
       }
     } catch (e) {
-      print('Error in queryInventory: $e');
+      appLogger.d('Error in queryInventory: $e');
       return 'Sorry, I encountered an error. Please try again or type "help" for available commands.';
     }
   }
@@ -1275,7 +1270,7 @@ Future<Map<String, dynamic>> _getBatchSummaryForItem(String itemId) async {
     final batchSummary = await inventoryRepo.getBatchSummary(itemId);
     return batchSummary;
   } catch (e) {
-    print('Error getting batch summary for $itemId: $e');
+    appLogger.d('Error getting batch summary for $itemId: $e');
     return {
       'totalRemaining': 0,
       'totalBatches': 0,
@@ -1320,7 +1315,7 @@ Future<List<Map<String, dynamic>>> _getBatchDetails(String itemId) async {
       };
     }).where((item) => item != null).toList().cast<Map<String, dynamic>>();
   } catch (e) {
-    print('Error getting batch details for $itemId: $e');
+    appLogger.d('Error getting batch details for $itemId: $e');
     return [];
   }
 }

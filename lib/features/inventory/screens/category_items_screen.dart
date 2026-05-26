@@ -1,8 +1,9 @@
-// screens/category_items_screen.dart
+﻿// screens/category_items_screen.dart
 import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/category_model.dart';
 import '../models/inventory_item_model.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class CategoryItemsScreen extends StatefulWidget {
   final Category category;
@@ -49,7 +50,7 @@ class _CategoryItemsScreenState extends State<CategoryItemsScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading items: $e');
+      appLogger.d('Error loading items: $e');
       setState(() {
         _isLoading = false;
       });

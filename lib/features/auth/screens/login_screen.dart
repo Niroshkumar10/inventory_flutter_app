@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/user_service.dart';
 import '../models/user_model.dart';
 import '../../session/session_service_new.dart';
 import '../services/password_auth_service.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class LoginScreen extends StatefulWidget {
-  final VoidCallback onLoginSuccess;
+  final void Function(String mobile) onLoginSuccess;
 
   const LoginScreen({super.key, required this.onLoginSuccess});
 
@@ -389,7 +390,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      print('📱 Attempting login for mobile: $mobile');
+      appLogger.d('📱 Attempting login for mobile: $mobile');
 
       final exists = await _userService.userExists(mobile);
       
@@ -442,7 +443,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      print('📱 Checking if user exists for registration: $mobile');
+      appLogger.d('📱 Checking if user exists for registration: $mobile');
 
       final exists = await _userService.userExists(mobile);
       
@@ -471,7 +472,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Hash and store password separately
       await _passwordService.setPassword(mobile, newUser.password!);
       
-      print('✅ New user registered successfully');
+      appLogger.i('✅ New user registered successfully');
       
       // Complete login after registration
       await _completeLogin(mobile);
@@ -493,14 +494,14 @@ class _LoginScreenState extends State<LoginScreen> {
           mobile: mobile,
         );
       } catch (e) {
-        print('⚠️ Firebase Auth skipped: $e');
+        appLogger.w('⚠️ Firebase Auth skipped: $e');
       }
 
       // Save session
       await SessionServiceNew.saveLogin(mobile);
-      
+
       if (mounted) {
-        widget.onLoginSuccess();
+        widget.onLoginSuccess(mobile);
       }
     } catch (e) {
       if (mounted) {

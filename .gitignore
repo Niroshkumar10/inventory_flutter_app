@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Secret keys — never commit these
+android/secrets.properties
+dart_defines/

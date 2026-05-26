@@ -2,7 +2,7 @@ name: inventory_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+2
+version: 1.0.1+6
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -12,57 +12,58 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-  
-# For mobile PDF generation
+
+  # PDF generation
   pdf: ^3.10.8
-  
-  # For CSV file saving
+  printing: ^5.13.1
+
+  # CSV
   csv: ^5.0.3
 
-  # Firebase packages
-  firebase_core: ^2.32.0  # Downgrade for compatibility
-  firebase_auth: ^4.20.0
-  cloud_firestore: ^4.17.5
-  firebase_storage: ^11.7.7
-  
+  # Firebase — all v3 generation, must match
+  firebase_core: ^3.6.0          # ← was ^2.32.0
+  firebase_auth: ^5.3.1          # ← was ^4.20.0
+  cloud_firestore: ^5.4.4        # ← was ^4.17.5
+  firebase_storage: ^12.3.2      # ← was ^11.7.7
+  firebase_messaging: ^15.1.3
+  flutter_local_notifications: ^17.2.3
+
   # State management
   provider: ^6.1.2
-  
+
+  # Navigation
+  go_router: ^14.6.3
+
+  # Logging
+  logger: ^2.4.0
+
   # Local storage
   shared_preferences: ^2.2.2
-  animated_splash_screen: ^1.3.0  # Optional: For animated splash
 
-  
-  # Charts
+  # UI
+  animated_splash_screen: ^1.3.0
   fl_chart: ^0.69.2
-  
+
   # Utilities
   uuid: ^4.4.0
   intl: ^0.18.1
-  
-  # PDF Export (Core packages)
-  # printing: ^5.13.1  # For PDF printing
-  
-  get: ^4.6.6  # Add this for GetX
-  http: ^1.1.0  # For API calls
+  http: ^1.1.0
+  crypto: ^3.0.3
 
-  # Platform-specific (will be handled conditionally)
-  path_provider: ^2.1.1  # For mobile file system
-  open_file: ^3.2.1  
-  
-  # REMOVE THESE - they cause build errors:
-  # file_saver: ^0.1.1
-  universal_html: ^2.2.3
-  # excel: ^2.1.0
+  # File handling
+  path_provider: ^2.1.1
+  open_file: ^3.2.1
+  file_picker: ^8.0.0
 
-
+  # Maps & Location
   geolocator: ^10.1.0
   geocoding: ^2.1.1
   google_maps_flutter: ^2.5.0
-  permission_handler: ^11.0.1
   url_launcher: ^6.2.0
 
-crypto: ^3.0.3
+  # Permissions
+  permission_handler: ^11.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

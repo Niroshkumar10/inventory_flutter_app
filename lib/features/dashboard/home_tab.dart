@@ -10,11 +10,6 @@ import '../../features/inventory/services/inventory_repo_service.dart';
 import '../../features/bill/services/bill_service.dart';
 import '../../features/feedback/services/feedback_service.dart'; // Add this
 
-import '../party/screens/customer_list_screen.dart';
-import '../party/screens/supplier_list_screen.dart';
-import '../ledger/screens/ledger_home_screen.dart';
-import '../inventory/screens/inventory_dashboard.dart';
-import '../bill/screens/bill_home_screen.dart';
 import '../bill/screens/view_bill_screen.dart';
 
 import '../../core/providers/ai_provider.dart';

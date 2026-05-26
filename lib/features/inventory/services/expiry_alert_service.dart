@@ -1,4 +1,4 @@
-// lib/features/inventory/services/expiry_alert_service.dart
+﻿// lib/features/inventory/services/expiry_alert_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/batch_model.dart';
 import '../models/inventory_item_model.dart';
@@ -49,7 +49,7 @@ class ExpiryAlertService {
       return alerts;
       
     } catch (e) {
-      //print('❌ Error getting near expiry alerts: $e');
+      //appLogger.e('❌ Error getting near expiry alerts: $e');
       return [];
     }
   }
@@ -79,7 +79,7 @@ class ExpiryAlertService {
       return alerts;
       
     } catch (e) {
-      //print('❌ Error getting expired alerts: $e');
+      //appLogger.e('❌ Error getting expired alerts: $e');
       return [];
     }
   }
@@ -115,7 +115,7 @@ class ExpiryAlertService {
       };
       
     } catch (e) {
-      //print('❌ Error getting alert summary: $e');
+      //appLogger.e('❌ Error getting alert summary: $e');
       return {
         'nearExpiryCount': 0,
         'nearExpiryQuantity': 0,
@@ -140,7 +140,7 @@ class ExpiryAlertService {
       }).toList();
       
     } catch (e) {
-      //print('❌ Error getting inventory items: $e');
+      //appLogger.e('❌ Error getting inventory items: $e');
       return [];
     }
   }
@@ -235,7 +235,7 @@ class ExpiryAlertService {
       return alerts;
       
     } catch (e) {
-      //print('❌ Error getting today expiring alerts: $e');
+      //appLogger.e('❌ Error getting today expiring alerts: $e');
       return [];
     }
   }

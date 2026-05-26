@@ -1,4 +1,4 @@
-// ./lib/features/inventory/screens/inventory_item_screen.dart
+﻿// ./lib/features/inventory/screens/inventory_item_screen.dart
 
 import 'package:flutter/material.dart';
 import '../models/inventory_item_model.dart';
@@ -7,6 +7,7 @@ import '../services/inventory_repo_service.dart';
 import './add_edit_item_screen.dart';
 import './add_batch_screen.dart';
 import './batches_screen.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class InventoryItemScreen extends StatefulWidget {
   final InventoryItem item;
@@ -47,7 +48,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
         _isLoadingBatchSummary = false;
       });
     } catch (e) {
-      print('Error loading batch summary: $e');
+      appLogger.d('Error loading batch summary: $e');
       setState(() => _isLoadingBatchSummary = false);
     }
   }
@@ -265,7 +266,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
         await _loadBatchSummary();
       }
     } catch (e) {
-      print('Error refreshing item: $e');
+      appLogger.d('Error refreshing item: $e');
     }
   }
 

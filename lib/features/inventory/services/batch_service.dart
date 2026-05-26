@@ -1,7 +1,7 @@
-// lib/features/inventory/services/batch_service.dart
+﻿// lib/features/inventory/services/batch_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/batch_model.dart';
-import '../models/inventory_item_model.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class BatchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -55,7 +55,7 @@ class BatchService {
       
       return newBatch;
     } catch (e) {
-      //print('❌ Error adding batch: $e');
+      //appLogger.e('❌ Error adding batch: $e');
       throw Exception('Failed to add batch: $e');
     }
   }
@@ -96,7 +96,7 @@ class BatchService {
       }
       return null;
     } catch (e) {
-      //print('❌ Error getting batch: $e');
+      //appLogger.e('❌ Error getting batch: $e');
       return null;
     }
   }
@@ -111,9 +111,9 @@ class BatchService {
     required String consumedBy,
   }) async {
     try {
-      //print('📦 BatchService.consumeStockFIFO called');
-    //print('  Inventory ID: $inventoryId');
-    //print('  Quantity: $quantityToConsume');
+      //appLogger.d('📦 BatchService.consumeStockFIFO called');
+    //appLogger.d('  Inventory ID: $inventoryId');
+    //appLogger.d('  Quantity: $quantityToConsume');
       if (quantityToConsume <= 0) {
         throw Exception('Quantity to consume must be positive');
       }
@@ -211,7 +211,7 @@ class BatchService {
       return consumptions;
       
     } catch (e) {
-      //print('❌ Error consuming stock with FIFO: $e');
+      //appLogger.e('❌ Error consuming stock with FIFO: $e');
       throw Exception('Failed to consume stock: $e');
     }
   }
@@ -259,10 +259,10 @@ Future<void> restockBatch({
     // Update inventory totals
     await _updateInventoryTotals(inventoryId);
     
-    print('✅ Restocked batch: +$additionalQuantity units');
+    appLogger.i('✅ Restocked batch: +$additionalQuantity units');
     
   } catch (e) {
-    print('❌ Error restocking batch: $e');
+    appLogger.e('❌ Error restocking batch: $e');
     throw Exception('Failed to restock batch: $e');
   }
 }
@@ -305,7 +305,7 @@ Future<void> restockBatch({
       };
       
     } catch (e) {
-      //print('❌ Error getting stock summary: $e');
+      //appLogger.e('❌ Error getting stock summary: $e');
       return {
         'totalRemaining': 0,
         'totalBatches': 0,
@@ -371,7 +371,7 @@ Future<List<Map<String, dynamic>>> getBatchesWithDetails(String inventoryId) asy
     return batchDetails;
     
   } catch (e) {
-    print('❌ Error getting batches with details: $e');
+    appLogger.e('❌ Error getting batches with details: $e');
     return [];
   }
 }
@@ -387,8 +387,8 @@ Future<List<StockConsumption>> consumeStockFromSpecificBatch({
   required String consumedBy,
 }) async {
   try {
-    print('📦 Consuming from specific batch: $batchId');
-    print('  Quantity: $quantityToConsume');
+    appLogger.d('📦 Consuming from specific batch: $batchId');
+    appLogger.d('  Quantity: $quantityToConsume');
     
     // Get the batch
     final batchDoc = await _getBatchesCollection(inventoryId).doc(batchId).get();
@@ -438,11 +438,11 @@ Future<List<StockConsumption>> consumeStockFromSpecificBatch({
     // Update inventory totals
     await _updateInventoryTotals(inventoryId);
     
-    print('✅ Consumed $quantityToConsume from batch ${batch.batchNumber}');
+    appLogger.i('✅ Consumed $quantityToConsume from batch ${batch.batchNumber}');
     return [consumption];
     
   } catch (e) {
-    print('❌ Error consuming from specific batch: $e');
+    appLogger.e('❌ Error consuming from specific batch: $e');
     throw Exception('Failed to consume from batch: $e');
   }
 }
@@ -495,7 +495,7 @@ Future<List<StockConsumption>> getConsumptionHistory(
     return allConsumptions;
     
   } catch (e) {
-    print('❌ Error getting consumption history: $e');
+    appLogger.e('❌ Error getting consumption history: $e');
     return [];
   }
 }
@@ -528,7 +528,7 @@ Future<Map<String, dynamic>> getSalesSummary(String inventoryId) async {
     };
     
   } catch (e) {
-    print('❌ Error getting sales summary: $e');
+    appLogger.e('❌ Error getting sales summary: $e');
     return {
       'totalSold': 0,
       'totalSalesCount': 0,
@@ -538,6 +538,16 @@ Future<Map<String, dynamic>> getSalesSummary(String inventoryId) async {
   }
 }
   
+  // One-shot fetch of active batches for an inventory item (used by AllBatchesScreen)
+  Future<List<Batch>> getBatchesOnce(String inventoryId) async {
+    final snap = await _getBatchesCollection(inventoryId)
+        .where('isActive', isEqualTo: true)
+        .get();
+    return snap.docs
+        .map((d) => Batch.fromMap(d.data() as Map<String, dynamic>, d.id))
+        .toList();
+  }
+
   // Get batches that are near expiry (for alerts)
   Future<List<Batch>> getNearExpiryBatches(String inventoryId, {int daysThreshold = 30}) async {
     try {
@@ -557,7 +567,7 @@ Future<Map<String, dynamic>> getSalesSummary(String inventoryId) async {
       }).toList();
       
     } catch (e) {
-      //print('❌ Error getting near expiry batches: $e');
+      //appLogger.e('❌ Error getting near expiry batches: $e');
       return [];
     }
   }
@@ -577,7 +587,7 @@ Future<Map<String, dynamic>> getSalesSummary(String inventoryId) async {
       }).toList();
       
     } catch (e) {
-      //print('❌ Error getting expired batches: $e');
+      //appLogger.e('❌ Error getting expired batches: $e');
       return [];
     }
   }
@@ -649,7 +659,7 @@ String _generateBatchNumber(String inventoryId) {
       return totalWrittenOff;
       
     } catch (e) {
-      //print('❌ Error writing off expired batches: $e');
+      //appLogger.e('❌ Error writing off expired batches: $e');
       return 0;
     }
   }

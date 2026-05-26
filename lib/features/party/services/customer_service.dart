@@ -1,5 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/customer_model.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class CustomerService {
   final String userMobile;
@@ -25,7 +26,7 @@ class CustomerService {
       final docRef = await _userCustomersCollection.add(customerData);
       return docRef.id;
     } catch (e) {
-      print('❌ Error adding customer: $e');
+      appLogger.e('❌ Error adding customer: $e');
       throw Exception('Failed to add customer: $e');
     }
   }
@@ -58,7 +59,7 @@ class CustomerService {
       
       await _userCustomersCollection.doc(customer.id).update(customerData);
     } catch (e) {
-      print('❌ Error updating customer: $e');
+      appLogger.e('❌ Error updating customer: $e');
       throw Exception('Failed to update customer: $e');
     }
   }
@@ -68,7 +69,7 @@ class CustomerService {
     try {
       await _userCustomersCollection.doc(id).delete();
     } catch (e) {
-      print('❌ Error deleting customer: $e');
+      appLogger.e('❌ Error deleting customer: $e');
       throw Exception('Failed to delete customer: $e');
     }
   }
@@ -79,7 +80,7 @@ class CustomerService {
         .orderBy('name')
         .snapshots()
         .handleError((error) {
-          print('❌ Stream error: $error');
+          appLogger.e('❌ Stream error: $error');
         })
         .map((snapshot) {
           if (snapshot.docs.isEmpty) return [];
@@ -102,7 +103,7 @@ class CustomerService {
       }
       throw Exception('Customer not found');
     } catch (e) {
-      print('❌ Error getting customer: $e');
+      appLogger.e('❌ Error getting customer: $e');
       rethrow;
     }
   }

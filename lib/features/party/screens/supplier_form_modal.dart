@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/supplier_model.dart';
 import '../services/supplier_service.dart';
 import 'location_picker.dart';
+import 'package:inventory_app/core/utils/app_logger.dart';
 
 class SupplierFormModal extends StatefulWidget {
   final String userMobile;
@@ -91,7 +92,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
           });
         }
       }, onError: (error) {
-        print('Error loading suppliers: $error');
+        appLogger.d('Error loading suppliers: $error');
         if (mounted) {
           setState(() {
             _isDataLoaded = true; // Mark as loaded even on error to enable validation
@@ -100,7 +101,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
       });
       
     } catch (e) {
-      print('Error setting up supplier stream: $e');
+      appLogger.d('Error setting up supplier stream: $e');
       if (mounted) {
         setState(() {
           _isDataLoaded = true; // Mark as loaded even on error
@@ -225,7 +226,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
         );
         
         final newId = await _supplierService.addSupplier(supplier);
-        print('✅ Supplier added with ID: $newId');
+        appLogger.i('✅ Supplier added with ID: $newId');
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

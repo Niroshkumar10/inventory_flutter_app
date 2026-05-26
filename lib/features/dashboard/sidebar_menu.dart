@@ -1,33 +1,19 @@
 // lib/features/dashboard/widgets/sidebar_menu.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../session/session_service_new.dart';
-import '../inventory/screens/inventory_dashboard.dart';
-import '../ledger/screens/ledger_home_screen.dart';
-import '../inventory/services/inventory_repo_service.dart';
-import '../../features/party/screens/customer_list_screen.dart';
-import '../../features/party/screens/supplier_list_screen.dart';
-import 'bills_tab.dart';
-import 'reports_tab.dart';
-import '../../features/dashboard/profile_tab.dart';
-import '../dashboard/settings_screen.dart';
-
-// ✅ Import Feedback screens and service
-import '../feedback/screens/feedback_list_screen.dart';
-import '../feedback/services/feedback_service.dart';
+import 'package:inventory_app/core/navigation/app_router.dart';
 
 class SidebarMenu extends StatefulWidget {
   final String userMobile;
   final int selectedIndex;
   final Function(int) onItemSelected;
-  final InventoryService? inventoryService;
+  final void Function(String route) onNavigate;
 
   const SidebarMenu({
     super.key,
     required this.userMobile,
     required this.selectedIndex,
     required this.onItemSelected,
-    this.inventoryService,
+    required this.onNavigate,
   });
 
   @override
@@ -35,16 +21,10 @@ class SidebarMenu extends StatefulWidget {
 }
 
 class _SidebarMenuState extends State<SidebarMenu> {
-  bool _isLoggingOut = false;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    
-    final invService = widget.inventoryService ??
-        Provider.of<InventoryService>(context, listen: false);
 
     return Drawer(
       elevation: 0,
@@ -68,12 +48,8 @@ class _SidebarMenuState extends State<SidebarMenu> {
                       icon: Icons.dashboard,
                       title: 'Dashboard',
                       isSelected: widget.selectedIndex == 0,
-                      // onTap: () {
-                      //   Navigator.pop(context);
-                      //   // widget.onItemSelected(0);
-                      // },
                     ),
-                    
+
                     _buildExpandableMenu(
                       icon: Icons.people,
                       title: 'Parties',
@@ -81,181 +57,89 @@ class _SidebarMenuState extends State<SidebarMenu> {
                         _buildSubMenuItem(
                           icon: Icons.person,
                           title: 'Customers',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CustomerListScreen(
-                                  userMobile: widget.userMobile,
-                                ),
-                              ),
-                            );
-                          },
+                          onTap: () => widget.onNavigate(Routes.customers),
                         ),
                         _buildSubMenuItem(
                           icon: Icons.people,
                           title: 'Suppliers',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => SupplierListScreen(
-                                  userMobile: widget.userMobile,
-                                ),
-                              ),
-                            );
-                          },
+                          onTap: () => widget.onNavigate(Routes.suppliers),
                         ),
                       ],
                     ),
-                    
-                    _buildMenuItem(
-                      index: 1,
+
+                    // ── Inventory (expandable with Batches submenu) ──────────
+                    _buildExpandableMenu(
                       icon: Icons.inventory,
                       title: 'Inventory',
-                      isSelected: widget.selectedIndex == 1,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => InventoryDashboard(
-                              inventoryService: invService,
-                              userMobile: widget.userMobile,
-                            ),
-                          ),
-                        );
-                      },
+                      isSelectedGroup: widget.selectedIndex == 1,
+                      children: [
+                        _buildSubMenuItem(
+                          icon: Icons.list_alt,
+                          title: 'All Items',
+                          onTap: () => widget.onNavigate(Routes.inventory),
+                        ),
+                        _buildSubMenuItem(
+                          icon: Icons.layers,
+                          title: 'Batches',
+                          onTap: () => widget.onNavigate(Routes.batches),
+                          badge: const _BatchAlertBadge(),
+                        ),
+                      ],
                     ),
-                    
+                    // ────────────────────────────────────────────────────────
+
                     _buildMenuItem(
                       index: 2,
                       icon: Icons.receipt,
                       title: 'Bills',
                       isSelected: widget.selectedIndex == 2,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => BillsTab(
-                              userMobile: widget.userMobile,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: () => widget.onNavigate(Routes.bills),
                     ),
-                    
+
                     _buildMenuItem(
                       index: 3,
                       icon: Icons.menu_book,
-                      title: 'Ledger',
+                      title: 'Accounts',
                       isSelected: widget.selectedIndex == 3,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => LedgerHomeScreen(
-                              userMobile: widget.userMobile,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: () => widget.onNavigate(Routes.ledger),
                     ),
-                    
+
                     _buildMenuItem(
                       index: 4,
                       icon: Icons.bar_chart,
                       title: 'Reports',
                       isSelected: widget.selectedIndex == 4,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ReportsTab(),
-                          ),
-                        );
-                      },
+                      onTap: () => widget.onNavigate(Routes.reports),
                     ),
-                    
-                    Divider(
-                      color: colorScheme.onSurface.withOpacity(0.1),
-                    ),
-                    
-                    // ✅ FEEDBACK MENU ITEM - Add this here
+
+                    Divider(color: colorScheme.onSurface.withOpacity(0.1)),
+
                     _buildMenuItem(
-                      index: 7, // Use a unique index (7 since 0-6 are taken)
+                      index: 7,
                       icon: Icons.feedback_outlined,
                       title: 'Feedback',
-                      isSelected: false, // Not part of main selectedIndex
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => FeedbackListScreen(
-                              feedbackService: FeedbackService(widget.userMobile),
-                            ),
-                          ),
-                        );
-                      },
+                      isSelected: false,
+                      onTap: () => widget.onNavigate(Routes.feedback),
                     ),
-                    
-                    // Profile Menu Item
+
                     _buildMenuItem(
                       index: 5,
                       icon: Icons.person,
                       title: 'Profile',
                       isSelected: widget.selectedIndex == 5,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ProfileScreen(
-                              userMobile: widget.userMobile,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: () => widget.onNavigate(Routes.profile),
                     ),
-                    
-                    // Settings Menu Item
+
                     _buildMenuItem(
                       index: 6,
                       icon: Icons.settings,
                       title: 'Settings',
                       isSelected: widget.selectedIndex == 6,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SettingsScreen(
-                              userMobile: widget.userMobile,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: () => widget.onNavigate(Routes.settings),
                     ),
-                    
-                    Divider(
-                      color: colorScheme.onSurface.withOpacity(0.1),
-                    ),
-                    
-                    // Logout Menu Item
-                    _buildMenuItem(
-                      index: -1, // Special index for logout
-                      icon: Icons.logout,
-                      title: 'Logout',
-                      isSelected: false,
-                      onTap: _logout,
-                    ),
-                    
+
+                    Divider(color: colorScheme.onSurface.withOpacity(0.1)),
+
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -271,7 +155,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
@@ -279,7 +163,9 @@ class _SidebarMenuState extends State<SidebarMenu> {
         gradient: LinearGradient(
           colors: [
             colorScheme.primary,
-            isDark ? colorScheme.primary.withOpacity(0.7) : colorScheme.primary.withOpacity(0.8),
+            isDark
+                ? colorScheme.primary.withOpacity(0.7)
+                : colorScheme.primary.withOpacity(0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -307,11 +193,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
             child: CircleAvatar(
               radius: 28,
               backgroundColor: Colors.white,
-              child: Icon(
-                Icons.store, 
-                size: 30, 
-                color: colorScheme.primary,
-              ),
+              child: Icon(Icons.store, size: 30, color: colorScheme.primary),
             ),
           ),
           const SizedBox(width: 16),
@@ -319,7 +201,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Inventory Manager',
                   style: TextStyle(
                     color: Colors.white,
@@ -352,11 +234,13 @@ class _SidebarMenuState extends State<SidebarMenu> {
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+
     return ListTile(
       leading: Icon(
         icon,
-        color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.7),
+        color: isSelected
+            ? colorScheme.primary
+            : colorScheme.onSurface.withOpacity(0.7),
         size: 22,
       ),
       title: Text(
@@ -369,9 +253,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
       ),
       selected: isSelected,
       selectedTileColor: colorScheme.primary.withOpacity(0.1),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       onTap: onTap,
       hoverColor: colorScheme.primary.withOpacity(0.05),
@@ -383,36 +265,49 @@ class _SidebarMenuState extends State<SidebarMenu> {
     required IconData icon,
     required String title,
     required List<Widget> children,
+    bool isSelectedGroup = false,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+
     return Theme(
       data: theme.copyWith(
         dividerColor: Colors.transparent,
         expansionTileTheme: ExpansionTileThemeData(
-          iconColor: colorScheme.onSurface.withOpacity(0.7),
-          collapsedIconColor: colorScheme.onSurface.withOpacity(0.7),
-          textColor: colorScheme.onSurface,
-          collapsedTextColor: colorScheme.onSurface,
+          iconColor: isSelectedGroup
+              ? colorScheme.primary
+              : colorScheme.onSurface.withOpacity(0.7),
+          collapsedIconColor: isSelectedGroup
+              ? colorScheme.primary
+              : colorScheme.onSurface.withOpacity(0.7),
+          textColor:
+              isSelectedGroup ? colorScheme.primary : colorScheme.onSurface,
+          collapsedTextColor:
+              isSelectedGroup ? colorScheme.primary : colorScheme.onSurface,
           backgroundColor: Colors.transparent,
-          collapsedBackgroundColor: Colors.transparent,
+          collapsedBackgroundColor: isSelectedGroup
+              ? colorScheme.primary.withOpacity(0.05)
+              : Colors.transparent,
           tilePadding: const EdgeInsets.symmetric(horizontal: 16),
           childrenPadding: const EdgeInsets.only(left: 40),
         ),
       ),
       child: ExpansionTile(
+        initiallyExpanded: isSelectedGroup,
         leading: Icon(
-          icon, 
-          color: colorScheme.onSurface.withOpacity(0.7),
+          icon,
+          color: isSelectedGroup
+              ? colorScheme.primary
+              : colorScheme.onSurface.withOpacity(0.7),
           size: 22,
         ),
         title: Text(
           title,
           style: TextStyle(
-            fontWeight: FontWeight.w500,
+            fontWeight: isSelectedGroup ? FontWeight.bold : FontWeight.w500,
             fontSize: 15,
-            color: colorScheme.onSurface,
+            color:
+                isSelectedGroup ? colorScheme.primary : colorScheme.onSurface,
           ),
         ),
         children: children,
@@ -424,22 +319,28 @@ class _SidebarMenuState extends State<SidebarMenu> {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    Widget? badge,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+
     return ListTile(
-      leading: Icon(
-        icon, 
-        size: 18, 
-        color: colorScheme.onSurface.withOpacity(0.6),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 14,
-          color: colorScheme.onSurface.withOpacity(0.9),
-        ),
+      leading:
+          Icon(icon, size: 18, color: colorScheme.onSurface.withOpacity(0.6)),
+      title: Row(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: colorScheme.onSurface.withOpacity(0.9),
+            ),
+          ),
+          if (badge != null) ...[
+            const SizedBox(width: 8),
+            badge,
+          ],
+        ],
       ),
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -448,60 +349,23 @@ class _SidebarMenuState extends State<SidebarMenu> {
       splashColor: colorScheme.primary.withOpacity(0.1),
     );
   }
+}
 
-  Future<void> _logout() async {
-    if (_isLoggingOut) return;
+// ─────────────────────────────────────────────────────────────────────────────
+// Orange dot badge — wire to a real stream/provider to hide when all is well.
+// ─────────────────────────────────────────────────────────────────────────────
+class _BatchAlertBadge extends StatelessWidget {
+  const _BatchAlertBadge();
 
-    setState(() => _isLoggingOut = true);
-
-    final rootContext = Navigator.of(context, rootNavigator: true).context;
-
-    try {
-      Navigator.of(context).pop();
-
-      final shouldLogout = await showDialog<bool>(
-        context: rootContext,
-        builder: (_) => AlertDialog(
-          title: const Text('Logout'),
-          content: const Text('Are you sure you want to logout?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(rootContext, false),
-              child: const Text('CANCEL'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(rootContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('LOGOUT'),
-            ),
-          ],
-        ),
-      );
-
-      if (shouldLogout == true) {
-        await SessionServiceNew.logout();
-        if (mounted) {
-          Navigator.of(rootContext).pushNamedAndRemoveUntil(
-            '/',
-            (route) => false,
-          );
-        }
-      } else {
-        if (mounted) setState(() => _isLoggingOut = false);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoggingOut = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error during logout: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    }
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: const BoxDecoration(
+        color: Colors.orange,
+        shape: BoxShape.circle,
+      ),
+    );
   }
 }
