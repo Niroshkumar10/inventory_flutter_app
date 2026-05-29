@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/ledger_service.dart';
 import '../models/ledger_model.dart';
+import 'package:inventory_app/core/theme/colors.dart';
 
 class OutstandingDuesScreen extends StatefulWidget {
   final String userMobile;
@@ -84,7 +85,7 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
                       child: _summaryCard(
                         label: 'To Receive',
                         amount: totalReceivable,
-                        color: Colors.green,
+                        color: AppColors.success,
                         icon: Icons.arrow_downward,
                       ),
                     ),
@@ -93,7 +94,7 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
                       child: _summaryCard(
                         label: 'To Pay',
                         amount: totalPayable,
-                        color: Colors.red,
+                        color: AppColors.error,
                         icon: Icons.arrow_upward,
                       ),
                     ),
@@ -101,13 +102,13 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
                 ),
                 const SizedBox(height: 20),
                 if (receivable.isNotEmpty) ...[
-                  _sectionHeader('Money to Receive', Colors.green, cs),
+                  _sectionHeader('Money to Receive', AppColors.success, cs),
                   const SizedBox(height: 8),
                   ...receivable.map((e) => _entryCard(e, cs, isDark)),
                   const SizedBox(height: 20),
                 ],
                 if (payable.isNotEmpty) ...[
-                  _sectionHeader('Money to Pay', Colors.red, cs),
+                  _sectionHeader('Money to Pay', AppColors.error, cs),
                   const SizedBox(height: 8),
                   ...payable.map((e) => _entryCard(e, cs, isDark)),
                 ],
@@ -179,7 +180,7 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
   Widget _entryCard(LedgerEntry entry, ColorScheme cs, bool isDark) {
     final isOverdue = entry.isOverdue;
     final daysSince = DateTime.now().difference(entry.date).inDays;
-    final accentColor = isOverdue ? Colors.red : entry.typeColor;
+    final accentColor = isOverdue ? AppColors.error : entry.typeColor;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -234,8 +235,8 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
                               horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
                             color: isOverdue
-                                ? Colors.red.withValues(alpha: 0.1)
-                                : Colors.orange.withValues(alpha: 0.1),
+                                ? AppColors.error.withValues(alpha: 0.1)
+                                : AppColors.warning.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -244,7 +245,7 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color:
-                                  isOverdue ? Colors.red : Colors.orange,
+                                  isOverdue ? AppColors.error : AppColors.warning,
                             ),
                           ),
                         ),
@@ -262,7 +263,7 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: entry.type == 'sale' ? Colors.green : Colors.red,
+                    color: entry.type == 'sale' ? AppColors.success : AppColors.error,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -272,16 +273,16 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.1),
+                      color: AppColors.success.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                          color: Colors.green.withValues(alpha: 0.4)),
+                          color: AppColors.success.withValues(alpha: 0.4)),
                     ),
                     child: const Text('Mark Paid',
                         style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Colors.green)),
+                            color: AppColors.success)),
                   ),
                 ),
               ],
@@ -298,7 +299,7 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.check_circle_outline,
-              size: 80, color: Colors.green.withValues(alpha: 0.4)),
+              size: 80, color: AppColors.success.withValues(alpha: 0.4)),
           const SizedBox(height: 16),
           Text('All Dues Cleared!',
               style: TextStyle(
@@ -322,7 +323,7 @@ class _OutstandingDuesScreenState extends State<OutstandingDuesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('${entry.partyName} marked as paid'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

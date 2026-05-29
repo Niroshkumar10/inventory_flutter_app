@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/ledger_service.dart';
 import '../models/ledger_model.dart';
 import 'add_ledger_entry_screen.dart';
+import 'package:inventory_app/core/theme/colors.dart';
 
 class LedgerListScreen extends StatefulWidget {
   final String userMobile;
@@ -355,7 +356,7 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
                 'Due: ${_formatDate(entry.dueDate!)}',
                 style: TextStyle(
                     fontSize: 11,
-                    color: entry.isOverdue ? Colors.red : Colors.orange,
+                    color: entry.isOverdue ? AppColors.error : AppColors.warning,
                     fontWeight: FontWeight.w500),
               ),
           ],
@@ -396,7 +397,7 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: cs.surface,
         title: Text('Transaction Details',
             style: TextStyle(color: cs.onSurface)),
@@ -429,7 +430,7 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text('Close', style: TextStyle(color: cs.primary)),
           ),
         ],
@@ -722,17 +723,17 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
   Color _typeColor(String? type) {
     switch (type) {
       case 'sale':
-        return Colors.green;
+        return AppColors.success;
       case 'purchase':
-        return Colors.orange;
+        return AppColors.warning;
       case 'payment':
-        return Colors.purple;
+        return AppColors.ledgerColor;
       case 'receipt':
-        return Colors.red;
+        return AppColors.error;
       case 'income':
-        return Colors.teal;
+        return AppColors.secondary;
       case 'expense':
-        return Colors.deepOrange;
+        return AppColors.error;
       default:
         return Colors.blueGrey;
     }
@@ -741,11 +742,11 @@ class _LedgerListScreenState extends State<LedgerListScreen> {
   Color _statusColor(String? status) {
     switch (status) {
       case 'pending':
-        return Colors.orange;
+        return AppColors.warning;
       case 'paid':
-        return Colors.green;
+        return AppColors.success;
       case 'overdue':
-        return Colors.red;
+        return AppColors.error;
       case 'cancelled':
         return Colors.grey;
       default:

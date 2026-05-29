@@ -1078,27 +1078,12 @@ Widget _buildTransactionCard(Bill bill, BuildContext context, ColorScheme colorS
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                _handleFabAction();
-              },
-              icon: Icon(_getFabIcon(), color: Colors.white, size: 18),
-              label: Text(
-                _getFabLabel(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _getFabColor(context),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                elevation: 2,
+            const SizedBox(height: 16),
+            Text(
+              'Use the + button below to get started',
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurface.withOpacity(0.4),
               ),
             ),
           ],

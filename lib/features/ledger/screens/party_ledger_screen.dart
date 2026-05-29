@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/ledger_service.dart';
 import '../models/ledger_model.dart';
 import 'add_ledger_entry_screen.dart';
+import 'package:inventory_app/core/theme/colors.dart';
 
 class PartyLedgerScreen extends StatefulWidget {
   final String userMobile;
@@ -53,7 +54,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
 
     return Scaffold(
       backgroundColor:
-          isDark ? cs.surface : const Color(0xffF5F6FA),
+          isDark ? cs.surface : AppColors.background,
       appBar: AppBar(
         title: Text('$_partyName Ledger',
             style: TextStyle(color: cs.onSurface)),
@@ -96,7 +97,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: _currentBalance >= 0
-                              ? cs.secondary
+                              ? AppColors.success
                               : cs.error,
                         ),
                       ),
@@ -131,13 +132,14 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: (isCustomer
-                          ? cs.secondary
-                          : cs.tertiary)
-                      .withValues(alpha: 0.2),
+                          ? AppColors.customerColor
+                          : AppColors.supplierColor)
+                      .withValues(alpha: 0.15),
                   child: Icon(
                     isCustomer ? Icons.person : Icons.store,
-                    color:
-                        isCustomer ? cs.secondary : cs.tertiary,
+                    color: isCustomer
+                        ? AppColors.customerColor
+                        : AppColors.supplierColor,
                   ),
                 ),
                 title: Text(_partyName,
@@ -248,7 +250,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
                 'Due: ${entry.dueDate!.day}/${entry.dueDate!.month}/${entry.dueDate!.year}',
                 style: TextStyle(
                     fontSize: 11,
-                    color: entry.isOverdue ? Colors.red : Colors.orange,
+                    color: entry.isOverdue ? AppColors.error : AppColors.warning,
                     fontWeight: FontWeight.w500),
               ),
           ],
@@ -262,7 +264,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
               '₹${entry.amount.toStringAsFixed(2)}',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: entry.isDebit() ? cs.secondary : cs.error,
+                color: entry.isDebit() ? AppColors.success : cs.error,
                 fontSize: 16,
               ),
             ),
@@ -314,7 +316,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
   void _showEntryDetails(LedgerEntry entry, ColorScheme cs) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: cs.surface,
         title: Row(
           children: [
@@ -368,17 +370,17 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text('Close', style: TextStyle(color: cs.primary)),
           ),
           if (entry.status == 'pending')
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 _markPaid(entry);
               },
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+                  backgroundColor: AppColors.success,
                   foregroundColor: Colors.white),
               child: const Text('Mark as Paid'),
             ),
@@ -432,7 +434,7 @@ class _PartyLedgerScreenState extends State<PartyLedgerScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Marked as paid'),
-          backgroundColor: cs.secondary,
+          backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ));
         _loadBalance();

@@ -6,14 +6,13 @@ import '../../party/services/customer_service.dart';
 import '../../party/services/supplier_service.dart';
 import '../../party/models/customer_model.dart';
 import '../../party/models/supplier_model.dart';
-import 'ledger_list_screen.dart';
 import 'add_ledger_entry_screen.dart';
 import 'party_ledger_screen.dart';
 import 'outstanding_dues_screen.dart';
+import 'package:inventory_app/core/theme/colors.dart';
 
 class LedgerHomeScreen extends StatefulWidget {
   final String userMobile;
-
   const LedgerHomeScreen({super.key, required this.userMobile});
 
   @override
@@ -28,9 +27,8 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
   late final TabController _tabController;
 
   int _currentTab = 0;
-
-  final _dateFormat = DateFormat('dd/MM/yyyy');
-  final _currency = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+  final _fmt = NumberFormat('#,##0.00', 'en_IN');
+  final _dateFmt = DateFormat('dd MMM');
 
   @override
   void initState() {
@@ -52,98 +50,74 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
     super.dispose();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // FAB: context-aware per tab
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─── FAB — one clear action per tab ───────────────────────────────────────
 
   Widget? _buildFab(ColorScheme cs) {
     switch (_currentTab) {
-      case 0: // Summary
+      case 0:
         return FloatingActionButton.extended(
-          heroTag: 'fab_summary',
+          heroTag: 'fab_home',
           icon: const Icon(Icons.add, color: Colors.white),
-          label: const Text('Add Record', style: TextStyle(color: Colors.white)),
+          label: const Text('Add Entry', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
           backgroundColor: cs.primary,
-          onPressed: () => _openAddEntry(),
+          onPressed: _showAddEntrySheet,
         );
-      case 1: // Customers
+      case 1:
         return FloatingActionButton.extended(
-          heroTag: 'fab_customer',
+          heroTag: 'fab_cust',
           icon: const Icon(Icons.add, color: Colors.white),
-          label: const Text('Add Sale', style: TextStyle(color: Colors.white)),
+          label: const Text('Add Sale', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
           backgroundColor: cs.secondary,
-          onPressed: () =>
-              _openAddEntry(type: 'sale', partyType: 'customer'),
+          onPressed: () => _openAddEntry(type: 'sale', partyType: 'customer'),
         );
-      case 2: // Suppliers
+      case 2:
         return FloatingActionButton.extended(
-          heroTag: 'fab_supplier',
+          heroTag: 'fab_supp',
           icon: const Icon(Icons.add, color: Colors.white),
-          label:
-              const Text('Add Purchase', style: TextStyle(color: Colors.white)),
+          label: const Text('Add Purchase', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
           backgroundColor: cs.tertiary,
-          onPressed: () =>
-              _openAddEntry(type: 'purchase', partyType: 'supplier'),
+          onPressed: () => _openAddEntry(type: 'purchase', partyType: 'supplier'),
         );
-      case 3: // Cash Book — two stacked mini FABs
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            FloatingActionButton.extended(
-              heroTag: 'fab_income',
-              icon: const Icon(Icons.trending_up, color: Colors.white),
-              label: const Text('Add Income',
-                  style: TextStyle(color: Colors.white)),
-              backgroundColor: Colors.teal,
-              onPressed: () => _openAddEntry(type: 'income'),
-            ),
-            const SizedBox(height: 12),
-            FloatingActionButton.extended(
-              heroTag: 'fab_expense',
-              icon: const Icon(Icons.trending_down, color: Colors.white),
-              label: const Text('Add Expense',
-                  style: TextStyle(color: Colors.white)),
-              backgroundColor: Colors.deepOrange,
-              onPressed: () => _openAddEntry(type: 'expense'),
-            ),
-          ],
+      case 3:
+        return FloatingActionButton.extended(
+          heroTag: 'fab_cash',
+          icon: const Icon(Icons.add, color: Colors.white),
+          label: const Text('Add Entry', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          backgroundColor: AppColors.secondary,
+          onPressed: () => _showCashEntrySheet(),
         );
       default:
         return null;
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // BUILD
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? cs.surface : const Color(0xffF5F6FA),
+      backgroundColor: isDark ? cs.surface : AppColors.background,
       appBar: AppBar(
         backgroundColor: cs.primary,
-        title: const Text('My Accounts',
-            style: TextStyle(color: Colors.white)),
+        title: const Text('Accounts Book',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
+          unselectedLabelColor: Colors.white60,
           indicatorColor: Colors.white,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           tabs: const [
-            Tab(icon: Icon(Icons.dashboard), text: 'Summary'),
-            Tab(icon: Icon(Icons.people), text: 'Customers'),
-            Tab(icon: Icon(Icons.store), text: 'Suppliers'),
-            Tab(icon: Icon(Icons.account_balance_wallet), text: 'Cash Book'),
+            Tab(text: 'Home'),
+            Tab(text: 'Customers'),
+            Tab(text: 'Suppliers'),
+            Tab(text: 'Cash Book'),
           ],
         ),
       ),
@@ -151,192 +125,133 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildSummaryTab(),
-          _buildPartyList('customer'),
-          _buildPartyList('supplier'),
-          _buildCashBookTab(),
+          _homeTab(),
+          _partyTab('customer'),
+          _partyTab('supplier'),
+          _cashBookTab(),
         ],
       ),
     );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Summary Tab
+  // HOME TAB
   // ─────────────────────────────────────────────────────────────────────────
 
-  Widget _buildSummaryTab() {
+  Widget _homeTab() {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return RefreshIndicator(
       onRefresh: () async => setState(() {}),
       color: cs.primary,
-      backgroundColor: cs.surface,
       child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Net balance card ─────────────────────────────────────
+
+            // ── Money snapshot ─────────────────────────────────────────
             FutureBuilder<Map<String, dynamic>>(
               future: _ledgerService.getStatistics(),
               builder: (context, snap) {
                 final stats = snap.data ?? {};
-                final netBalance =
-                    (stats['netBalance'] as num? ?? 0).toDouble();
+                final toCollect = (stats['totalSales'] as num? ?? 0).toDouble();
+                final toPay     = (stats['totalPurchases'] as num? ?? 0).toDouble();
+                final net       = toCollect - toPay;
+                final loading   = snap.connectionState == ConnectionState.waiting;
 
-                return SizedBox(
-                  width: double.infinity,
-                  child: Card(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: isDark ? 4 : 2,
-                  color: cs.primary.withValues(alpha: 0.1),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text('Your Balance',
-                            style: TextStyle(
-                                fontSize: 16,
-                                color: cs.primary,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 10),
-                        snap.connectionState == ConnectionState.waiting
-                            ? CircularProgressIndicator(color: cs.primary)
-                            : FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  _currency.format(netBalance.abs()),
-                                  style: TextStyle(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold,
-                                    color: netBalance >= 0
-                                        ? cs.secondary
-                                        : cs.error,
-                                  ),
-                                ),
-                              ),
-                        const SizedBox(height: 10),
-                        Text(
-                          netBalance >= 0
-                              ? 'People have to pay you money'
-                              : 'You have to pay money to people',
-                          style: TextStyle(
-                              fontSize: 14,
-                              color: cs.onSurface.withValues(alpha: 0.7)),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Outstanding dues banner ───────────────────────────────
-            FutureBuilder<List<LedgerEntry>>(
-              future: _ledgerService.getOutstandingDues(),
-              builder: (context, snap) {
-                final count = snap.data?.length ?? 0;
-                if (count == 0) return const SizedBox.shrink();
-
-                return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => OutstandingDuesScreen(
-                          userMobile: widget.userMobile),
-                    ),
-                  ),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: Colors.orange.withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.warning_amber_rounded,
-                            color: Colors.orange, size: 22),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '$count pending due${count == 1 ? '' : 's'} — tap to view',
-                            style: const TextStyle(
-                                color: Colors.orange,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14),
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right,
-                            color: Colors.orange),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            // ── Quick stats ──────────────────────────────────────────
-            FutureBuilder<Map<String, dynamic>>(
-              future: _ledgerService.getStatistics(),
-              builder: (context, snap) {
-                final stats = snap.data ?? {};
                 return Column(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _statCard(
-                              'Sales',
-                              (stats['totalSales'] ?? 0).toDouble(),
-                              cs.secondary,
-                              Icons.shopping_cart,
-                              isDark: isDark,
-                              cs: cs),
+                    // Net balance big card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: net >= 0
+                              ? [const Color(0xFF047857), AppColors.success]
+                              : [const Color(0xFFB91C1C), AppColors.error],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _statCard(
-                              'Purchases',
-                              (stats['totalPurchases'] ?? 0).toDouble(),
-                              cs.tertiary,
-                              Icons.shopping_bag,
-                              isDark: isDark,
-                              cs: cs),
-                        ),
-                      ],
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (net >= 0 ? AppColors.success : AppColors.error)
+                                .withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          )
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                net >= 0 ? Icons.arrow_downward : Icons.arrow_upward,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                net >= 0 ? 'You are in Profit' : 'You Need to Pay',
+                                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          loading
+                              ? const SizedBox(height: 40, child: Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)))
+                              : FittedBox(
+                                  child: Text(
+                                    '₹${_fmt.format(net.abs())}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -1,
+                                    ),
+                                  ),
+                                ),
+                          const SizedBox(height: 6),
+                          Text(
+                            net >= 0
+                                ? 'Total money people owe you'
+                                : 'Total money you owe others',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 10),
+
+                    const SizedBox(height: 12),
+
+                    // To Collect + To Pay row
                     Row(
                       children: [
                         Expanded(
-                          child: _statCard(
-                              'Received',
-                              (stats['totalPayments'] ?? 0).toDouble(),
-                              cs.primary,
-                              Icons.download,
-                              isDark: isDark,
-                              cs: cs),
+                          child: _balanceCard(
+                            label: 'To Collect',
+                            sublabel: 'From customers',
+                            amount: toCollect,
+                            color: AppColors.success,
+                            icon: Icons.call_received,
+                            loading: loading,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: _statCard(
-                              'Paid',
-                              (stats['totalReceipts'] ?? 0).toDouble(),
-                              Colors.purple,
-                              Icons.upload,
-                              isDark: isDark,
-                              cs: cs),
+                          child: _balanceCard(
+                            label: 'To Pay',
+                            sublabel: 'To suppliers',
+                            amount: toPay,
+                            color: cs.error,
+                            icon: Icons.call_made,
+                            loading: loading,
+                          ),
                         ),
                       ],
                     ),
@@ -345,73 +260,78 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
               },
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // ── Quick actions ─────────────────────────────────────────
-            Text('Quick Actions',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: cs.onSurface)),
-            const SizedBox(height: 12),
-
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 3,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.0,
-              children: [
-                _actionCard('Add Sale', Icons.shopping_cart, cs.secondary,
-                    () => _openAddEntry(type: 'sale', partyType: 'customer')),
-                _actionCard('Purchase', Icons.shopping_bag, cs.tertiary,
-                    () => _openAddEntry(type: 'purchase', partyType: 'supplier')),
-                _actionCard('Receive', Icons.download, cs.primary,
-                    () => _openAddEntry(type: 'payment', partyType: 'customer')),
-                _actionCard('Pay', Icons.upload, Colors.purple,
-                    () => _openAddEntry(type: 'receipt', partyType: 'supplier')),
-                _actionCard('Income', Icons.trending_up, Colors.teal,
-                    () => _openAddEntry(type: 'income')),
-                _actionCard('Expense', Icons.trending_down, Colors.deepOrange,
-                    () => _openAddEntry(type: 'expense')),
-              ],
+            // ── Pending dues alert ─────────────────────────────────────
+            FutureBuilder<List<LedgerEntry>>(
+              future: _ledgerService.getOutstandingDues(),
+              builder: (context, snap) {
+                final count = snap.data?.length ?? 0;
+                if (count == 0) return const SizedBox.shrink();
+                return GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => OutstandingDuesScreen(
+                            userMobile: widget.userMobile)),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded,
+                            color: AppColors.warning, size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '$count payment${count == 1 ? '' : 's'} still pending — tap to see',
+                            style: const TextStyle(
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, color: AppColors.warning),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
 
-            const SizedBox(height: 20),
-
-            // ── Recent records ────────────────────────────────────────
+            // ── Recent records ─────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Recent Records',
+                Text('Recent Transactions',
                     style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: cs.onSurface)),
-                TextButton(
-                  onPressed: _viewAllEntries,
-                  child:
-                      Text('View All', style: TextStyle(color: cs.primary)),
-                ),
+                        color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             StreamBuilder<List<LedgerEntry>>(
-              stream: _ledgerService.getLedgerEntries(limit: 5),
+              stream: _ledgerService.getLedgerEntries(limit: 8),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return Center(
-                      child: CircularProgressIndicator(color: cs.primary));
+                      child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: CircularProgressIndicator(color: cs.primary),
+                  ));
                 }
                 final entries = snap.data ?? [];
-                if (entries.isEmpty) return _emptyState();
+                if (entries.isEmpty) return _emptyRecordsWidget(cs);
                 return Column(
-                  children: entries
-                      .map((e) => _transactionTile(e, cs, isDark))
-                      .toList(),
-                );
+                    children: entries.map((e) => _entryTile(e, cs, isDark)).toList());
               },
             ),
           ],
@@ -421,128 +341,35 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Cash Book Tab
+  // CUSTOMERS / SUPPLIERS TAB
   // ─────────────────────────────────────────────────────────────────────────
 
-  Widget _buildCashBookTab() {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return RefreshIndicator(
-      onRefresh: () async => setState(() {}),
-      color: cs.primary,
-      backgroundColor: cs.surface,
-      child: StreamBuilder<List<LedgerEntry>>(
-        stream: _ledgerService.getIncomeExpenseEntries(),
-        builder: (context, snap) {
-          final entries = snap.data ?? [];
-          final totalIncome = entries
-              .where((e) => e.type == 'income')
-              .fold<double>(0, (s, e) => s + e.amount);
-          final totalExpense = entries
-              .where((e) => e.type == 'expense')
-              .fold<double>(0, (s, e) => s + e.amount);
-          final net = totalIncome - totalExpense;
-
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-            children: [
-              // ── Cash flow summary ─────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: _cashCard('Income', totalIncome, Colors.teal,
-                        Icons.trending_up,
-                        isDark: isDark, cs: cs),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _cashCard('Expense', totalExpense, Colors.deepOrange,
-                        Icons.trending_down,
-                        isDark: isDark, cs: cs),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: (net >= 0 ? Colors.green : Colors.red)
-                      .withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: (net >= 0 ? Colors.green : Colors.red)
-                        .withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Net Cash Flow',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                            color: cs.onSurface)),
-                    Flexible(
-                      child: Text(
-                        '${net >= 0 ? '+' : '-'}${_currency.format(net.abs())}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                          color: net >= 0 ? Colors.green : Colors.red,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // ── Entry list ─────────────────────────────────────────
-              if (snap.connectionState == ConnectionState.waiting)
-                Center(
-                    child: CircularProgressIndicator(color: cs.primary))
-              else if (entries.isEmpty)
-                _cashBookEmptyState(cs)
-              else
-                ...entries.map((e) => _transactionTile(e, cs, isDark)),
-            ],
-          );
-        },
-      ),
+  Widget _partyTab(String type) {
+    final isCustomer = type == 'customer';
+    if (isCustomer) {
+      return StreamBuilder<List<Customer>>(
+        stream: _customerService.getCustomers(),
+        builder: (ctx, snap) => _partyListView(snap, type),
+      );
+    }
+    return StreamBuilder<List<Supplier>>(
+      stream: _supplierService.getSuppliers(),
+      builder: (ctx, snap) => _partyListView(snap, type),
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Party List Tab (Customers / Suppliers)
-  // ─────────────────────────────────────────────────────────────────────────
-
-  Widget _buildPartyList(String partyType) {
-    if (partyType == 'customer') {
-      return StreamBuilder<List<Customer>>(
-        stream: _customerService.getCustomers(),
-        builder: (ctx, snap) => _partyListView(snap, partyType),
-      );
-    } else {
-      return StreamBuilder<List<Supplier>>(
-        stream: _supplierService.getSuppliers(),
-        builder: (ctx, snap) => _partyListView(snap, partyType),
-      );
-    }
-  }
-
-  Widget _partyListView(AsyncSnapshot snap, String partyType) {
+  Widget _partyListView(AsyncSnapshot snap, String type) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isCustomer = partyType == 'customer';
+    final isCustomer = type == 'customer';
+    final accentColor = isCustomer ? cs.secondary : cs.tertiary;
 
     if (snap.connectionState == ConnectionState.waiting) {
       return Center(child: CircularProgressIndicator(color: cs.primary));
     }
 
     if (!snap.hasData || (snap.data as List).isEmpty) {
-      return _emptyPartyState(partyType, cs);
+      return _emptyPartyWidget(type, cs);
     }
 
     final parties = snap.data as List;
@@ -550,118 +377,117 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
     return RefreshIndicator(
       onRefresh: () async => setState(() {}),
       color: cs.primary,
-      backgroundColor: cs.surface,
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         itemCount: parties.length,
         itemBuilder: (ctx, i) {
           final party = parties[i];
-          final partyId = party.id as String;
-          final partyName = party.name as String;
-          final contact = isCustomer
-              ? (party as Customer).mobile
-              : (party as Supplier).phone;
+          final name    = party.name as String;
+          final contact = isCustomer ? (party as Customer).mobile : (party as Supplier).phone;
 
           return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            elevation: isDark ? 4 : 2,
+            margin: const EdgeInsets.only(bottom: 10),
+            elevation: isDark ? 3 : 1,
             color: cs.surface,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                  leading: CircleAvatar(
-                    backgroundColor: (isCustomer ? cs.secondary : cs.tertiary)
-                        .withValues(alpha: 0.2),
-                    child: Icon(
-                      isCustomer ? Icons.person : Icons.store,
-                      color: isCustomer ? cs.secondary : cs.tertiary,
-                    ),
-                  ),
-                  title: Text(partyName,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 2),
-                      Text(contact,
-                          style: TextStyle(
-                              color: cs.onSurface.withValues(alpha: 0.6),
-                              fontSize: 13)),
-                      const SizedBox(height: 4),
-                      FutureBuilder<double>(
-                        future: _ledgerService.getPartyBalance(partyId),
-                        builder: (ctx, balSnap) {
-                          if (!balSnap.hasData) return const SizedBox.shrink();
-                          final balance = balSnap.data!;
-                          return Text(
-                            balance >= 0
-                                ? 'Owes you: ${_currency.format(balance)}'
-                                : 'You owe: ${_currency.format(balance.abs())}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: balance >= 0 ? cs.secondary : cs.error,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  trailing: Icon(Icons.chevron_right,
-                      color: cs.onSurface.withValues(alpha: 0.5)),
-                  onTap: () => _viewPartyLedger(party, partyType),
-                ),
-                FutureBuilder<List<LedgerEntry>>(
-                  future:
-                      _ledgerService.getPartyLedgerEntries(partyId, limit: 2),
-                  builder: (ctx, snap) {
-                    final entries = snap.data ?? [];
-                    if (entries.isEmpty) return const SizedBox.shrink();
-
-                    return Container(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => _openPartyLedger(party, type),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    // Avatar
+                    Container(
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
-                        border: Border(
-                          top: BorderSide(
-                              color: cs.outline.withValues(alpha: 0.2)),
+                        color: accentColor.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          name[0].toUpperCase(),
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: accentColor),
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Info
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                            child: Text('Recent Transactions',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: cs.onSurface
-                                        .withValues(alpha: 0.6))),
-                          ),
-                          ...entries.map((e) =>
-                              _compactTransactionTile(e, cs)),
-                          Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: 4),
-                            child: TextButton(
-                              onPressed: () =>
-                                  _viewPartyLedger(party, partyType),
-                              child: Text('View All',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: cs.primary)),
-                            ),
-                          ),
+                          Text(name,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                  color: cs.onSurface)),
+                          const SizedBox(height: 2),
+                          Text(contact,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: cs.onSurface.withValues(alpha: 0.55))),
                         ],
                       ),
-                    );
-                  },
+                    ),
+
+                    // Balance
+                    FutureBuilder<double>(
+                      future: _ledgerService.getPartyBalance(party.id as String),
+                      builder: (ctx, balSnap) {
+                        if (!balSnap.hasData) {
+                          return SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: cs.outline));
+                        }
+                        final bal = balSnap.data!;
+                        final isPositive = bal >= 0;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '₹${_fmt.format(bal.abs())}',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: isPositive ? AppColors.success : cs.error),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (isPositive ? AppColors.success : cs.error)
+                                    .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                bal == 0
+                                    ? 'Settled'
+                                    : isPositive
+                                        ? 'Owes You'
+                                        : 'You Owe',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isPositive ? AppColors.success : cs.error),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right,
+                        color: cs.onSurface.withValues(alpha: 0.3), size: 20),
+                  ],
                 ),
-              ],
+              ),
             ),
           );
         },
@@ -670,277 +496,309 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // CASH BOOK TAB
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Widget _cashBookTab() {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return StreamBuilder<List<LedgerEntry>>(
+      stream: _ledgerService.getIncomeExpenseEntries(),
+      builder: (context, snap) {
+        final entries = snap.data ?? [];
+        final income  = entries.where((e) => e.type == 'income').fold<double>(0, (s, e) => s + e.amount);
+        final expense = entries.where((e) => e.type == 'expense').fold<double>(0, (s, e) => s + e.amount);
+        final net = income - expense;
+
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          color: cs.primary,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            children: [
+              // Summary row
+              Row(
+                children: [
+                  Expanded(
+                    child: _cashSummaryCard(
+                      label: 'Money In',
+                      amount: income,
+                      color: AppColors.secondary,
+                      icon: Icons.south_west,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _cashSummaryCard(
+                      label: 'Money Out',
+                      amount: expense,
+                      color: AppColors.error,
+                      icon: Icons.north_east,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Net balance
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: (net >= 0 ? AppColors.success : AppColors.error).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: (net >= 0 ? AppColors.success : AppColors.error).withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Net Balance',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                            fontSize: 15)),
+                    Text(
+                      '${net >= 0 ? '+' : '-'} ₹${_fmt.format(net.abs())}',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: net >= 0 ? AppColors.success : AppColors.error),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Text('Transactions',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: cs.onSurface)),
+              const SizedBox(height: 10),
+
+              if (snap.connectionState == ConnectionState.waiting)
+                Center(child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: CircularProgressIndicator(color: cs.primary),
+                ))
+              else if (entries.isEmpty)
+                _cashEmptyWidget(cs)
+              else
+                ...entries.map((e) => _entryTile(e, cs, isDark)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Shared widgets
   // ─────────────────────────────────────────────────────────────────────────
 
-  Widget _transactionTile(LedgerEntry entry, ColorScheme cs, bool isDark) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: isDark ? 4 : 1,
-      color: cs.surface,
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: entry.typeColor.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(entry.typeIcon, color: entry.typeColor, size: 20),
-        ),
-        title: Text(
-          entry.partyName.isNotEmpty ? entry.partyName : entry.description,
-          style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              color: cs.onSurface),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (entry.partyName.isNotEmpty)
-              Text(entry.description,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurface.withValues(alpha: 0.7)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-            Text(_dateFormat.format(entry.date),
-                style: TextStyle(
-                    fontSize: 11,
-                    color: cs.onSurface.withValues(alpha: 0.5))),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _currency.format(entry.amount),
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: entry.isDebit() ? cs.secondary : cs.error),
-            ),
-            const SizedBox(height: 2),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: entry.statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                    color: entry.statusColor.withValues(alpha: 0.3)),
-              ),
-              child: Text(entry.statusLabel,
-                  style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: entry.statusColor)),
-            ),
-          ],
-        ),
-        onTap: () => _showSimpleDetails(entry),
-      ),
-    );
-  }
+  Widget _balanceCard({
+    required String label,
+    required String sublabel,
+    required double amount,
+    required Color color,
+    required IconData icon,
+    required bool loading,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-  Widget _compactTransactionTile(LedgerEntry entry, ColorScheme cs) {
-    return InkWell(
-      onTap: () => _showSimpleDetails(entry),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: entry.typeColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child:
-                  Icon(entry.typeIcon, color: entry.typeColor, size: 16),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(entry.description,
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: cs.onSurface),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  Text(_dateFormat.format(entry.date),
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurface.withValues(alpha: 0.5))),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(_currency.format(entry.amount),
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color:
-                            entry.isDebit() ? cs.secondary : cs.error)),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: entry.statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                        color: entry.statusColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(entry.statusLabel,
-                      style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: entry.statusColor)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statCard(String title, double value, Color color, IconData icon,
-      {required bool isDark, required ColorScheme cs}) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: isDark ? 4 : 2,
-      color: cs.surface,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8)),
-                  child: Icon(icon, size: 18, color: color),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(title,
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: cs.onSurface),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(_currency.format(value),
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: color)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _cashCard(String title, double value, Color color, IconData icon,
-      {required bool isDark, required ColorScheme cs}) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: isDark ? cs.surface : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+              color: color.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 6),
-              Text(title,
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 4),
+              Text(label,
                   style: TextStyle(
-                      color: color,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600)),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: color)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(sublabel,
+              style: TextStyle(
+                  fontSize: 10,
+                  color: cs.onSurface.withValues(alpha: 0.45))),
+          const SizedBox(height: 8),
+          loading
+              ? SizedBox(height: 20, child: LinearProgressIndicator(color: color, backgroundColor: color.withValues(alpha: 0.1)))
+              : FittedBox(
+                  child: Text(
+                    '₹${_fmt.format(amount)}',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: color),
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cashSummaryCard({
+    required String label,
+    required double amount,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
+                child: Icon(icon, size: 14, color: color),
+              ),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                      color: color, fontSize: 12, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 8),
           FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(_currency.format(value),
-                style: TextStyle(
-                    color: color,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
+            child: Text(
+              '₹${_fmt.format(amount)}',
+              style: TextStyle(
+                  color: color, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _actionCard(
-      String title, IconData icon, Color color, VoidCallback onTap) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _entryTile(LedgerEntry entry, ColorScheme cs, bool isDark) {
+    final isIncoming = entry.isDebit();
 
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: isDark ? 4 : 2,
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: isDark ? 2 : 0.5,
       color: cs.surface,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: cs.outline.withValues(alpha: 0.12))),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
+        onTap: () => _showEntryDetails(entry, cs),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
             children: [
+              // Type icon
               Container(
-                padding: const EdgeInsets.all(8),
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 22, color: color),
+                    color: entry.typeColor.withValues(alpha: 0.1),
+                    shape: BoxShape.circle),
+                child: Icon(entry.typeIcon, color: entry.typeColor, size: 20),
               ),
-              const SizedBox(height: 6),
-              Text(title,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface)),
+              const SizedBox(width: 12),
+
+              // Description + date
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.partyName.isNotEmpty ? entry.partyName : entry.description,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: cs.onSurface),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      entry.partyName.isNotEmpty
+                          ? '${entry.description}  •  ${_dateFmt.format(entry.date)}'
+                          : _dateFmt.format(entry.date),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurface.withValues(alpha: 0.5)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // Amount + status
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${isIncoming ? '+' : '-'} ₹${_fmt.format(entry.amount)}',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isIncoming ? AppColors.success : cs.error),
+                  ),
+                  const SizedBox(height: 3),
+                  if (entry.status == 'pending')
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4)),
+                      child: const Text('Pending',
+                          style: TextStyle(
+                              fontSize: 9,
+                              color: AppColors.warning,
+                              fontWeight: FontWeight.bold)),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4)),
+                      child: Text('Paid',
+                          style: TextStyle(
+                              fontSize: 9,
+                              color: AppColors.success,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -948,79 +806,424 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
     );
   }
 
-  Widget _emptyState() {
-    final cs = Theme.of(context).colorScheme;
+  // ─────────────────────────────────────────────────────────────────────────
+  // Entry detail bottom sheet — simple, shop-friendly
+  // ─────────────────────────────────────────────────────────────────────────
+
+  void _showEntryDetails(LedgerEntry entry, ColorScheme cs) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // handle
+                Center(
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                        color: cs.onSurface.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Header row
+                Row(
+                  children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                          color: entry.typeColor.withValues(alpha: 0.12),
+                          shape: BoxShape.circle),
+                      child: Icon(entry.typeIcon, color: entry.typeColor, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(entry.typeLabel,
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: cs.onSurface)),
+                          if (entry.partyName.isNotEmpty)
+                            Text(entry.partyName,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    color: cs.onSurface.withValues(alpha: 0.6))),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '₹${_fmt.format(entry.amount)}',
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: entry.isDebit() ? AppColors.success : cs.error),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+                Divider(color: cs.outline.withValues(alpha: 0.2)),
+                const SizedBox(height: 8),
+
+                // Simple detail rows
+                _row('Date', DateFormat('dd MMM yyyy').format(entry.date), cs),
+                if (entry.description.isNotEmpty)
+                  _row('Note', entry.description, cs),
+                if (entry.reference.isNotEmpty)
+                  _row('Ref', entry.reference, cs),
+                if (entry.dueDate != null)
+                  _row('Due', DateFormat('dd MMM yyyy').format(entry.dueDate!), cs),
+                _row('Status', entry.status == 'pending' ? 'Pending' : 'Paid', cs,
+                    valueColor: entry.status == 'pending' ? AppColors.warning : AppColors.success),
+
+                const SizedBox(height: 16),
+
+                // Actions
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: cs.outline),
+                            foregroundColor: cs.onSurface,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10))),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                    if (entry.status == 'pending') ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _markPaid(entry);
+                          },
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10))),
+                          child: const Text('Mark as Paid'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _row(String label, String value, ColorScheme cs, {Color? valueColor}) {
     return Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
         children: [
-          Icon(Icons.receipt_long,
-              size: 70, color: cs.onSurface.withValues(alpha: 0.2)),
-          const SizedBox(height: 16),
-          Text('No records yet',
+          SizedBox(
+            width: 60,
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: cs.onSurface.withValues(alpha: 0.5))),
+          ),
+          Text('  :  ',
               style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withValues(alpha: 0.5))),
-          const SizedBox(height: 8),
-          Text('Add your first transaction',
-              style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.5))),
+                  color: cs.onSurface.withValues(alpha: 0.3), fontSize: 13)),
+          Expanded(
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: valueColor ?? cs.onSurface)),
+          ),
         ],
       ),
     );
   }
 
-  Widget _cashBookEmptyState(ColorScheme cs) {
+  // ─────────────────────────────────────────────────────────────────────────
+  // Add entry sheets
+  // ─────────────────────────────────────────────────────────────────────────
+
+  void _showAddEntrySheet() {
+    final cs = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                    color: cs.onSurface.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('What do you want to record?',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface)),
+            const SizedBox(height: 20),
+
+            _sheetOption(
+              ctx: ctx,
+              icon: Icons.shopping_cart_outlined,
+              title: 'Sold to Customer',
+              subtitle: 'Customer bought something from your shop',
+              color: cs.secondary,
+              onTap: () => _openAddEntry(type: 'sale', partyType: 'customer'),
+            ),
+            const SizedBox(height: 10),
+            _sheetOption(
+              ctx: ctx,
+              icon: Icons.storefront_outlined,
+              title: 'Bought from Supplier',
+              subtitle: 'You purchased goods or items',
+              color: cs.tertiary,
+              onTap: () => _openAddEntry(type: 'purchase', partyType: 'supplier'),
+            ),
+            const SizedBox(height: 10),
+            _sheetOption(
+              ctx: ctx,
+              icon: Icons.call_received,
+              title: 'Customer Paid Me',
+              subtitle: 'Received payment from a customer',
+              color: AppColors.success,
+              onTap: () => _openAddEntry(type: 'payment', partyType: 'customer'),
+            ),
+            const SizedBox(height: 10),
+            _sheetOption(
+              ctx: ctx,
+              icon: Icons.call_made,
+              title: 'I Paid Supplier',
+              subtitle: 'Sent payment to a supplier',
+              color: AppColors.warning,
+              onTap: () => _openAddEntry(type: 'receipt', partyType: 'supplier'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCashEntrySheet() {
+    final cs = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                    color: cs.onSurface.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Cash Book Entry',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface)),
+            const SizedBox(height: 20),
+
+            _sheetOption(
+              ctx: ctx,
+              icon: Icons.south_west,
+              title: 'Money Came In',
+              subtitle: 'Any income — rent, interest, other earnings',
+              color: AppColors.secondary,
+              onTap: () => _openAddEntry(type: 'income'),
+            ),
+            const SizedBox(height: 10),
+            _sheetOption(
+              ctx: ctx,
+              icon: Icons.north_east,
+              title: 'Money Went Out',
+              subtitle: 'Any expense — electricity, rent, staff salary',
+              color: AppColors.error,
+              onTap: () => _openAddEntry(type: 'expense'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetOption({
+    required BuildContext ctx,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        Navigator.pop(ctx);
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.2))),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: cs.onSurface)),
+                  Text(subtitle,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurface.withValues(alpha: 0.55))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: cs.onSurface.withValues(alpha: 0.3), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Empty states
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Widget _emptyRecordsWidget(ColorScheme cs) {
     return Padding(
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(
         children: [
-          Icon(Icons.account_balance_wallet_outlined,
-              size: 70, color: cs.onSurface.withValues(alpha: 0.2)),
+          Icon(Icons.receipt_long_outlined,
+              size: 64, color: cs.onSurface.withValues(alpha: 0.2)),
           const SizedBox(height: 16),
-          Text('No income or expense recorded',
+          Text('No transactions yet',
               style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withValues(alpha: 0.5))),
-          const SizedBox(height: 8),
-          Text('Use the buttons below to record income or expenses.',
+                  color: cs.onSurface.withValues(alpha: 0.4))),
+          const SizedBox(height: 6),
+          Text('Tap "+ Add Entry" to record your first transaction',
               style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.5), fontSize: 14),
+                  fontSize: 13,
+                  color: cs.onSurface.withValues(alpha: 0.35)),
               textAlign: TextAlign.center),
         ],
       ),
     );
   }
 
-  Widget _emptyPartyState(String partyType, ColorScheme cs) {
+  Widget _cashEmptyWidget(ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          Icon(Icons.account_balance_wallet_outlined,
+              size: 64, color: cs.onSurface.withValues(alpha: 0.2)),
+          const SizedBox(height: 16),
+          Text('No cash entries yet',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface.withValues(alpha: 0.4))),
+          const SizedBox(height: 6),
+          Text('Tap "+ Add Entry" below to record income or expense',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: cs.onSurface.withValues(alpha: 0.35)),
+              textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyPartyWidget(String type, ColorScheme cs) {
+    final isCustomer = type == 'customer';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              partyType == 'customer' ? Icons.person : Icons.store,
-              size: 70,
-              color: cs.onSurface.withValues(alpha: 0.2),
-            ),
+            Icon(isCustomer ? Icons.people_outline : Icons.store_outlined,
+                size: 64, color: cs.onSurface.withValues(alpha: 0.2)),
             const SizedBox(height: 16),
+            Text(isCustomer ? 'No customers yet' : 'No suppliers yet',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface.withValues(alpha: 0.4))),
+            const SizedBox(height: 6),
             Text(
-              'No ${partyType == 'customer' ? 'customers' : 'suppliers'} yet',
+              isCustomer
+                  ? 'Add customers from the Parties menu'
+                  : 'Add suppliers from the Parties menu',
               style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withValues(alpha: 0.5)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              partyType == 'customer'
-                  ? 'Add customers to track sales'
-                  : 'Add suppliers to track purchases',
-              style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.5)),
+                  fontSize: 13,
+                  color: cs.onSurface.withValues(alpha: 0.35)),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1030,171 +1233,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Detail bottom sheet
-  // ─────────────────────────────────────────────────────────────────────────
-
-  void _showSimpleDetails(LedgerEntry entry) {
-    final cs = Theme.of(context).colorScheme;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: entry.typeColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(entry.typeIcon, color: entry.typeColor),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(entry.typeLabel,
-                              style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                  color: cs.onSurface)),
-                          if (entry.partyName.isNotEmpty)
-                            Text('with ${entry.partyName}',
-                                style: TextStyle(
-                                    color:
-                                        cs.onSurface.withValues(alpha: 0.7)))
-                          else if (entry.category != null)
-                            Text(entry.category!,
-                                style: TextStyle(
-                                    color:
-                                        cs.onSurface.withValues(alpha: 0.7))),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: entry.statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: entry.statusColor.withValues(alpha: 0.3)),
-                      ),
-                      child: Text(entry.statusLabel,
-                          style: TextStyle(
-                              color: entry.statusColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  height: 1,
-                  color: cs.outline.withValues(alpha: 0.2),
-                ),
-                const SizedBox(height: 12),
-                _detailRow('Date', _dateFormat.format(entry.date), cs),
-                _detailRow('Amount', _currency.format(entry.amount), cs),
-                if (entry.description.isNotEmpty)
-                  _detailRow('Description', entry.description, cs),
-                if (entry.reference.isNotEmpty)
-                  _detailRow('Reference', entry.reference, cs),
-                if (entry.dueDate != null)
-                  _detailRow(
-                      'Due Date', _dateFormat.format(entry.dueDate!), cs),
-                if (entry.notes.isNotEmpty)
-                  _detailRow('Notes', entry.notes, cs),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: cs.outline),
-                          foregroundColor: cs.onSurface,
-                        ),
-                        child: const Text('Close'),
-                      ),
-                    ),
-                    if (entry.status == 'pending') ...[
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            _markAsPaid(entry);
-                            Navigator.pop(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: cs.primary,
-                            foregroundColor: Colors.white,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: const Text('Mark Paid'),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _detailRow(String label, String value, ColorScheme cs) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text('$label:',
-                style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 13,
-                    color: cs.onSurface.withValues(alpha: 0.6))),
-          ),
-          Expanded(
-            child: Text(value,
-                style: TextStyle(fontSize: 14, color: cs.onSurface)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Navigation helpers
+  // Navigation / service helpers
   // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> _openAddEntry({String? type, String? partyType}) async {
@@ -1211,39 +1250,29 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
     if (mounted) setState(() {});
   }
 
-  void _viewAllEntries() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LedgerListScreen(userMobile: widget.userMobile),
-      ),
-    );
-  }
-
-  void _viewPartyLedger(dynamic party, String partyType) {
+  void _openPartyLedger(dynamic party, String type) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PartyLedgerScreen(
           userMobile: widget.userMobile,
           party: party,
-          partyType: partyType,
+          partyType: type,
         ),
       ),
     );
   }
 
-  Future<void> _markAsPaid(LedgerEntry entry) async {
+  Future<void> _markPaid(LedgerEntry entry) async {
     final cs = Theme.of(context).colorScheme;
     try {
       await _ledgerService.updateLedgerStatus(entry.id, 'paid');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Marked as paid'),
-          backgroundColor: cs.secondary,
+          backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ));
         setState(() {});
       }

@@ -7,9 +7,10 @@ import '../../party/models/customer_model.dart';
 import '../../party/models/supplier_model.dart';
 import '../models/ledger_model.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';
+import 'package:inventory_app/core/theme/colors.dart';
 
 const _incomeCategories = [
-  'Sales Revenue',
+  'Shop Sales',
   'Rental Income',
   'Interest / Returns',
   'Refund Received',
@@ -19,7 +20,7 @@ const _incomeCategories = [
 const _expenseCategories = [
   'Rent',
   'Salary / Wages',
-  'Utilities',
+  'Electricity Bill',
   'Transport',
   'Maintenance',
   'Supplies',
@@ -54,22 +55,23 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
   late final CustomerService _customerService;
   late final SupplierService _supplierService;
 
-  final _descriptionController = TextEditingController();
-  final _amountController = TextEditingController();
-  final _referenceController = TextEditingController();
-  final _notesController = TextEditingController();
+  final _noteController     = TextEditingController();
+  final _amountController   = TextEditingController();
+  final _billNoController   = TextEditingController();
 
-  String _selectedType = 'sale';
-  String _selectedPartyType = 'customer';
+  String _selectedType        = 'sale';
+  String _selectedPartyType   = 'customer';
   String? _selectedPartyId;
-  String _selectedPartyName = '';
-  String _selectedPartyContact = '';
-  String _selectedStatus = 'pending';
+  String _selectedPartyName   = '';
+  String _selectedStatus      = 'pending';
   String? _selectedCategory;
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate      = DateTime.now();
   DateTime? _selectedDueDate;
 
-  bool _isLoading = false;
+  List<String> get _categoryOptions =>
+      _selectedType == 'income' ? _incomeCategories : _expenseCategories;
+
+  bool _isLoading      = false;
   List<dynamic> _parties = [];
   bool _loadingParties = true;
 
@@ -77,46 +79,94 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
 
   bool get _isEditing => widget.entryToEdit != null;
 
-  // income/expense don't need a party
   bool get _isPartyTransaction =>
-      _selectedType == 'sale' ||
+      _selectedType == 'sale'     ||
       _selectedType == 'purchase' ||
-      _selectedType == 'payment' ||
+      _selectedType == 'payment'  ||
       _selectedType == 'receipt';
 
-  List<String> get _categoryOptions =>
-      _selectedType == 'income' ? _incomeCategories : _expenseCategories;
+  String get _typeLabel {
+    switch (_selectedType) {
+      case 'sale':     return 'Sold to Customer';
+      case 'purchase': return 'Bought from Supplier';
+      case 'payment':  return 'Customer Paid Me';
+      case 'receipt':  return 'I Paid Supplier';
+      case 'income':   return 'Money Came In';
+      case 'expense':  return 'Money Went Out';
+      default:         return 'Record Entry';
+    }
+  }
+
+  Color get _typeColor {
+    switch (_selectedType) {
+      case 'sale':     return AppColors.success;
+      case 'purchase': return AppColors.warning;
+      case 'payment':  return AppColors.customerColor;
+      case 'receipt':  return AppColors.ledgerColor;
+      case 'income':   return AppColors.secondary;
+      case 'expense':  return AppColors.error;
+      default:         return AppColors.primary;
+    }
+  }
+
+
+  String get _noteHint {
+    switch (_selectedType) {
+      case 'sale':     return 'What was sold? e.g. Rice, Sugar...';
+      case 'purchase': return 'What did you buy? e.g. Vegetables...';
+      case 'payment':  return 'e.g. Cash payment received';
+      case 'receipt':  return 'e.g. Paid for April order';
+      case 'income':   return 'e.g. Shop rent received';
+      case 'expense':  return 'e.g. Electricity bill';
+      default:         return 'Add a note';
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
-    _ledgerService = LedgerService(widget.userMobile);
+    _ledgerService   = LedgerService(widget.userMobile);
     _customerService = CustomerService(widget.userMobile);
     _supplierService = SupplierService(widget.userMobile);
 
     if (widget.initialType != null) _selectedType = widget.initialType!;
+
+    // Derive party type from entry type if not explicitly passed
     if (widget.initialPartyType != null) {
       _selectedPartyType = widget.initialPartyType!;
+    } else {
+      if (_selectedType == 'sale' || _selectedType == 'payment') {
+        _selectedPartyType = 'customer';
+      } else if (_selectedType == 'purchase' || _selectedType == 'receipt') {
+        _selectedPartyType = 'supplier';
+      }
     }
+
     if (widget.initialPartyId != null) {
-      _selectedPartyId = widget.initialPartyId;
+      _selectedPartyId   = widget.initialPartyId;
       _selectedPartyName = widget.initialPartyName ?? '';
+    }
+
+    // Income/expense are always immediately paid
+    if (_selectedType == 'income' || _selectedType == 'expense') {
+      _selectedStatus = 'paid';
     }
 
     if (_isEditing) {
       final e = widget.entryToEdit!;
-      _selectedType = e.type;
-      _selectedPartyType = e.partyType.isNotEmpty ? e.partyType : 'customer';
-      _selectedPartyId = e.partyId.isNotEmpty ? e.partyId : null;
-      _selectedPartyName = e.partyName;
-      _selectedStatus = e.status;
-      _selectedDate = e.date;
-      _selectedDueDate = e.dueDate;
-      _selectedCategory = e.category;
-      _descriptionController.text = e.description;
-      _amountController.text = e.amount.toStringAsFixed(2);
-      _referenceController.text = e.reference;
-      _notesController.text = e.notes;
+      _selectedType       = e.type;
+      _selectedPartyType  = e.partyType.isNotEmpty ? e.partyType : 'customer';
+      _selectedPartyId    = e.partyId.isNotEmpty ? e.partyId : null;
+      _selectedPartyName  = e.partyName;
+      _selectedStatus     = e.status;
+      _selectedCategory   = e.category;
+      _selectedDate       = e.date;
+      _selectedDueDate    = e.dueDate;
+      _noteController.text    = e.description;
+      _amountController.text  = e.amount.toStringAsFixed(2);
+      _billNoController.text  = e.reference;
     }
 
     if (_isPartyTransaction) _loadParties();
@@ -124,12 +174,13 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
 
   @override
   void dispose() {
-    _descriptionController.dispose();
+    _noteController.dispose();
     _amountController.dispose();
-    _referenceController.dispose();
-    _notesController.dispose();
+    _billNoController.dispose();
     super.dispose();
   }
+
+  // ─── Data loading ─────────────────────────────────────────────────────────
 
   Future<void> _loadParties() async {
     try {
@@ -141,14 +192,11 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
           _parties = customers;
           if (customers.isNotEmpty && _selectedPartyId == null) {
             final c = customers.first;
-            _selectedPartyId = c.id;
+            _selectedPartyId   = c.id;
             _selectedPartyName = c.name;
-            _selectedPartyContact = c.mobile;
           } else if (_selectedPartyId != null) {
-            // Restore contact for pre-selected party
             for (final c in customers) {
               if (c.id == _selectedPartyId) {
-                _selectedPartyContact = c.mobile;
                 _selectedPartyName = c.name;
                 break;
               }
@@ -161,13 +209,11 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
           _parties = suppliers;
           if (suppliers.isNotEmpty && _selectedPartyId == null) {
             final s = suppliers.first;
-            _selectedPartyId = s.id;
+            _selectedPartyId   = s.id;
             _selectedPartyName = s.name;
-            _selectedPartyContact = s.phone;
           } else if (_selectedPartyId != null) {
             for (final s in suppliers) {
               if (s.id == _selectedPartyId) {
-                _selectedPartyContact = s.phone;
                 _selectedPartyName = s.name;
                 break;
               }
@@ -176,10 +222,10 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
         });
       }
     } catch (e) {
-      appLogger.e('❌ Error loading parties: $e');
+      appLogger.e('Error loading parties: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error loading parties: $e'),
+          content: Text('Could not load parties: $e'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ));
       }
@@ -194,12 +240,6 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
       initialDate: _selectedDate,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: Theme.of(ctx).colorScheme,
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) setState(() => _selectedDate = picked);
   }
@@ -221,8 +261,9 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
     if (_isPartyTransaction &&
         (_selectedPartyId == null || _selectedPartyId!.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Please select a party'),
+        content: Text('Please select a ${_selectedPartyType == 'customer' ? 'customer' : 'supplier'}'),
         backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
       ));
       return;
     }
@@ -232,76 +273,65 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
     try {
       final amount = double.tryParse(_amountController.text) ?? 0;
 
-      double debit = 0;
-      double credit = 0;
-
+      double debit = 0, credit = 0;
       switch (_selectedType) {
-        case 'sale':
-          debit = amount;
-          break;
-        case 'purchase':
-          credit = amount;
-          break;
-        case 'payment':
-          credit = amount;
-          break;
-        case 'receipt':
-          debit = amount;
-          break;
-        case 'income':
-          debit = amount;
-          break;
-        case 'expense':
-          credit = amount;
-          break;
+        case 'sale':     debit  = amount; break;
+        case 'purchase': credit = amount; break;
+        case 'payment':  credit = amount; break;
+        case 'receipt':  debit  = amount; break;
+        case 'income':   debit  = amount; break;
+        case 'expense':  credit = amount; break;
       }
+
+      // Income/expense are always paid immediately
+      final finalStatus = _isPartyTransaction ? _selectedStatus : 'paid';
 
       LedgerEntry entry;
 
       if (_isEditing) {
         entry = widget.entryToEdit!.copyWith(
-          type: _selectedType,
-          partyId: _selectedPartyId ?? '',
-          partyType: _isPartyTransaction ? _selectedPartyType : '',
-          partyName: _selectedPartyName,
-          date: _selectedDate,
-          description: _descriptionController.text.trim(),
-          debit: debit,
-          credit: credit,
-          reference: _referenceController.text.trim(),
-          notes: _notesController.text.trim(),
-          status: _selectedStatus,
-          category: _selectedCategory,
-          dueDate: _selectedDueDate,
+          type:        _selectedType,
+          partyId:     _selectedPartyId ?? '',
+          partyType:   _isPartyTransaction ? _selectedPartyType : '',
+          partyName:   _selectedPartyName,
+          date:        _selectedDate,
+          description: _noteController.text.trim(),
+          debit:       debit,
+          credit:      credit,
+          reference:   _billNoController.text.trim(),
+          notes:       '',
+          status:      finalStatus,
+          category:    _selectedCategory,
+          dueDate:     _selectedDueDate,
           clearDueDate: _selectedDueDate == null,
         );
         await _ledgerService.updateLedgerEntry(entry);
       } else {
         entry = LedgerEntry.create(
-          type: _selectedType,
-          partyId: _selectedPartyId ?? '',
-          partyType: _isPartyTransaction ? _selectedPartyType : '',
-          partyName: _selectedPartyName,
-          description: _descriptionController.text.trim(),
-          debit: debit,
-          credit: credit,
-          reference: _referenceController.text.trim(),
-          notes: _notesController.text.trim(),
-          userMobile: widget.userMobile,
-          status: _selectedStatus,
-          category: _selectedCategory,
-          date: _selectedDate,
-          dueDate: _selectedDueDate,
+          type:        _selectedType,
+          partyId:     _selectedPartyId ?? '',
+          partyType:   _isPartyTransaction ? _selectedPartyType : '',
+          partyName:   _selectedPartyName,
+          description: _noteController.text.trim(),
+          debit:       debit,
+          credit:      credit,
+          reference:   _billNoController.text.trim(),
+          notes:       '',
+          userMobile:  widget.userMobile,
+          status:      finalStatus,
+          category:    _selectedCategory,
+          date:        _selectedDate,
+          dueDate:     _selectedDueDate,
         );
         await _ledgerService.addLedgerEntry(entry);
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_isEditing
-              ? 'Entry updated successfully'
-              : 'Entry added successfully'),
-          backgroundColor: Theme.of(context).colorScheme.secondary,
+          content: Text(_isEditing ? 'Entry updated' : 'Entry saved'),
+          backgroundColor: _typeColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ));
         Navigator.pop(context, true);
       }
@@ -310,6 +340,7 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error: $e'),
           backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
         ));
       }
     } finally {
@@ -317,306 +348,218 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // BUILD
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─── Build ────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final cs     = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color  = _typeColor;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? cs.surface : const Color(0xFFF5F6FA),
+      backgroundColor: isDark ? cs.surface : AppColors.background,
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Edit Entry' : 'Add Ledger Entry',
+          _isEditing ? 'Edit Entry' : _typeLabel,
           style: TextStyle(
-              fontSize: 18, fontWeight: FontWeight.w600, color: cs.onSurface),
+              color: cs.onSurface, fontWeight: FontWeight.bold, fontSize: 17),
         ),
         backgroundColor: cs.surface,
-        elevation: 0.5,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: cs.onSurface),
-          onPressed: () => Navigator.pop(context),
+        iconTheme: IconThemeData(color: cs.onSurface),
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(3),
+          child: Container(height: 3, color: color),
         ),
         actions: [
           if (_isEditing)
             IconButton(
-              icon: Icon(Icons.delete, color: cs.error),
+              icon: Icon(Icons.delete_outline, color: cs.onSurface),
               onPressed: _confirmDelete,
             ),
         ],
       ),
       body: Form(
         key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Transaction Type ─────────────────────────────────────
-              _buildSectionCard(
-                icon: Icons.swap_horiz,
-                title: 'Transaction Type',
-                color: cs.primary,
+        child: Column(
+          children: [
+            // ── Amount header ─────────────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: isDark ? cs.surfaceContainerHighest : const Color(0xFFF5F6FA),
+                border: Border(left: BorderSide(color: color, width: 4)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        '₹',
+                        style: TextStyle(
+                            fontSize: 30,
+                            color: color,
+                            fontWeight: FontWeight.w300),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            inputDecorationTheme: const InputDecorationTheme(
+                              filled: false,
+                            ),
+                          ),
+                          child: TextFormField(
+                            controller: _amountController,
+                            autofocus: !_isEditing,
+                            style: TextStyle(
+                                color: cs.onSurface,
+                                fontSize: 38,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -1),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            cursorColor: color,
+                            decoration: InputDecoration(
+                              hintText: '0.00',
+                              hintStyle: TextStyle(
+                                  color: cs.onSurface.withValues(alpha: 0.25),
+                                  fontSize: 38,
+                                  fontWeight: FontWeight.bold),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              focusedErrorBorder: InputBorder.none,
+                              filled: false,
+                              contentPadding: EdgeInsets.zero,
+                              errorStyle: TextStyle(color: cs.error),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Please enter the amount';
+                              }
+                              final a = double.tryParse(v);
+                              if (a == null || a <= 0) return 'Enter a valid amount';
+                              return null;
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Enter amount',
+                    style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.5),
+                        fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Scrollable form body ──────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 22, 16, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Select transaction type',
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withValues(alpha: 0.6))),
-                    const SizedBox(height: 12),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _typeChip('sale', 'Sale', Icons.trending_up,
-                              cs.secondary),
-                          const SizedBox(width: 8),
-                          _typeChip('purchase', 'Purchase',
-                              Icons.shopping_cart, cs.tertiary),
-                          const SizedBox(width: 8),
-                          _typeChip('payment', 'Received', Icons.download,
-                              Colors.purple),
-                          const SizedBox(width: 8),
-                          _typeChip(
-                              'receipt', 'Paid', Icons.upload, cs.error),
-                          const SizedBox(width: 8),
-                          _typeChip('income', 'Income', Icons.trending_up,
-                              Colors.teal),
-                          const SizedBox(width: 8),
-                          _typeChip('expense', 'Expense', Icons.trending_down,
-                              Colors.deepOrange),
-                        ],
+
+                    // Party selector
+                    if (_isPartyTransaction) ...[
+                      _label('Who is this with?'),
+                      const SizedBox(height: 8),
+                      _partyPicker(cs, isDark, color),
+                      const SizedBox(height: 22),
+                    ],
+
+                    // Note / description
+                    _label('Note'),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _noteController,
+                      style: TextStyle(color: cs.onSurface, fontSize: 15),
+                      decoration: _inputDeco(cs, isDark, color, hint: _noteHint)
+                          .copyWith(
+                        prefixIcon: Icon(Icons.edit_note_rounded,
+                            size: 22,
+                            color: cs.onSurface.withValues(alpha: 0.4)),
                       ),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please add a note'
+                          : null,
                     ),
-                  ],
-                ),
-              ),
 
-              const SizedBox(height: 16),
+                    const SizedBox(height: 22),
 
-              // ── Party section (only for party transactions) ──────────
-              if (_isPartyTransaction) ...[
-                _buildSectionCard(
-                  icon: Icons.people,
-                  title: 'Party Type',
-                  color: Colors.teal,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Select party type',
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: cs.onSurface.withValues(alpha: 0.6))),
-                      const SizedBox(height: 12),
+                    // Date
+                    _label('Date'),
+                    const SizedBox(height: 8),
+                    _datePicker(cs, isDark, color),
+
+                    const SizedBox(height: 22),
+
+                    // Category (income / expense only)
+                    if (!_isPartyTransaction) ...[
+                      _label('Category'),
+                      const SizedBox(height: 8),
+                      _categoryPicker(cs, isDark, color),
+                      const SizedBox(height: 22),
+                    ],
+
+                    // Payment status (party transactions only)
+                    if (_isPartyTransaction) ...[
+                      _label('Payment status'),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
-                            child: _partyTypeChip(
-                                'customer', 'Customer', Icons.person,
-                                cs.secondary),
+                            child: _statusButton(
+                              label: 'Already Paid',
+                              icon: Icons.check_circle_outline,
+                              active: _selectedStatus == 'paid',
+                              activeColor: AppColors.success,
+                              cs: cs,
+                              isDark: isDark,
+                              onTap: () => setState(() {
+                                _selectedStatus  = 'paid';
+                                _selectedDueDate = null;
+                              }),
+                            ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: _partyTypeChip(
-                                'supplier', 'Supplier', Icons.store,
-                                cs.tertiary),
+                            child: _statusButton(
+                              label: 'Pending',
+                              icon: Icons.access_time_outlined,
+                              active: _selectedStatus == 'pending',
+                              activeColor: AppColors.warning,
+                              cs: cs,
+                              isDark: isDark,
+                              onTap: () => setState(
+                                  () => _selectedStatus = 'pending'),
+                            ),
                           ),
                         ],
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildSectionCard(
-                  icon: Icons.list,
-                  title: 'Select Party',
-                  color: Colors.purple,
-                  child: _buildPartySelector(cs, isDark),
-                ),
-                const SizedBox(height: 16),
-              ],
 
-              // ── Category (income/expense only) ───────────────────────
-              if (!_isPartyTransaction) ...[
-                _buildSectionCard(
-                  icon: Icons.category_outlined,
-                  title: 'Category',
-                  color: _selectedType == 'income'
-                      ? Colors.teal
-                      : Colors.deepOrange,
-                  child: _buildCategorySelector(cs, isDark),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // ── Transaction Date ──────────────────────────────────────
-              _buildSectionCard(
-                icon: Icons.calendar_today,
-                title: 'Transaction Date',
-                color: Colors.blueGrey,
-                child: InkWell(
-                  onTap: _pickDate,
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? cs.surfaceContainerHighest
-                          : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.event,
-                            size: 20,
-                            color: cs.onSurface.withValues(alpha: 0.5)),
-                        const SizedBox(width: 12),
-                        Text(
-                          _dateFormat.format(_selectedDate),
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: cs.onSurface),
-                        ),
-                        const Spacer(),
-                        Icon(Icons.edit_calendar,
-                            size: 18,
-                            color: cs.onSurface.withValues(alpha: 0.4)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // ── Transaction Details ───────────────────────────────────
-              _buildSectionCard(
-                icon: Icons.receipt,
-                title: 'Transaction Details',
-                color: cs.secondary,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Status
-                    _fieldLabel('Status', cs),
-                    const SizedBox(height: 6),
-                    _buildDropdownContainer(
-                      cs: cs,
-                      isDark: isDark,
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedStatus,
-                          isExpanded: true,
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 12),
-                          icon: Padding(
-                            padding: const EdgeInsets.only(right: 12),
-                            child: Icon(Icons.keyboard_arrow_down_rounded,
-                                color: cs.secondary, size: 24),
-                          ),
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: cs.onSurface),
-                          dropdownColor: isDark
-                              ? cs.surfaceContainerHighest
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'pending',
-                              child: Row(children: [
-                                Icon(Icons.pending_actions_rounded,
-                                    size: 18, color: Colors.orange),
-                                SizedBox(width: 10),
-                                Text('Pending'),
-                              ]),
-                            ),
-                            DropdownMenuItem(
-                              value: 'paid',
-                              child: Row(children: [
-                                Icon(Icons.check_circle_rounded,
-                                    size: 18, color: Colors.green),
-                                SizedBox(width: 10),
-                                Text('Paid'),
-                              ]),
-                            ),
-                            DropdownMenuItem(
-                              value: 'cancelled',
-                              child: Row(children: [
-                                Icon(Icons.cancel_rounded,
-                                    size: 18, color: Colors.red),
-                                SizedBox(width: 10),
-                                Text('Cancelled'),
-                              ]),
-                            ),
-                          ],
-                          onChanged: (v) => setState(() {
-                            _selectedStatus = v!;
-                            // Clear due date when status changes away from pending
-                            if (v != 'pending') _selectedDueDate = null;
-                          }),
-                        ),
-                      ),
-                    ),
-
-                    // Due date (pending only, party transactions only)
+                    // Due date
                     if (_selectedStatus == 'pending' && _isPartyTransaction) ...[
-                      const SizedBox(height: 16),
-                      _fieldLabel('Due Date (optional)', cs),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 18),
+                      _label('Due date (optional)'),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: _pickDueDate,
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? cs.surfaceContainerHighest
-                                      : Colors.grey.shade50,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.event_busy,
-                                        size: 20,
-                                        color: _selectedDueDate != null
-                                            ? Colors.orange
-                                            : cs.onSurface
-                                                .withValues(alpha: 0.4)),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      _selectedDueDate != null
-                                          ? _dateFormat
-                                              .format(_selectedDueDate!)
-                                          : 'Set due date',
-                                      style: TextStyle(
-                                          fontSize: 15,
-                                          color: _selectedDueDate != null
-                                              ? cs.onSurface
-                                              : cs.onSurface
-                                                  .withValues(alpha: 0.4)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+                          Expanded(child: _dueDatePicker(cs, isDark)),
                           if (_selectedDueDate != null) ...[
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             IconButton(
-                              icon: Icon(Icons.close, color: cs.error),
+                              icon: Icon(Icons.close,
+                                  color: cs.error, size: 20),
                               onPressed: () =>
                                   setState(() => _selectedDueDate = null),
                             ),
@@ -625,134 +568,364 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
                       ),
                     ],
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 22),
 
-                    // Description
-                    _fieldLabel('Description', cs),
-                    const SizedBox(height: 6),
+                    // Bill / Invoice No.
+                    _label('Bill / Invoice No. (optional)'),
+                    const SizedBox(height: 8),
                     TextFormField(
-                      controller: _descriptionController,
-                      style: TextStyle(color: cs.onSurface),
-                      decoration: _inputDecoration(
-                          cs, isDark, Icons.description_outlined,
-                          hint: 'Enter description'),
-                      maxLines: 2,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Please enter description'
-                          : null,
+                      controller: _billNoController,
+                      style: TextStyle(color: cs.onSurface, fontSize: 15),
+                      decoration: _inputDeco(cs, isDark, color,
+                              hint: 'e.g. INV-001')
+                          .copyWith(
+                        prefixIcon: Icon(Icons.receipt_outlined,
+                            size: 20,
+                            color: cs.onSurface.withValues(alpha: 0.4)),
+                      ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 32),
 
-                    // Amount
-                    _fieldLabel('Amount', cs),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _amountController,
-                      style: TextStyle(color: cs.onSurface),
-                      decoration: _inputDecoration(
-                          cs, isDark, Icons.currency_rupee,
-                          hint: '0.00'),
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Please enter amount';
-                        }
-                        final a = double.tryParse(v);
-                        if (a == null || a <= 0) {
-                          return 'Please enter valid amount';
-                        }
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Reference
-                    _fieldLabel('Reference No.', cs),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _referenceController,
-                      style: TextStyle(color: cs.onSurface),
-                      decoration: _inputDecoration(
-                          cs, isDark, Icons.numbers,
-                          hint: 'Invoice / Payment number'),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Notes
-                    _fieldLabel('Notes', cs),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _notesController,
-                      style: TextStyle(color: cs.onSurface),
-                      decoration: _inputDecoration(
-                          cs, isDark, Icons.note_outlined,
-                          hint: 'Additional notes'),
-                      maxLines: 3,
+                    // Save button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _saveEntry,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: cs.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2.5))
+                            : Text(
+                                _isEditing ? 'Update Entry' : 'Save Entry',
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                      ),
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              // ── Save Button ───────────────────────────────────────────
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _saveEntry,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        _isEditing ? cs.primary : cs.secondary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    elevation: isDark ? 4 : 2,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : Text(
-                          _isEditing ? 'Update Entry' : 'Add Entry',
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Helpers
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─── UI helpers ───────────────────────────────────────────────────────────
 
-  Widget _buildPartySelector(ColorScheme cs, bool isDark) {
-    if (_loadingParties) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isDark ? cs.surfaceContainerHighest : Colors.grey.shade50,
+  Widget _label(String text) {
+    final cs = Theme.of(context).colorScheme;
+    return Text(text,
+        style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface.withValues(alpha: 0.55),
+            letterSpacing: 0.2));
+  }
+
+  InputDecoration _inputDeco(
+      ColorScheme cs, bool isDark, Color accentColor,
+      {required String hint}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(
+          fontSize: 14, color: cs.onSurface.withValues(alpha: 0.38)),
+      filled: true,
+      fillColor: isDark ? cs.surfaceContainerHighest : Colors.white,
+      border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: cs.outline.withValues(alpha: 0.35))),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: cs.outline.withValues(alpha: 0.35))),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: accentColor, width: 2)),
+      errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: cs.error, width: 1.5)),
+      focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: cs.error, width: 2)),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
+  Widget _categoryPicker(ColorScheme cs, bool isDark, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? cs.surfaceContainerHighest : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _selectedCategory != null
+              ? color.withValues(alpha: 0.6)
+              : cs.outline.withValues(alpha: 0.35),
+          width: _selectedCategory != null ? 1.5 : 1,
+        ),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2))
+              ],
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedCategory,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(12),
+          dropdownColor:
+              isDark ? cs.surfaceContainerHighest : Colors.white,
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: color, size: 22),
+          hint: Row(
+            children: [
+              Icon(Icons.category_outlined,
+                  size: 20, color: cs.onSurface.withValues(alpha: 0.4)),
+              const SizedBox(width: 10),
+              Text(
+                'Select a category',
+                style: TextStyle(
+                    fontSize: 14,
+                    color: cs.onSurface.withValues(alpha: 0.4)),
+              ),
+            ],
+          ),
+          style:
+              TextStyle(fontSize: 15, color: cs.onSurface),
+          items: _categoryOptions
+              .map(
+                (c) => DropdownMenuItem(
+                  value: c,
+                  child: Row(
+                    children: [
+                      Icon(Icons.label_outline,
+                          size: 18,
+                          color: _selectedCategory == c
+                              ? color
+                              : cs.onSurface.withValues(alpha: 0.45)),
+                      const SizedBox(width: 10),
+                      Text(c,
+                          style: TextStyle(
+                              fontWeight: _selectedCategory == c
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: _selectedCategory == c
+                                  ? color
+                                  : cs.onSurface)),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (v) => setState(() => _selectedCategory = v),
+        ),
+      ),
+    );
+  }
+
+  Widget _datePicker(ColorScheme cs, bool isDark, Color color) {
+    return InkWell(
+      onTap: _pickDate,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: isDark ? cs.surfaceContainerHighest : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.35)),
+          boxShadow: isDark
+              ? []
+              : [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2))
+                ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Icon(Icons.calendar_today, size: 16, color: color),
+            ),
             const SizedBox(width: 12),
-            Text('Loading parties...',
-                style: TextStyle(color: cs.onSurface)),
+            Text(
+              _dateFormat.format(_selectedDate),
+              style: TextStyle(
+                  fontSize: 15,
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w500),
+            ),
+            const Spacer(),
+            Icon(Icons.edit_outlined,
+                size: 15, color: cs.onSurface.withValues(alpha: 0.35)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dueDatePicker(ColorScheme cs, bool isDark) {
+    final hasDate = _selectedDueDate != null;
+    return InkWell(
+      onTap: _pickDueDate,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: isDark ? cs.surfaceContainerHighest : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasDate
+                ? AppColors.warning.withValues(alpha: 0.7)
+                : cs.outline.withValues(alpha: 0.35),
+          ),
+          boxShadow: isDark
+              ? []
+              : [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2))
+                ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                  color: (hasDate ? AppColors.warning : cs.onSurface)
+                      .withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Icon(Icons.event_outlined,
+                  size: 16,
+                  color: hasDate
+                      ? AppColors.warning
+                      : cs.onSurface.withValues(alpha: 0.4)),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              hasDate
+                  ? _dateFormat.format(_selectedDueDate!)
+                  : 'Tap to set due date',
+              style: TextStyle(
+                  fontSize: 15,
+                  color: hasDate
+                      ? cs.onSurface
+                      : cs.onSurface.withValues(alpha: 0.4),
+                  fontWeight:
+                      hasDate ? FontWeight.w500 : FontWeight.normal),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusButton({
+    required String label,
+    required IconData icon,
+    required bool active,
+    required Color activeColor,
+    required ColorScheme cs,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: active
+              ? activeColor.withValues(alpha: 0.1)
+              : (isDark ? cs.surfaceContainerHighest : Colors.white),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: active ? activeColor : cs.outline.withValues(alpha: 0.35),
+            width: active ? 2 : 1,
+          ),
+          boxShadow: (!active && !isDark)
+              ? [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2))
+                ]
+              : [],
+        ),
+        child: Column(
+          children: [
+            Icon(
+              active
+                  ? (icon == Icons.check_circle_outline
+                      ? Icons.check_circle
+                      : Icons.access_time)
+                  : icon,
+              color: active
+                  ? activeColor
+                  : cs.onSurface.withValues(alpha: 0.35),
+              size: 24,
+            ),
+            const SizedBox(height: 6),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight:
+                        active ? FontWeight.bold : FontWeight.w500,
+                    color: active
+                        ? activeColor
+                        : cs.onSurface.withValues(alpha: 0.5))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _partyPicker(ColorScheme cs, bool isDark, Color color) {
+    if (_loadingParties) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? cs.surfaceContainerHighest : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: color)),
+            const SizedBox(width: 12),
+            Text('Loading...',
+                style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.5),
+                    fontSize: 14)),
           ],
         ),
       );
@@ -760,536 +933,176 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
 
     if (_parties.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? cs.surfaceContainerHighest : Colors.grey.shade50,
+          color: isDark ? cs.surfaceContainerHighest : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outline),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.25)),
         ),
-        child: Column(
+        child: Row(
           children: [
             Icon(
               _selectedPartyType == 'customer'
                   ? Icons.person_outline
                   : Icons.store_outlined,
-              size: 48,
-              color: cs.onSurface.withValues(alpha: 0.3),
+              color: cs.onSurface.withValues(alpha: 0.4),
             ),
-            const SizedBox(height: 12),
-            Text('No ${_selectedPartyType}s found',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: cs.onSurface)),
-            const SizedBox(height: 4),
-            Text('Please add customers/suppliers first',
-                style: TextStyle(
-                    fontSize: 13,
-                    color: cs.onSurface.withValues(alpha: 0.6)),
-                textAlign: TextAlign.center),
+            const SizedBox(width: 12),
+            Text(
+              'No ${_selectedPartyType == 'customer' ? 'customers' : 'suppliers'} found.\nAdd them from the Parties menu.',
+              style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.5),
+                  fontSize: 13),
+            ),
           ],
         ),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Choose from your list',
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? cs.surfaceContainerHighest : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _selectedPartyId != null
+              ? color.withValues(alpha: 0.6)
+              : cs.outline.withValues(alpha: 0.35),
+          width: _selectedPartyId != null ? 1.5 : 1,
+        ),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2))
+              ],
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedPartyId,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(12),
+          dropdownColor: isDark ? cs.surfaceContainerHighest : Colors.white,
+          menuMaxHeight: 360,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: color, size: 22),
+          hint: Text(
+            'Select ${_selectedPartyType == 'customer' ? 'customer' : 'supplier'}',
             style: TextStyle(
-                fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
-        const SizedBox(height: 12),
-        _buildDropdownContainer(
-          height: 52,
-          cs: cs,
-          isDark: isDark,
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedPartyId,
-              isExpanded: true,
-              hint: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Select ${_selectedPartyType == 'customer' ? 'Customer' : 'Supplier'}',
-                  style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.4),
-                      fontSize: 15),
-                ),
-              ),
-              icon: Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Icon(Icons.keyboard_arrow_down_rounded,
-                    color: Colors.purple, size: 24),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: cs.onSurface),
-              dropdownColor:
-                  isDark ? cs.surfaceContainerHighest : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              menuMaxHeight: 400,
-              items: _parties.map<DropdownMenuItem<String>>((dynamic party) {
-                final partyName = party.name as String;
-                final contact = _selectedPartyType == 'customer'
-                    ? (party as Customer).mobile
-                    : (party as Supplier).phone;
-                final isSelected = _selectedPartyId == party.id;
-
-                return DropdownMenuItem<String>(
-                  value: party.id as String,
-                  child: Row(
-                    children: [
-                      Icon(
-                        _selectedPartyType == 'customer'
-                            ? Icons.person_outline_rounded
-                            : Icons.store_outlined,
-                        size: 18,
-                        color: isSelected
-                            ? Colors.purple
-                            : cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(partyName,
+                color: cs.onSurface.withValues(alpha: 0.4), fontSize: 15),
+          ),
+          style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: cs.onSurface),
+          items: _parties.map<DropdownMenuItem<String>>((dynamic party) {
+            final name = party.name as String;
+            final contact = _selectedPartyType == 'customer'
+                ? (party as Customer).mobile
+                : (party as Supplier).phone;
+            final isSelected = _selectedPartyId == party.id as String;
+            return DropdownMenuItem<String>(
+              value: party.id as String,
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        shape: BoxShape.circle),
+                    child: Center(
+                      child: Text(name[0].toUpperCase(),
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: color)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(name,
                             style: TextStyle(
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
                                 fontSize: 14,
-                                color: isSelected
-                                    ? Colors.purple
-                                    : cs.onSurface),
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: cs.onSurface),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(left: 8),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? cs.surfaceContainerHighest
-                              : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(contact,
+                        Text(contact,
                             style: TextStyle(
-                                fontSize: 10,
-                                color:
-                                    cs.onSurface.withValues(alpha: 0.7)),
+                                fontSize: 11,
+                                color: cs.onSurface.withValues(alpha: 0.5)),
                             maxLines: 1),
-                      ),
-                      if (isSelected)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 4),
-                          child: Icon(Icons.check_rounded,
-                              size: 16, color: Colors.purple),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                );
-              }).toList(),
-              onChanged: (v) {
-                setState(() {
-                  _selectedPartyId = v;
-                  if (v != null) {
-                    for (final party in _parties) {
-                      if (party.id == v) {
-                        if (_selectedPartyType == 'customer') {
-                          final c = party as Customer;
-                          _selectedPartyName = c.name;
-                          _selectedPartyContact = c.mobile;
-                        } else {
-                          final s = party as Supplier;
-                          _selectedPartyName = s.name;
-                          _selectedPartyContact = s.phone;
-                        }
-                        break;
-                      }
+                  if (isSelected)
+                    Icon(Icons.check_rounded, color: color, size: 16),
+                ],
+              ),
+            );
+          }).toList(),
+          onChanged: (v) {
+            setState(() {
+              _selectedPartyId = v;
+              if (v != null) {
+                for (final party in _parties) {
+                  if (party.id == v) {
+                    if (_selectedPartyType == 'customer') {
+                      _selectedPartyName = (party as Customer).name;
+                    } else {
+                      _selectedPartyName = (party as Supplier).name;
                     }
+                    break;
                   }
-                });
-              },
-            ),
-          ),
-        ),
-        if (_selectedPartyId != null && _selectedPartyName.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.purple.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                  color: Colors.purple.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.purple, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Selected: $_selectedPartyName',
-                          style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.purple,
-                              fontWeight: FontWeight.w500),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      if (_selectedPartyContact.isNotEmpty)
-                        Text(_selectedPartyContact,
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.purple.withValues(alpha: 0.8)),
-                            maxLines: 1),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildCategorySelector(ColorScheme cs, bool isDark) {
-    final accent =
-        _selectedType == 'income' ? Colors.teal : Colors.deepOrange;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Choose a category',
-            style: TextStyle(
-                fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
-        const SizedBox(height: 12),
-        _buildDropdownContainer(
-          height: 52,
-          cs: cs,
-          isDark: isDark,
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedCategory,
-              isExpanded: true,
-              hint: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text('Select category',
-                    style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.4),
-                        fontSize: 15)),
-              ),
-              icon: Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Icon(Icons.keyboard_arrow_down_rounded,
-                    color: accent, size: 24),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: cs.onSurface),
-              dropdownColor:
-                  isDark ? cs.surfaceContainerHighest : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              items: _categoryOptions
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedCategory = v),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSectionCard({
-    required IconData icon,
-    required String title,
-    required Color color,
-    required Widget child,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? cs.surface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: cs.shadow.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(title,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: color)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _typeChip(
-      String type, String label, IconData icon, Color color) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSelected = _selectedType == type;
-
-    return FilterChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon,
-              size: 16,
-              color: isSelected
-                  ? color
-                  : cs.onSurface.withValues(alpha: 0.5)),
-          const SizedBox(width: 4),
-          Text(label),
-        ],
-      ),
-      selected: isSelected,
-      onSelected: (_) {
-        setState(() {
-          _selectedType = type;
-          // Reset category when switching types
-          if (type == 'income' || type == 'expense') {
-            _selectedCategory = null;
-          }
-        });
-        if (_isPartyTransaction) _loadParties();
-      },
-      backgroundColor: isDark
-          ? cs.surfaceContainerHighest
-          : Colors.grey.shade100,
-      selectedColor: color.withValues(alpha: 0.15),
-      checkmarkColor: color,
-      labelStyle: TextStyle(
-        color: isSelected
-            ? color
-            : cs.onSurface.withValues(alpha: 0.7),
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(30),
-        side: BorderSide(
-          color: isSelected ? color : cs.outline,
-          width: isSelected ? 1.5 : 1,
+                }
+              }
+            });
+          },
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     );
   }
 
-  Widget _partyTypeChip(
-      String type, String label, IconData icon, Color color) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSelected = _selectedPartyType == type;
-
-    return FilterChip(
-      label: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon,
-              size: 16,
-              color: isSelected
-                  ? color
-                  : cs.onSurface.withValues(alpha: 0.5)),
-          const SizedBox(width: 4),
-          Text(label),
-        ],
-      ),
-      selected: isSelected,
-      onSelected: (_) {
-        setState(() {
-          _selectedPartyType = type;
-          _selectedPartyId = null;
-          _selectedPartyName = '';
-          _selectedPartyContact = '';
-        });
-        _loadParties();
-      },
-      backgroundColor: isDark
-          ? cs.surfaceContainerHighest
-          : Colors.grey.shade100,
-      selectedColor: color.withValues(alpha: 0.15),
-      checkmarkColor: color,
-      labelStyle: TextStyle(
-        color: isSelected
-            ? color
-            : cs.onSurface.withValues(alpha: 0.7),
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(30),
-        side: BorderSide(
-          color: isSelected ? color : cs.outline,
-          width: isSelected ? 1.5 : 1,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    );
-  }
-
-  Widget _buildDropdownContainer({
-    required ColorScheme cs,
-    required bool isDark,
-    required Widget child,
-    double height = 48,
-  }) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        border: Border.all(color: cs.outline, width: 1),
-        borderRadius: BorderRadius.circular(10),
-        color: isDark ? cs.surfaceContainerHighest : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: cs.shadow.withValues(alpha: 0.05),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  InputDecoration _inputDecoration(
-      ColorScheme cs, bool isDark, IconData prefixIcon,
-      {required String hint}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(
-          fontSize: 15, color: cs.onSurface.withValues(alpha: 0.4)),
-      border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: cs.secondary, width: 1.5)),
-      filled: true,
-      fillColor:
-          isDark ? cs.surfaceContainerHighest : Colors.grey.shade50,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      prefixIcon: Icon(prefixIcon,
-          size: 20, color: cs.onSurface.withValues(alpha: 0.5)),
-    );
-  }
-
-  Widget _fieldLabel(String text, ColorScheme cs) {
-    return Text(text,
-        style: TextStyle(
-            fontSize: 13,
-            color: cs.onSurface.withValues(alpha: 0.6),
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5));
-  }
+  // ─── Delete ────────────────────────────────────────────────────────────────
 
   void _confirmDelete() {
     final cs = Theme.of(context).colorScheme;
-
     showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: cs.surface,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cs.error.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.delete, color: cs.error, size: 32),
-              ),
-              const SizedBox(height: 20),
-              Text('Delete Entry',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: cs.onSurface)),
-              const SizedBox(height: 8),
-              Text('Are you sure you want to delete this entry?',
-                  style:
-                      TextStyle(color: cs.onSurface.withValues(alpha: 0.6)),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        side: BorderSide(color: cs.outline),
-                        foregroundColor: cs.onSurface,
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        await _deleteEntry();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: cs.error,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Delete'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Delete this entry?',
+            style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.bold)),
+        content: Text(
+          'This cannot be undone. The entry will be removed permanently.',
+          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text('Cancel',
+                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              await _deleteEntry();
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: cs.error, foregroundColor: Colors.white),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }
@@ -1301,7 +1114,7 @@ class _AddLedgerEntryScreenState extends State<AddLedgerEntryScreen> {
       await _ledgerService.deleteLedgerEntry(widget.entryToEdit!.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Entry deleted successfully'),
+          content: const Text('Entry deleted'),
           backgroundColor: cs.secondary,
           behavior: SnackBarBehavior.floating,
           shape:

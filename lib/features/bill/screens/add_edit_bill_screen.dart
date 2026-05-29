@@ -2761,13 +2761,17 @@ Future<void> _saveBill() async {
       appLogger.d('    Unit from UI: ${item.unit}');
     }
     
-    // Process items - preserve the inventoryItemId from the original items
+    // Process items - preserve ALL fields including batch data
     final processedItems = _items.map((item) {
       return BillItem.create(
         description: item.description,
         quantity: item.quantity,
         price: item.price,
         inventoryItemId: item.inventoryItemId ?? '',
+        batchId: item.batchId,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+        purchasePrice: item.purchasePrice,
         unit: item.unit ?? '',
         category: item.category ?? '',
         name: item.name ?? item.description,

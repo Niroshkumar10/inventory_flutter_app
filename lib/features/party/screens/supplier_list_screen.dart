@@ -826,7 +826,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: colorScheme.surface,
         title: Text('Delete Supplier',
             style: TextStyle(color: colorScheme.onSurface)),
@@ -845,7 +845,7 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text('Cancel',
                 style: TextStyle(color: colorScheme.primary)),
           ),
@@ -854,10 +854,10 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                 backgroundColor: colorScheme.error,
                 foregroundColor: Colors.white),
             onPressed: () async {
+              Navigator.pop(dialogContext);
               try {
                 await _supplierService.deleteSupplier(supplier.id);
                 if (mounted) {
-                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('${supplier.name} deleted'),
@@ -869,13 +869,14 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                   );
                 }
               } catch (e) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: colorScheme.error,
-                      behavior: SnackBarBehavior.floating),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: colorScheme.error,
+                        behavior: SnackBarBehavior.floating),
+                  );
+                }
               }
             },
             child: const Text('Delete'),
@@ -949,19 +950,13 @@ class _SupplierListScreenState extends State<SupplierListScreen> {
                   color: colorScheme.onSurface.withOpacity(0.6)),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             if (search.isEmpty)
-              ElevatedButton.icon(
-                onPressed: () => _openSupplierModal(),
-                icon: const Icon(Icons.add),
-                label: const Text('Add Supplier'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.tertiary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+              Text(
+                'Use the + button below to add a supplier',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
               )
             else

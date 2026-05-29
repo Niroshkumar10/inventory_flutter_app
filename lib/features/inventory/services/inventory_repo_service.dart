@@ -786,7 +786,6 @@ Future<List<StockConsumption>> sellStock({
 }
 
 
-/// Restock an existing batch (add more quantity to same batch)
 Future<void> restockBatch({
   required String inventoryId,
   required String batchId,
@@ -796,18 +795,6 @@ Future<void> restockBatch({
   required String supplierName,
 }) async {
   try {
-    // Check if item exists
-    final item = await getInventoryItem(inventoryId);
-    if (!item.trackByBatch) {
-      throw Exception('Item is not batch tracked');
-    }
-    
-    // Initialize batch service
-    if (_batchService == null) {
-      _initBatchServices();
-    }
-    
-    // Restock the batch
     await _batchService.restockBatch(
       inventoryId: inventoryId,
       batchId: batchId,
@@ -816,11 +803,22 @@ Future<void> restockBatch({
       supplierInvoiceNo: supplierInvoiceNo,
       supplierName: supplierName,
     );
-    
+    await syncBatchQuantityToItem(inventoryId);
     appLogger.i('✅ Batch restocked successfully');
   } catch (e) {
     appLogger.e('❌ Error restocking batch: $e');
     throw Exception('Failed to restock batch: $e');
+  }
+}
+
+Future<void> deleteBatch(String inventoryId, String batchId) async {
+  try {
+    await _batchService.deleteBatch(inventoryId, batchId);
+    await syncBatchQuantityToItem(inventoryId);
+    appLogger.i('✅ Batch deleted');
+  } catch (e) {
+    appLogger.e('❌ Error deleting batch: $e');
+    throw Exception('Failed to delete batch: $e');
   }
 }
 // Sync batch total back to inventory item's quantity field

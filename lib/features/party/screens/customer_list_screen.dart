@@ -837,7 +837,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: colorScheme.surface,
         title: Text(
           'Delete Customer',
@@ -855,7 +855,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             Text(
               'This action cannot be undone.',
               style: TextStyle(
-                fontSize: 12, 
+                fontSize: 12,
                 color: colorScheme.onSurface.withOpacity(0.55),
               ),
             ),
@@ -863,7 +863,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text(
               'Cancel',
               style: TextStyle(color: colorScheme.primary),
@@ -875,10 +875,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               foregroundColor: Colors.white,
             ),
             onPressed: () async {
+              Navigator.pop(dialogContext);
               try {
                 await _customerService.deleteCustomer(customer.id);
                 if (mounted) {
-                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('${customer.name} deleted successfully'),
@@ -891,14 +891,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   );
                 }
               } catch (e) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error: $e'),
-                    backgroundColor: colorScheme.error,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: colorScheme.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Delete'),
@@ -976,19 +977,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             if (search.isEmpty)
-              ElevatedButton.icon(
-                onPressed: () => _openCustomerModal(),
-                icon: const Icon(Icons.add),
-                label: const Text('Add Customer'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+              Text(
+                'Use the + button below to add a customer',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
               )
             else

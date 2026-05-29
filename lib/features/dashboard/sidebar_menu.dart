@@ -7,6 +7,7 @@ class SidebarMenu extends StatefulWidget {
   final int selectedIndex;
   final Function(int) onItemSelected;
   final void Function(String route) onNavigate;
+  final VoidCallback onLogout;
 
   const SidebarMenu({
     super.key,
@@ -14,6 +15,7 @@ class SidebarMenu extends StatefulWidget {
     required this.selectedIndex,
     required this.onItemSelected,
     required this.onNavigate,
+    required this.onLogout,
   });
 
   @override
@@ -112,7 +114,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
                       onTap: () => widget.onNavigate(Routes.reports),
                     ),
 
-                    Divider(color: colorScheme.onSurface.withOpacity(0.1)),
+                    Divider(color: colorScheme.onSurface.withValues(alpha:0.1)),
 
                     _buildMenuItem(
                       index: 7,
@@ -138,7 +140,23 @@ class _SidebarMenuState extends State<SidebarMenu> {
                       onTap: () => widget.onNavigate(Routes.settings),
                     ),
 
-                    Divider(color: colorScheme.onSurface.withOpacity(0.1)),
+                    Divider(color: colorScheme.onSurface.withValues(alpha: 0.1)),
+
+                    // ── Logout ──────────────────────────────────────────
+                    ListTile(
+                      leading: Icon(Icons.logout,
+                          color: colorScheme.error, size: 22),
+                      title: Text('Logout',
+                          style: TextStyle(
+                              color: colorScheme.error,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 4),
+                      onTap: widget.onLogout,
+                    ),
 
                     const SizedBox(height: 20),
                   ],
@@ -164,8 +182,8 @@ class _SidebarMenuState extends State<SidebarMenu> {
           colors: [
             colorScheme.primary,
             isDark
-                ? colorScheme.primary.withOpacity(0.7)
-                : colorScheme.primary.withOpacity(0.8),
+                ? colorScheme.primary.withValues(alpha:0.7)
+                : colorScheme.primary.withValues(alpha:0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -176,7 +194,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
         ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withOpacity(isDark ? 0.5 : 0.3),
+            color: colorScheme.shadow.withValues(alpha:isDark ? 0.5 : 0.3),
             spreadRadius: 1,
             blurRadius: 5,
             offset: const Offset(0, 3),
@@ -213,7 +231,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
                 Text(
                   widget.userMobile,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha:0.9),
                     fontSize: 13,
                   ),
                 ),
@@ -240,7 +258,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
         icon,
         color: isSelected
             ? colorScheme.primary
-            : colorScheme.onSurface.withOpacity(0.7),
+            : colorScheme.onSurface.withValues(alpha:0.7),
         size: 22,
       ),
       title: Text(
@@ -252,12 +270,12 @@ class _SidebarMenuState extends State<SidebarMenu> {
         ),
       ),
       selected: isSelected,
-      selectedTileColor: colorScheme.primary.withOpacity(0.1),
+      selectedTileColor: colorScheme.primary.withValues(alpha:0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       onTap: onTap,
-      hoverColor: colorScheme.primary.withOpacity(0.05),
-      splashColor: colorScheme.primary.withOpacity(0.1),
+      hoverColor: colorScheme.primary.withValues(alpha:0.05),
+      splashColor: colorScheme.primary.withValues(alpha:0.1),
     );
   }
 
@@ -276,17 +294,17 @@ class _SidebarMenuState extends State<SidebarMenu> {
         expansionTileTheme: ExpansionTileThemeData(
           iconColor: isSelectedGroup
               ? colorScheme.primary
-              : colorScheme.onSurface.withOpacity(0.7),
+              : colorScheme.onSurface.withValues(alpha:0.7),
           collapsedIconColor: isSelectedGroup
               ? colorScheme.primary
-              : colorScheme.onSurface.withOpacity(0.7),
+              : colorScheme.onSurface.withValues(alpha:0.7),
           textColor:
               isSelectedGroup ? colorScheme.primary : colorScheme.onSurface,
           collapsedTextColor:
               isSelectedGroup ? colorScheme.primary : colorScheme.onSurface,
           backgroundColor: Colors.transparent,
           collapsedBackgroundColor: isSelectedGroup
-              ? colorScheme.primary.withOpacity(0.05)
+              ? colorScheme.primary.withValues(alpha:0.05)
               : Colors.transparent,
           tilePadding: const EdgeInsets.symmetric(horizontal: 16),
           childrenPadding: const EdgeInsets.only(left: 40),
@@ -298,7 +316,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
           icon,
           color: isSelectedGroup
               ? colorScheme.primary
-              : colorScheme.onSurface.withOpacity(0.7),
+              : colorScheme.onSurface.withValues(alpha:0.7),
           size: 22,
         ),
         title: Text(
@@ -326,14 +344,14 @@ class _SidebarMenuState extends State<SidebarMenu> {
 
     return ListTile(
       leading:
-          Icon(icon, size: 18, color: colorScheme.onSurface.withOpacity(0.6)),
+          Icon(icon, size: 18, color: colorScheme.onSurface.withValues(alpha:0.6)),
       title: Row(
         children: [
           Text(
             title,
             style: TextStyle(
               fontSize: 14,
-              color: colorScheme.onSurface.withOpacity(0.9),
+              color: colorScheme.onSurface.withValues(alpha:0.9),
             ),
           ),
           if (badge != null) ...[
@@ -345,8 +363,8 @@ class _SidebarMenuState extends State<SidebarMenu> {
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       onTap: onTap,
-      hoverColor: colorScheme.primary.withOpacity(0.05),
-      splashColor: colorScheme.primary.withOpacity(0.1),
+      hoverColor: colorScheme.primary.withValues(alpha:0.05),
+      splashColor: colorScheme.primary.withValues(alpha:0.1),
     );
   }
 }

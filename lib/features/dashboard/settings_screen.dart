@@ -511,7 +511,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildInfoTile(
                 icon: Icons.info_outline,
                 title: 'Version',
-                subtitle: '1.0.0+1',
+                subtitle: '1.0.0+7',
               ),
               _buildDivider(isSmallScreen),
               _buildActionTile(

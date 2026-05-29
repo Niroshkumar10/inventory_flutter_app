@@ -657,10 +657,19 @@ String _generateBatchNumber(String inventoryId) {
       }
       
       return totalWrittenOff;
-      
+
     } catch (e) {
       //appLogger.e('❌ Error writing off expired batches: $e');
       return 0;
     }
+  }
+
+  Future<void> deleteBatch(String inventoryId, String batchId) async {
+    await _getBatchesCollection(inventoryId).doc(batchId).update({
+      'isActive': false,
+      'remainingQuantity': 0,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await _updateInventoryTotals(inventoryId);
   }
 }

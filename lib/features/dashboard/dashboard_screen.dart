@@ -1,11 +1,14 @@
 // lib/features/dashboard/dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'home_tab.dart';
 import 'profile_tab.dart';
 import 'bills_tab.dart';
 import 'reports_tab.dart';
 import 'sidebar_menu.dart';
+import 'package:inventory_app/core/navigation/auth_notifier.dart';
+import 'package:inventory_app/features/session/session_service_new.dart';
 import 'package:inventory_app/features/inventory/services/expiry_alert_service.dart';
 import 'package:inventory_app/notification_service.dart';
 
@@ -41,6 +44,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
     // Check expiry alerts after the first frame so the UI is ready.
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkExpiryAlerts());
+  }
+
+  Future<void> _logout() async {
+    await SessionServiceNew.logout();
+    if (mounted) {
+      context.read<AuthNotifier>().clearUser();
+      // GoRouter redirect fires automatically — no explicit navigate needed
+    }
   }
 
   Future<void> _checkExpiryAlerts() async {
@@ -95,6 +106,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _scaffoldKey.currentState?.closeDrawer();
           context.push(route);
         },
+        onLogout: _logout,
       ),
       body: _screens[_selectedIndex],
     );

@@ -31,12 +31,91 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   late TextEditingController _costController;
   late TextEditingController _quantityController;
   late TextEditingController _lowStockController;
-  late TextEditingController _unitController;
   late TextEditingController _locationController;
   late TextEditingController _supplierController;
 
+  String _selectedUnit = 'pcs';
+  String _selectedQuality = 'Standard';
   bool _isLoading = false;
   bool _trackByBatch = false;
+
+  static final Map<String, List<Map<String, String>>> _unitGroups = {
+    'Count': [
+      {'unit': 'pcs', 'label': 'Pieces'},
+      {'unit': 'unit', 'label': 'Unit'},
+      {'unit': 'each', 'label': 'Each'},
+      {'unit': 'dozen', 'label': 'Dozen'},
+      {'unit': 'gross', 'label': 'Gross'},
+      {'unit': 'set', 'label': 'Set'},
+      {'unit': 'pair', 'label': 'Pair'},
+    ],
+    'Weight': [
+      {'unit': 'mg', 'label': 'Milligram'},
+      {'unit': 'g', 'label': 'Gram'},
+      {'unit': 'kg', 'label': 'Kilogram'},
+      {'unit': 'quintal', 'label': 'Quintal'},
+      {'unit': 'ton', 'label': 'Ton'},
+      {'unit': 'lb', 'label': 'Pound'},
+      {'unit': 'oz', 'label': 'Ounce'},
+    ],
+    'Volume': [
+      {'unit': 'ml', 'label': 'Millilitre'},
+      {'unit': 'cl', 'label': 'Centilitre'},
+      {'unit': 'dl', 'label': 'Decilitre'},
+      {'unit': 'L', 'label': 'Litre'},
+      {'unit': 'gallon', 'label': 'Gallon'},
+      {'unit': 'fl oz', 'label': 'Fluid Oz'},
+    ],
+    'Length': [
+      {'unit': 'mm', 'label': 'Millimetre'},
+      {'unit': 'cm', 'label': 'Centimetre'},
+      {'unit': 'm', 'label': 'Metre'},
+      {'unit': 'km', 'label': 'Kilometre'},
+      {'unit': 'inch', 'label': 'Inch'},
+      {'unit': 'ft', 'label': 'Foot'},
+      {'unit': 'yard', 'label': 'Yard'},
+    ],
+    'Packaging': [
+      {'unit': 'box', 'label': 'Box'},
+      {'unit': 'carton', 'label': 'Carton'},
+      {'unit': 'pack', 'label': 'Pack'},
+      {'unit': 'bag', 'label': 'Bag'},
+      {'unit': 'bundle', 'label': 'Bundle'},
+      {'unit': 'roll', 'label': 'Roll'},
+      {'unit': 'sheet', 'label': 'Sheet'},
+      {'unit': 'strip', 'label': 'Strip'},
+      {'unit': 'sachet', 'label': 'Sachet'},
+      {'unit': 'bottle', 'label': 'Bottle'},
+      {'unit': 'jar', 'label': 'Jar'},
+      {'unit': 'can', 'label': 'Can'},
+      {'unit': 'tube', 'label': 'Tube'},
+      {'unit': 'pouch', 'label': 'Pouch'},
+    ],
+    'Area': [
+      {'unit': 'sq.cm', 'label': 'Sq. Cm'},
+      {'unit': 'sq.ft', 'label': 'Sq. Ft'},
+      {'unit': 'sq.m', 'label': 'Sq. Metre'},
+      {'unit': 'sq.inch', 'label': 'Sq. Inch'},
+    ],
+    'Medical': [
+      {'unit': 'tablet', 'label': 'Tablet'},
+      {'unit': 'capsule', 'label': 'Capsule'},
+      {'unit': 'vial', 'label': 'Vial'},
+      {'unit': 'ampoule', 'label': 'Ampoule'},
+    ],
+  };
+
+  static const List<String> _qualityGrades = [
+    'Premium',
+    'Grade A',
+    'Grade B',
+    'Grade C',
+    'Standard',
+    'First Quality',
+    'Second Quality',
+    'Fresh',
+    'Reject',
+  ];
 
 
   List<String> _categories = [];
@@ -91,7 +170,8 @@ _trackExpiry = widget.item?.trackExpiry ?? false;
     _costController = TextEditingController(text: item?.cost.toString() ?? '');
     _quantityController = TextEditingController(text: item?.quantity.toString() ?? '0');
     _lowStockController = TextEditingController(text: item?.lowStockThreshold.toString() ?? '10');
-    _unitController = TextEditingController(text: item?.unit ?? 'pcs');
+    _selectedUnit = item?.unit ?? 'pcs';
+    _selectedQuality = item?.quality ?? 'Standard';
     _locationController = TextEditingController(text: item?.location ?? '');
     
     // FIX: Use supplierName instead of supplierId
@@ -212,12 +292,9 @@ _trackExpiry = widget.item?.trackExpiry ?? false;
     return null;
   }
 
-  String? _validateUnit(String? value) {
-    if (value == null || value.trim().isEmpty) {
+  String? _validateUnit() {
+    if (_selectedUnit.trim().isEmpty) {
       return 'Unit is required';
-    }
-    if (value.trim().length > 20) {
-      return 'Unit must be less than 20 characters';
     }
     return null;
   }
@@ -349,7 +426,7 @@ Future<void> _saveItem() async {
   final costValidation = _validateCost(_costController.text);
   final quantityValidation = _validateQuantity(_quantityController.text);
   final lowStockValidation = _validateLowStock(_lowStockController.text);
-  final unitValidation = _validateUnit(_unitController.text);
+  final unitValidation = _validateUnit();
 
   // Validate expiry date if tracking is enabled
   if (_trackExpiry && _expiryDate == null) {
@@ -428,7 +505,8 @@ Future<void> _saveItem() async {
     final name = _nameController.text.trim();
     final sku = widget.item != null ? widget.item!.sku : _skuController.text.trim();
     final category = _categoryController.text.trim();
-    final unit = _unitController.text.trim();
+    final unit = _selectedUnit;
+    final quality = _selectedQuality;
     final description = _descriptionController.text.trim();
     final location = _locationController.text.trim();
     final supplierName = _supplierController.text.trim();
@@ -462,13 +540,14 @@ Future<void> _saveItem() async {
         quantity: _trackByBatch ? 0 : quantity, // If batch tracking, start with 0 quantity (batches will handle stock)
         lowStockThreshold: lowStockThreshold,
         unit: unit,
+        quality: quality,
         location: location.isNotEmpty ? location : null,
         supplierId: supplierId,
         supplierName: supplierName.isNotEmpty ? supplierName : null,
         userMobile: widget.userMobile,
         expiryDate: _trackExpiry ? _expiryDate : null,
         trackExpiry: _trackExpiry,
-        trackByBatch: _trackByBatch, // 🔥 ADD BATCH TRACKING FLAG
+        trackByBatch: _trackByBatch,
       );
       
       final itemId = await widget.inventoryService.addInventoryItem(item);
@@ -523,12 +602,13 @@ Future<void> _saveItem() async {
         quantity: finalQuantity,
         lowStockThreshold: lowStockThreshold,
         unit: unit,
+        quality: quality,
         location: location.isNotEmpty ? location : null,
         supplierId: supplierId ?? widget.item!.supplierId,
         supplierName: supplierName.isNotEmpty ? supplierName : widget.item!.supplierName,
         expiryDate: _trackExpiry ? _expiryDate : null,
         trackExpiry: _trackExpiry,
-        trackByBatch: _trackByBatch, // 🔥 UPDATE BATCH TRACKING FLAG
+        trackByBatch: _trackByBatch,
       );
       
       // Debug print to verify values
@@ -833,23 +913,8 @@ Future<void> _saveItem() async {
                         
                         Row(
                           children: [
-                            Expanded(
-                              child: _buildInputField(
-                                controller: _unitController,
-                                label: 'Unit',
-                                icon: Icons.square_foot_outlined,
-                                hintText: 'pcs, kg, ml, etc.',
-                                errorText: _unitError,
-                                onChanged: (value) {
-                                  if (_unitError != null) {
-                                    setState(() => _unitError = null);
-                                  }
-                                },
-                              ),
-                            ),
-                            
+                            Expanded(child: _buildUnitPicker()),
                             const SizedBox(width: 20),
-                            
                             Expanded(
                               child: _buildInputField(
                                 controller: _locationController,
@@ -861,9 +926,11 @@ Future<void> _saveItem() async {
                             ),
                           ],
                         ),
-                        
+
+                        const SizedBox(height: 24),
+                        _buildQualityPicker(),
+
                         const SizedBox(height: 40),
-      // Replace your existing expiry section with this
 const SizedBox(height: 40),
 
 // 🔥 EXPIRY / REPLACEMENT SECTION (UPDATED WITH BATCH TRACKING)
@@ -1313,6 +1380,315 @@ Widget _buildExpiryWarningCard(DateTime expiryDate) {
     ),
   );
 }
+
+  // ============ UNIT PICKER ============
+  Widget _buildUnitPicker() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Unit',
+                style: TextStyle(
+                    fontSize: 15,
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w600)),
+            const Padding(
+              padding: EdgeInsets.only(left: 2),
+              child: Text('*',
+                  style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _showUnitPicker,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: _unitError != null ? Colors.red : colorScheme.outline,
+                width: 1.5,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.straighten_outlined,
+                    color: colorScheme.primary, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _selectedUnit.isEmpty ? 'Select unit' : _selectedUnit,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: _selectedUnit.isEmpty
+                          ? colorScheme.onSurface.withValues(alpha: 0.5)
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                Icon(Icons.arrow_drop_down,
+                    color: colorScheme.onSurface.withValues(alpha: 0.5), size: 28),
+              ],
+            ),
+          ),
+        ),
+        if (_unitError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(_unitError!,
+                style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.red,
+                    fontWeight: FontWeight.w500)),
+          ),
+      ],
+    );
+  }
+
+  void _showUnitPicker() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    String searchQuery = '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (_, setSheetState) {
+          final filteredGroups = <String, List<Map<String, String>>>{};
+          _unitGroups.forEach((category, units) {
+            final filtered = units
+                .where((u) =>
+                    searchQuery.isEmpty ||
+                    u['unit']!.toLowerCase().contains(searchQuery) ||
+                    u['label']!.toLowerCase().contains(searchQuery))
+                .toList();
+            if (filtered.isNotEmpty) filteredGroups[category] = filtered;
+          });
+
+          return Container(
+            height: MediaQuery.of(sheetContext).size.height * 0.85,
+            decoration: BoxDecoration(
+              color: isDark ? colorScheme.surface : Colors.white,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 12, bottom: 16),
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Text('Select Unit',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface)),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: Icon(Icons.close,
+                            color: colorScheme.onSurface.withValues(alpha: 0.6)),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                  child: TextField(
+                    onChanged: (v) =>
+                        setSheetState(() => searchQuery = v.toLowerCase()),
+                    decoration: InputDecoration(
+                      hintText: 'Search units...',
+                      prefixIcon: Icon(Icons.search,
+                          color: colorScheme.onSurface.withValues(alpha: 0.5)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: isDark
+                          ? colorScheme.surfaceContainerHighest
+                          : Colors.grey.shade100,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                    children: filteredGroups.entries.map((entry) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 3,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                    color: colorScheme.primary,
+                                    borderRadius: BorderRadius.circular(2)),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(entry.key,
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: colorScheme.onSurface
+                                          .withValues(alpha: 0.6))),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: entry.value.map((u) {
+                              final isSelected = u['unit'] == _selectedUnit;
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedUnit = u['unit']!;
+                                    _unitError = null;
+                                  });
+                                  Navigator.pop(sheetContext);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? colorScheme.primary
+                                        : (isDark
+                                            ? colorScheme
+                                                .surfaceContainerHighest
+                                            : Colors.grey.shade100),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? colorScheme.primary
+                                          : colorScheme.outline
+                                              .withValues(alpha: 0.4),
+                                      width: isSelected ? 1.5 : 1,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        u['unit']!,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : colorScheme.onSurface,
+                                        ),
+                                      ),
+                                      Text(
+                                        u['label']!,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: isSelected
+                                              ? Colors.white.withValues(alpha: 0.8)
+                                              : colorScheme.onSurface
+                                                  .withValues(alpha: 0.5),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ============ QUALITY PICKER ============
+  Widget _buildQualityPicker() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Quality Grade',
+            style: TextStyle(
+                fontSize: 15,
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _qualityGrades.map((grade) {
+            final isSelected = _selectedQuality == grade;
+            return GestureDetector(
+              onTap: () => setState(() => _selectedQuality = grade),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colorScheme.primary
+                      : colorScheme.primary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.outline.withValues(alpha: 0.4),
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                ),
+                child: Text(
+                  grade,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected ? Colors.white : colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 
   // ============ CUSTOM WIDGETS ============
   Widget _buildSectionHeader({
@@ -2138,7 +2514,6 @@ void _showAddCategoryDialog() {
     _costController.dispose();
     _quantityController.dispose();
     _lowStockController.dispose();
-    _unitController.dispose();
     _locationController.dispose();
     _supplierController.dispose();
     super.dispose();

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:inventory_app/core/navigation/auth_notifier.dart';
 import 'package:inventory_app/features/session/session_service_new.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';
 
@@ -47,14 +49,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoggingOut = true);
     try {
       await SessionServiceNew.logout();
-      if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
-      }
+      if (mounted) context.read<AuthNotifier>().clearUser();
     } catch (e) {
       appLogger.d('Logout error: $e');
-      if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
-      }
+      if (mounted) context.read<AuthNotifier>().clearUser();
     }
   }
 

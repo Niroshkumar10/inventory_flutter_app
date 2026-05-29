@@ -25,6 +25,7 @@ class InventoryItem {
   final DateTime? expiryDate;
   final bool trackExpiry;
   final bool trackByBatch;
+  final String quality;
 
   InventoryItem({
     required this.id,
@@ -44,6 +45,7 @@ class InventoryItem {
     this.expiryDate,
     this.trackExpiry = false,
     this.trackByBatch = false,
+    this.quality = 'Standard',
     required this.userMobile,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -131,6 +133,7 @@ int get effectiveQuantity => quantity; // quantity is always the source of truth
           : null,
       'trackExpiry': trackExpiry,
       'trackByBatch': trackByBatch,
+      'quality': quality,
       'userMobile': userMobile,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -157,6 +160,7 @@ int get effectiveQuantity => quantity; // quantity is always the source of truth
       expiryDate: map['expiryDate'] != null ? _parseDate(map['expiryDate']) : null,
       trackExpiry: map['trackExpiry'] ?? false,
       trackByBatch: map['trackByBatch'] ?? false,
+      quality: map['quality']?.toString() ?? 'Standard',
       userMobile: map['userMobile']?.toString() ?? '',
       createdAt: _parseDate(map['createdAt']),
       updatedAt: _parseDate(map['updatedAt']),
@@ -182,6 +186,7 @@ int get effectiveQuantity => quantity; // quantity is always the source of truth
       'expiryDate': expiryDate?.toIso8601String(),
       'trackExpiry': trackExpiry,
       'trackByBatch': trackByBatch,
+      'quality': quality,
       'userMobile': userMobile,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -208,6 +213,7 @@ int get effectiveQuantity => quantity; // quantity is always the source of truth
       expiryDate: data['expiryDate'] != null ? _parseDate(data['expiryDate']) : null,
       trackExpiry: data['trackExpiry'] ?? false,
       trackByBatch: data['trackByBatch'] ?? false,
+      quality: data['quality'] ?? 'Standard',
       userMobile: data['userMobile'] ?? '',
       createdAt: _parseDate(data['createdAt']),
       updatedAt: _parseDate(data['updatedAt']),
@@ -234,6 +240,7 @@ int get effectiveQuantity => quantity; // quantity is always the source of truth
     DateTime? expiryDate,
     bool? trackExpiry,
     bool? trackByBatch,
+    String? quality,
     String? userMobile,
     bool? isActive,
   }) {
@@ -255,6 +262,7 @@ int get effectiveQuantity => quantity; // quantity is always the source of truth
       expiryDate: expiryDate ?? this.expiryDate,
       trackExpiry: trackExpiry ?? this.trackExpiry,
       trackByBatch: trackByBatch ?? this.trackByBatch,
+      quality: quality ?? this.quality,
       userMobile: userMobile ?? this.userMobile,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
@@ -281,6 +289,7 @@ int get effectiveQuantity => quantity; // quantity is always the source of truth
       'expiryDate': expiryDate?.toIso8601String(),
       'trackExpiry': trackExpiry,
       'trackByBatch': trackByBatch,
+      'quality': quality,
       'userMobile': userMobile,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -307,6 +316,7 @@ int get effectiveQuantity => quantity; // quantity is always the source of truth
       expiryDate: map['expiryDate'] != null ? DateTime.parse(map['expiryDate']) : null,
       trackExpiry: map['trackExpiry'] ?? false,
       trackByBatch: map['trackByBatch'] ?? false,
+      quality: map['quality'] ?? 'Standard',
       userMobile: map['userMobile'] ?? '',
       createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt: DateTime.parse(map['updatedAt'] ?? DateTime.now().toIso8601String()),

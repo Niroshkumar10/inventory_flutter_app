@@ -28,6 +28,7 @@ class InventoryItemScreen extends StatefulWidget {
 class _InventoryItemScreenState extends State<InventoryItemScreen> {
   late InventoryItem _item;
   Map<String, dynamic>? _batchSummary;
+  List<Map<String, dynamic>>? _batchesData;
   bool _isLoadingBatchSummary = false;
 
   @override
@@ -39,17 +40,23 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
 
   Future<void> _loadBatchSummary() async {
     if (!_item.trackByBatch) return;
-    
+
     setState(() => _isLoadingBatchSummary = true);
     try {
-      final summary = await widget.inventoryService.batchService.getStockSummary(_item.id);
-      setState(() {
-        _batchSummary = summary;
-        _isLoadingBatchSummary = false;
-      });
+      final results = await Future.wait([
+        widget.inventoryService.batchService.getStockSummary(_item.id),
+        widget.inventoryService.batchService.getBatchesWithDetails(_item.id),
+      ]);
+      if (mounted) {
+        setState(() {
+          _batchSummary = results[0] as Map<String, dynamic>;
+          _batchesData = results[1] as List<Map<String, dynamic>>;
+          _isLoadingBatchSummary = false;
+        });
+      }
     } catch (e) {
       appLogger.d('Error loading batch summary: $e');
-      setState(() => _isLoadingBatchSummary = false);
+      if (mounted) setState(() => _isLoadingBatchSummary = false);
     }
   }
 
@@ -69,9 +76,6 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    
     return Scaffold(
       appBar: AppBar(
         title: Text(_item.name),
@@ -477,100 +481,78 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
 
 Widget _buildBatchDetailsSection() {
   if (!_item.trackByBatch) return const SizedBox.shrink();
-  
-  return FutureBuilder<List<Map<String, dynamic>>>(
-    future: widget.inventoryService.batchService.getBatchesWithDetails(_item.id),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        );
-      }
-      
-      if (snapshot.hasError) {
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Center(
-              child: Text('Error loading batches: ${snapshot.error}'),
-            ),
-          ),
-        );
-      }
-      
-      final batches = snapshot.data ?? [];
-      
-      if (batches.isEmpty) {
-        return const Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(
-              child: Text('No batches found'),
-            ),
-          ),
-        );
-      }
-      
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+
+  if (_isLoadingBatchSummary || _batchesData == null) {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+
+  final batches = _batchesData!;
+
+  if (batches.isEmpty) {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: Text('No batches found')),
+      ),
+    );
+  }
+
+  final colorScheme = Theme.of(context).colorScheme;
+
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Icon(Icons.inventory_2, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Batch Details',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${batches.length} Batches',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
+              Icon(Icons.inventory_2, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Batch Details',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
               ),
-              const SizedBox(height: 12),
-              
-              // Batch List
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: batches.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final batchData = batches[index];
-                  final batch = batchData['batch'] as Batch;
-                  final totalSold = batchData['totalSold'] ?? 0;
-                  final remainingQty = batchData['remainingQuantity'] ?? 0;
-                  final totalQty = batchData['totalQuantity'] ?? 0;
-                  
-                  return _buildBatchDetailCard(
-                    batch: batch,
-                    totalSold: totalSold,
-                    remainingQty: remainingQty,
-                    totalQty: totalQty,
-                    batchNumber: index + 1,
-                  );
-                },
+              const Spacer(),
+              Text(
+                '${batches.length} Batches',
+                style: TextStyle(fontSize: 12, color: colorScheme.primary),
               ),
             ],
           ),
-        ),
-      );
-    },
+          const SizedBox(height: 12),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: batches.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final batchData = batches[index];
+              final batch = batchData['batch'] as Batch;
+              final totalSold = batchData['totalSold'] as int? ?? 0;
+              final remainingQty = batchData['remainingQuantity'] as int? ?? 0;
+              final totalQty = batchData['totalQuantity'] as int? ?? 0;
+              return _buildBatchDetailCard(
+                batch: batch,
+                totalSold: totalSold,
+                remainingQty: remainingQty,
+                totalQty: totalQty,
+                batchNumber: index + 1,
+              );
+            },
+          ),
+        ],
+      ),
+    ),
   );
 }
 
@@ -626,7 +608,7 @@ Widget _buildBatchDetailCard({
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with Batch Number and Status
+          // Header with Batch Number, Status, and Delete
           Row(
             children: [
               Container(
@@ -666,6 +648,18 @@ Widget _buildBatchDetailCard({
                       ),
                     ),
                   ],
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => _confirmDeleteBatch(batch),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
                 ),
               ),
             ],
@@ -776,7 +770,7 @@ Widget _buildBatchDetailCard({
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: remainingQty / totalQty,
+              value: totalQty > 0 ? remainingQty / totalQty : 0.0,
               backgroundColor: Colors.grey.shade200,
               color: remainingQty == 0 
                   ? Colors.red 
@@ -788,11 +782,11 @@ Widget _buildBatchDetailCard({
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${((remainingQty / totalQty) * 100).toStringAsFixed(0)}% remaining',
+                '${totalQty > 0 ? ((remainingQty / totalQty) * 100).toStringAsFixed(0) : 0}% remaining',
                 style: const TextStyle(fontSize: 10, color: Colors.grey),
               ),
               Text(
-                '${((totalSold / totalQty) * 100).toStringAsFixed(0)}% sold',
+                '${totalQty > 0 ? ((totalSold / totalQty) * 100).toStringAsFixed(0) : 0}% sold',
                 style: const TextStyle(fontSize: 10, color: Colors.grey),
               ),
             ],
@@ -962,6 +956,48 @@ Widget _buildBatchInfoTile({
     }
   }
 
+  Future<void> _confirmDeleteBatch(Batch batch) async {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Batch'),
+        content: Text(
+          'Remove ${batch.batchNumber} (${batch.remainingQuantity} ${_item.unit} remaining)?\n\nThis cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Cancel', style: TextStyle(color: primaryColor)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.inventoryService.deleteBatch(_item.id, batch.id);
+      await _refreshItem();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${batch.batchNumber} deleted'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Future<void> _sellStock(int quantity) async {
     try {
       if (_item.trackByBatch) {
@@ -1119,6 +1155,8 @@ Widget _buildBatchInfoTile({
             const Divider(),
             _buildInfoRow('Unit', _item.unit),
             const Divider(),
+            _buildInfoRowWithBadge('Quality', _item.quality),
+            const Divider(),
             _buildInfoRow('Location', _item.location ?? 'Not specified'),
             const Divider(),
             _buildInfoRow('Supplier', _item.supplierName ?? 'Not specified'),
@@ -1218,6 +1256,61 @@ Widget _buildBatchInfoTile({
         ],
       ),
     );
+  }
+
+  Widget _buildInfoRowWithBadge(String label, String value) {
+    final qualityColor = _qualityColor(value);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w500, color: Colors.grey)),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: qualityColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: qualityColor.withValues(alpha: 0.4)),
+            ),
+            child: Text(
+              value.isEmpty ? 'Standard' : value,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: qualityColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _qualityColor(String quality) {
+    switch (quality.toLowerCase()) {
+      case 'premium':
+        return const Color(0xFF7C3AED);
+      case 'grade a':
+      case 'first quality':
+        return const Color(0xFF10B981);
+      case 'grade b':
+        return const Color(0xFF3B82F6);
+      case 'grade c':
+      case 'second quality':
+        return const Color(0xFFF59E0B);
+      case 'fresh':
+        return const Color(0xFF06B6D4);
+      case 'reject':
+        return const Color(0xFFEF4444);
+      default:
+        return const Color(0xFF6B7280);
+    }
   }
 
   Widget _buildStockSection() {
