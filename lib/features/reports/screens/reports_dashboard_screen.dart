@@ -1,5 +1,4 @@
 ﻿// lib/features/reports/screens/reports_dashboard_screen.dart
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -2306,11 +2305,22 @@ Widget _buildInventoryReport() {
   Future<void> _showExportDialog() async {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    // Only Sales (0) and Purchase (1) have a payment status
+    final showPaymentFilter = _selectedTab == 0 || _selectedTab == 1;
 
     return showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) {
+        String selectedStatus = 'all';
+        final statuses = [
+          {'label': 'All',     'value': 'all',     'color': colorScheme.primary},
+          {'label': 'Paid',    'value': 'paid',    'color': Colors.green},
+          {'label': 'Partial', 'value': 'partial', 'color': Colors.orange},
+          {'label': 'Due',     'value': 'due',     'color': colorScheme.error},
+        ];
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) => Dialog(
         backgroundColor: colorScheme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -2340,18 +2350,56 @@ Widget _buildInventoryReport() {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 8),
-              
+
               Text(
                 'Select format to export',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
-              
+
+              // ── Payment Status Filter ──────────────────────────────
+              if (showPaymentFilter) ...[
+                const SizedBox(height: 20),
+                Text(
+                  'Payment Status',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  children: statuses.map((s) {
+                    final isSelected = selectedStatus == s['value'];
+                    final color = s['color'] as Color;
+                    return ChoiceChip(
+                      label: Text(
+                        s['label'] as String,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.white : colorScheme.onSurface,
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: color,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
+                      side: BorderSide(
+                        color: isSelected ? color : colorScheme.outline.withOpacity(0.4),
+                      ),
+                      onSelected: (_) =>
+                          setDialogState(() => selectedStatus = s['value'] as String),
+                    );
+                  }).toList(),
+                ),
+              ],
+
               const SizedBox(height: 24),
-              
+
               // PDF Option
               _buildExportOption(
                 icon: Icons.picture_as_pdf,
@@ -2360,12 +2408,12 @@ Widget _buildInventoryReport() {
                 color: Colors.red,
                 onTap: () {
                   Navigator.pop(context);
-                  _handleExport('pdf');
+                  _handleExport('pdf', paymentStatus: selectedStatus);
                 },
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Excel Option
               _buildExportOption(
                 icon: Icons.table_chart,
@@ -2374,12 +2422,12 @@ Widget _buildInventoryReport() {
                 color: Colors.green,
                 onTap: () {
                   Navigator.pop(context);
-                  _handleExport('excel');
+                  _handleExport('excel', paymentStatus: selectedStatus);
                 },
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Both Formats
               _buildExportOption(
                 icon: Icons.file_copy,
@@ -2388,12 +2436,12 @@ Widget _buildInventoryReport() {
                 color: Colors.blue,
                 onTap: () {
                   Navigator.pop(context);
-                  _handleExport('both');
+                  _handleExport('both', paymentStatus: selectedStatus);
                 },
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Cancel Button
               SizedBox(
                 width: double.infinity,
@@ -2414,7 +2462,9 @@ Widget _buildInventoryReport() {
           ),
         ),
       ),
-    );
+    );        // closes StatefulBuilder
+  },          // closes showDialog builder
+  );          // closes showDialog
   }
 
   Widget _buildExportOption({
@@ -2482,7 +2532,7 @@ Widget _buildInventoryReport() {
     );
   }
 
-Future<void> _handleExport(String format) async {
+Future<void> _handleExport(String format, {String paymentStatus = 'all'}) async {
   if (_userMobile == null) {
     _showError('Please login to export reports');
     return;
@@ -2510,7 +2560,7 @@ Future<void> _handleExport(String format) async {
     }
 
     final reportType = _getCurrentReportType();
-    final reportData = await _getCurrentReportData();
+    final reportData = await _getCurrentReportData(paymentStatus: paymentStatus);
 
     if (reportData.isEmpty) {
       _showError('No data available to export');
@@ -2525,14 +2575,13 @@ Future<void> _handleExport(String format) async {
         endDate: _endDate,
         data: reportData,
         title: _getReportTitle(),
-        userData: userData, // THIS IS CRITICAL - passing user data
+        userData: userData,
       );
-      
-      if (!kIsWeb) {
-        // For mobile, we need to open the file
-        // The exportToPdf method already handles this internally
+      if (result.startsWith('✅')) {
+        _showSuccess('PDF exported successfully!');
+      } else {
+        _showError(result);
       }
-      _showSuccess('PDF exported successfully!');
     }
 
     if (format == 'excel' || format == 'both') {
@@ -2543,11 +2592,11 @@ Future<void> _handleExport(String format) async {
         endDate: _endDate,
         data: reportData,
       );
-      
-      if (!kIsWeb) {
-        // The exportToExcel method already handles opening the file
+      if (result.startsWith('✅')) {
+        _showSuccess('Excel exported successfully!');
+      } else {
+        _showError(result);
       }
-      _showSuccess('Excel exported successfully!');
     }
   } catch (e) {
     appLogger.e('❌ Export error: $e');
@@ -2556,12 +2605,21 @@ Future<void> _handleExport(String format) async {
     setState(() => _isExporting = false);
   }
 }
-  Future<List<Map<String, dynamic>>> _getCurrentReportData() async {
+  Future<List<Map<String, dynamic>>> _getCurrentReportData({String paymentStatus = 'all'}) async {
+    bool matchesStatus(String status) =>
+        paymentStatus == 'all' || status.toLowerCase() == paymentStatus.toLowerCase();
+
     switch (_selectedTab) {
       case 0: // Sales
-        return _salesReports.map((report) => report.toMap()).toList();
+        return _salesReports
+            .where((r) => matchesStatus(r.paymentStatus))
+            .map((r) => r.toMap())
+            .toList();
       case 1: // Purchase
-        return _purchaseReports.map((report) => report.toMap()).toList();
+        return _purchaseReports
+            .where((r) => matchesStatus(r.paymentStatus))
+            .map((r) => r.toMap())
+            .toList();
       case 2: // Profit & Loss
         final plReport = await _getProfitLossData();
         return [plReport.toMap()];

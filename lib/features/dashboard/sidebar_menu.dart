@@ -69,7 +69,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
                       ],
                     ),
 
-                    // ── Inventory (expandable with Batches submenu) ──────────
+                    // ── Inventory ────────────────────────────────────────────
                     _buildExpandableMenu(
                       icon: Icons.inventory,
                       title: 'Inventory',
@@ -88,23 +88,31 @@ class _SidebarMenuState extends State<SidebarMenu> {
                         ),
                       ],
                     ),
+
+                    // ── Inventory Accounts ───────────────────────────────────
+                    _buildExpandableMenu(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: 'Inventory Accounts',
+                      isSelectedGroup: widget.selectedIndex == 3,
+                      children: [
+                        _buildSubMenuItem(
+                          icon: Icons.swap_horiz_rounded,
+                          title: 'Transactions',
+                          onTap: () => widget.onNavigate(Routes.transactions),
+                        ),
+                        _buildSubMenuItem(
+                          icon: Icons.handshake_outlined,
+                          title: 'Dues & Borrowing',
+                          onTap: () => widget.onNavigate(Routes.borrows),
+                        ),
+                        _buildSubMenuItem(
+                          icon: Icons.menu_book_outlined,
+                          title: 'Cash Book',
+                          onTap: () => widget.onNavigate(Routes.cashBook),
+                        ),
+                      ],
+                    ),
                     // ────────────────────────────────────────────────────────
-
-                    _buildMenuItem(
-                      index: 2,
-                      icon: Icons.receipt,
-                      title: 'Bills',
-                      isSelected: widget.selectedIndex == 2,
-                      onTap: () => widget.onNavigate(Routes.bills),
-                    ),
-
-                    _buildMenuItem(
-                      index: 3,
-                      icon: Icons.menu_book,
-                      title: 'Accounts',
-                      isSelected: widget.selectedIndex == 3,
-                      onTap: () => widget.onNavigate(Routes.ledger),
-                    ),
 
                     _buildMenuItem(
                       index: 4,
@@ -344,14 +352,14 @@ class _SidebarMenuState extends State<SidebarMenu> {
 
     return ListTile(
       leading:
-          Icon(icon, size: 18, color: colorScheme.onSurface.withValues(alpha:0.6)),
+          Icon(icon, size: 18, color: colorScheme.onSurface.withValues(alpha: 0.6)),
       title: Row(
         children: [
           Text(
             title,
             style: TextStyle(
               fontSize: 14,
-              color: colorScheme.onSurface.withValues(alpha:0.9),
+              color: colorScheme.onSurface.withValues(alpha: 0.9),
             ),
           ),
           if (badge != null) ...[
@@ -363,10 +371,11 @@ class _SidebarMenuState extends State<SidebarMenu> {
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       onTap: onTap,
-      hoverColor: colorScheme.primary.withValues(alpha:0.05),
-      splashColor: colorScheme.primary.withValues(alpha:0.1),
+      hoverColor: colorScheme.primary.withValues(alpha: 0.05),
+      splashColor: colorScheme.primary.withValues(alpha: 0.1),
     );
   }
+
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

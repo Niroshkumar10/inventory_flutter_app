@@ -1,10 +1,12 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class PdfExportService {
   static final _dateFormat = DateFormat('dd/MM/yyyy');
@@ -64,7 +66,7 @@ class PdfExportService {
       } else if (reportType == 'supplier' && data is List) {
         dataRows = _parseSupplierReports(data);
       } else if (reportType == 'profit-loss' && data is List) {
-        dataRows = _parseDataToRows(data, reportType);
+        dataRows = _parseProfitLossReports(data);
       } else {
         dataRows = _parseDataToRows(data, reportType);
         summary = _calculateSummary(dataRows, reportType);
@@ -94,19 +96,28 @@ class PdfExportService {
     required String reportType,
   }) async {
     try {
-      final pdf = _generatePdfDocument(
+      final pdf = await _generatePdfDocument(
           dataRows, summary, title, userMobile, startDate, endDate, reportType);
 
-      final directory = await getApplicationDocumentsDirectory();
       final fileName =
           '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final filePath = '${directory.path}/$fileName';
-      final file = File(filePath);
 
-      final bytes = await pdf.save();
-      await file.writeAsBytes(bytes);
-      await _openFile(filePath);
-      return '✅ PDF saved successfully. Check your files.';
+      if (kIsWeb) {
+        // Web: trigger browser print/save dialog via the printing package
+        await Printing.layoutPdf(
+          onLayout: (_) => pdf.save(),
+          name: fileName,
+        );
+        return '✅ PDF download started. Check your browser downloads.';
+      } else {
+        // Mobile / Desktop: write to disk then open with the system viewer
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/$fileName';
+        final bytes = await pdf.save();
+        await File(filePath).writeAsBytes(bytes);
+        await _openFile(filePath);
+        return '✅ PDF saved successfully. Check your files.';
+      }
     } catch (e) {
       return 'Failed to generate PDF: $e';
     }
@@ -163,12 +174,11 @@ class PdfExportService {
         rows.add({
           'Name': _val(m, ['name']),
           'Phone': _val(m, ['phone']),
-          'Email': _val(m, ['email']),
           'Address': _val(m, ['address']),
           'Total Orders': _val(m, ['totalOrders', 'orderCount']),
           'Total Purchases': _amount(m, ['totalPurchases']),
           'Pending Payment': _amount(m, ['pendingPayment']),
-          'Last Order': _val(m, ['formattedLastOrder', 'lastOrderDate']),
+          'Last Order': _formatDateOnly(m, ['formattedLastOrder', 'lastOrderDate']),
         });
       } catch (_) {}
     }
@@ -216,6 +226,30 @@ class PdfExportService {
           'Amount Paid': _amount(m, ['amountPaid', 'paidAmount', 'paid']),
           'Amount Due': _amount(m, ['amountDue', 'dueAmount', 'balance']),
           'Status': _val(m, ['paymentStatus', 'status', 'payment_state']),
+        });
+      } catch (_) {}
+    }
+    return rows;
+  }
+
+  List<Map<String, dynamic>> _parseProfitLossReports(List<dynamic> reports) {
+    final rows = <Map<String, dynamic>>[];
+    for (var report in reports) {
+      try {
+        final m = _toMap(report);
+        final profitMarginRaw = m['profitMargin'];
+        final profitMargin = profitMarginRaw is num
+            ? profitMarginRaw.toDouble()
+            : double.tryParse(profitMarginRaw?.toString() ?? '') ?? 0.0;
+
+        rows.add({
+          'Period':         _val(m, ['period', 'formattedPeriod']),
+          'Total Revenue':  _amount(m, ['totalRevenue']),
+          'Total Cost':     _amount(m, ['totalCost']),
+          'Gross Profit':   _amount(m, ['grossProfit']),
+          'Expenses':       _amount(m, ['expenses']),
+          'Net Profit':     _amount(m, ['netProfit']),
+          'Profit Margin':  '${profitMargin.toStringAsFixed(1)}%',
         });
       } catch (_) {}
     }
@@ -288,17 +322,17 @@ class PdfExportService {
 
   String _getTableTitle(String reportType) {
     switch (reportType) {
-      case 'sales': return 'Sales Details';
-      case 'purchase': return 'Purchase Details';
-      case 'profit-loss': return 'Profit & Loss';
-      case 'inventory': return 'Inventory Details';
-      case 'customer': return 'Customer Reports';
-      case 'supplier': return 'Supplier Reports';
-      default: return 'Report Details';
+      case 'sales':       return 'Sales Details';
+      case 'purchase':    return 'Purchase Details';
+      case 'profit-loss': return 'Profit & Loss Summary';
+      case 'inventory':   return 'Inventory Details';
+      case 'customer':    return 'Customer Reports';
+      case 'supplier':    return 'Supplier Reports';
+      default:            return 'Report Details';
     }
   }
 
-  pw.Document _generatePdfDocument(
+  Future<pw.Document> _generatePdfDocument(
     List<Map<String, dynamic>> dataRows,
     Map<String, dynamic> summary,
     String title,
@@ -306,8 +340,19 @@ class PdfExportService {
     DateTime startDate,
     DateTime endDate,
     String reportType,
-  ) {
-    final pdf = pw.Document();
+  ) async {
+    // Load Unicode-capable fonts from assets (supports ₹ and all Indian text)
+    final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/Roboto-Regular.ttf'));
+    final bold    = pw.Font.ttf(await rootBundle.load('assets/fonts/Roboto-Bold.ttf'));
+
+    final theme = pw.ThemeData.withFont(
+      base: regular,
+      bold: bold,
+      italic: regular,    // no italic variant in assets; regular as fallback
+      boldItalic: bold,
+    );
+
+    final pdf = pw.Document(theme: theme);
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -459,7 +504,7 @@ class PdfExportService {
     return pw.TableRow(children: [cell(l1, bold: true), cell(v1), cell(l2, bold: true), cell(v2)]);
   }
 
-  String _fmtPdf(double amount) => 'Rs. ${_pdfCurrencyFormat.format(amount)}';
+  String _fmtPdf(double amount) => '₹${_pdfCurrencyFormat.format(amount)}';
 
   pw.Widget _buildPdfDataTable(
       List<Map<String, dynamic>> rows, String reportType, pw.Context context) {
@@ -495,7 +540,10 @@ class PdfExportService {
     final widths = <int, pw.TableColumnWidth>{};
     for (var i = 0; i < columns.length; i++) {
       final col = columns[i].toLowerCase();
-      if (col.contains('invoice') || col.contains('number')) {
+      if (col == 'period') {
+        // Date-range string like "03 May 2026 - 02 Jun 2026" needs ample space
+        widths[i] = const pw.FixedColumnWidth(110);
+      } else if (col.contains('invoice') || col.contains('number')) {
         widths[i] = const pw.FixedColumnWidth(40);
       } else if (col.contains('customer') || col.contains('supplier')) {
         widths[i] = const pw.FixedColumnWidth(50);
@@ -526,11 +574,15 @@ class PdfExportService {
     if (value == null) return '-';
     final col = column.toLowerCase();
     truncate(String t, int max) => t.length <= max ? t : '${t.substring(0, max - 2)}..';
+    // Period (date range) — never truncate, return as-is
+    if (col == 'period') return value.toString();
     if (col.contains('date') && value is String) {
       try { return DateFormat('dd/MM').format(DateTime.parse(value)); } catch (_) {}
     }
     if (col.contains('amount') || col.contains('price') ||
-        col.contains('total') || col.contains('value')) {
+        col.contains('total') || col.contains('value') ||
+        col.contains('revenue') || col.contains('cost') ||
+        col.contains('profit') || col.contains('expenses')) {
       try {
         if (value is num) return _fmtPdf(value.toDouble());
         if (value is String) {
@@ -586,6 +638,34 @@ class PdfExportService {
     if (data is Map<String, dynamic>) return data;
     if (data is Map) return {for (var e in data.entries) if (e.key != null) e.key.toString(): e.value};
     return {};
+  }
+
+  // Returns only the date part (dd/MM/yyyy) from a date string or timestamp,
+  // stripping any time component.
+  String _formatDateOnly(Map<String, dynamic> data, List<String> keys) {
+    final raw = _val(data, keys);
+    if (raw.isEmpty) return '-';
+    // Try parsing as DateTime first
+    try {
+      final dt = DateTime.parse(raw);
+      return _dateFormat.format(dt); // dd/MM/yyyy
+    } catch (_) {}
+    // Already a formatted string — strip anything after the first time separator
+    // e.g. "02 Jun 2026 14:30" → "02 Jun 2026"
+    final spaceIdx = raw.indexOf(' ');
+    if (spaceIdx != -1) {
+      // Check if the part after the first space looks like a time (HH:mm)
+      final rest = raw.substring(spaceIdx + 1).trim();
+      if (RegExp(r'^\d{1,2}:\d{2}').hasMatch(rest)) {
+        return raw.substring(0, spaceIdx);
+      }
+      // "02 Jun 2026 14:30" has date as first 3 space-separated tokens
+      final parts = raw.split(' ');
+      if (parts.length >= 3 && RegExp(r'^\d{4}$').hasMatch(parts[2])) {
+        return '${parts[0]} ${parts[1]} ${parts[2]}';
+      }
+    }
+    return raw;
   }
 
   String _val(Map<String, dynamic> data, List<String> keys) {

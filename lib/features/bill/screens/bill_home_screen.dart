@@ -11,8 +11,9 @@ import '../../analytics/services/analytics_service.dart';
 
 class BillHomeScreen extends StatefulWidget {
   final String userMobile;
+  final String? initialFilter;
 
-  const BillHomeScreen({super.key, required this.userMobile});
+  const BillHomeScreen({super.key, required this.userMobile, this.initialFilter});
 
   @override
   State<BillHomeScreen> createState() => _BillHomeScreenState();
@@ -20,7 +21,7 @@ class BillHomeScreen extends StatefulWidget {
 
 class _BillHomeScreenState extends State<BillHomeScreen>
     with SingleTickerProviderStateMixin {
-  String _currentFilter = 'all';
+  late String _currentFilter;
   final TextEditingController _searchController = TextEditingController();
   late AnimationController _fabAnimationController;
   late Animation<double> _fabScaleAnimation;
@@ -28,6 +29,7 @@ class _BillHomeScreenState extends State<BillHomeScreen>
   @override
   void initState() {
     super.initState();
+    _currentFilter = widget.initialFilter ?? 'all';
     _fabAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -647,7 +649,7 @@ Widget _buildFilterTabs(BuildContext context, ColorScheme colorScheme) {
     {'label': 'All', 'value': 'all', 'color': colorScheme.primary},
     {'label': 'Sales', 'value': 'sales', 'color': colorScheme.secondary},
     {'label': 'Purchases', 'value': 'purchase', 'color': colorScheme.tertiary},
-    {'label': 'Due', 'value': 'due', 'color': colorScheme.error},
+    {'label': 'Partial', 'value': 'partial', 'color': colorScheme.error},
   ];
 
   return Container(
@@ -1021,10 +1023,10 @@ Widget _buildTransactionCard(Bill bill, BuildContext context, ColorScheme colorS
         subtitle = 'Start by creating your first purchase entry';
         color = colorScheme.tertiary;
         break;
-      case 'due':
+      case 'partial':
         icon = Icons.celebration;
         title = 'All Clear!';
-        subtitle = 'No outstanding payments to track';
+        subtitle = 'No partial payments to track';
         color = colorScheme.error;
         break;
       default:
@@ -1134,7 +1136,7 @@ Widget _buildTransactionCard(Bill bill, BuildContext context, ColorScheme colorS
         return colorScheme.secondary;
       case 'purchase':
         return colorScheme.tertiary;
-      case 'due':
+      case 'partial':
         return colorScheme.error;
       default:
         return colorScheme.primary;

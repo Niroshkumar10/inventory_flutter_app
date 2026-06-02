@@ -19,6 +19,10 @@ import 'package:inventory_app/features/feedback/screens/feedback_list_screen.dar
 import 'package:inventory_app/features/feedback/services/feedback_service.dart';
 import 'package:inventory_app/features/ai/screens/ai_chat_screen.dart' show AiChatScreen;
 import 'package:inventory_app/features/inventory/screens/all_batches_screen.dart';
+import 'package:inventory_app/features/accounts/screens/accounts_dashboard_screen.dart';
+import 'package:inventory_app/features/accounts/screens/transactions_dashboard_screen.dart';
+import 'package:inventory_app/features/accounts/screens/borrows_dashboard_screen.dart';
+import 'package:inventory_app/features/accounts/screens/cashbook_dashboard_screen.dart';
 
 // Route name constants — use these instead of bare strings throughout the app.
 class Routes {
@@ -27,8 +31,16 @@ class Routes {
   static const login = '/login';
   static const dashboard = '/';
   static const inventory = '/inventory';
+  static const accounts = '/accounts';
+  static const transactions = '/accounts/transactions';
+  static const borrows = '/accounts/borrows';
+  static const cashBook = '/accounts/cashbook';
   static const bills = '/bills';
+  static const billsSales = '/bills/sales';
+  static const billsPurchase = '/bills/purchase';
   static const ledger = '/ledger';
+  static const ledgerCustomer = '/ledger/customer';
+  static const ledgerSupplier = '/ledger/supplier';
   static const customers = '/customers';
   static const suppliers = '/suppliers';
   static const reports = '/reports';
@@ -37,7 +49,6 @@ class Routes {
   static const feedback = '/feedback';
   static const aiChat = '/ai-chat';
   static const String batches = '/batches';
-
 }
 
 GoRouter createRouter(AuthNotifier authNotifier) {
@@ -115,6 +126,34 @@ GoRouter createRouter(AuthNotifier authNotifier) {
             },
           ),
           GoRoute(
+            path: Routes.accounts,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return AccountsDashboardScreen(userMobile: mobile);
+            },
+          ),
+          GoRoute(
+            path: Routes.transactions,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return TransactionsDashboardScreen(userMobile: mobile);
+            },
+          ),
+          GoRoute(
+            path: Routes.borrows,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return BorrowsDashboardScreen(userMobile: mobile);
+            },
+          ),
+          GoRoute(
+            path: Routes.cashBook,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return CashBookDashboardScreen(userMobile: mobile);
+            },
+          ),
+          GoRoute(
             path: Routes.bills,
             builder: (context, _) {
               final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
@@ -122,10 +161,45 @@ GoRouter createRouter(AuthNotifier authNotifier) {
             },
           ),
           GoRoute(
+            path: Routes.billsSales,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return BillHomeScreen(userMobile: mobile, initialFilter: 'sales');
+            },
+          ),
+          GoRoute(
+            path: Routes.billsPurchase,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return BillHomeScreen(userMobile: mobile, initialFilter: 'purchase');
+            },
+          ),
+          GoRoute(
             path: Routes.ledger,
             builder: (context, _) {
               final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
               return LedgerHomeScreen(userMobile: mobile);
+            },
+          ),
+          GoRoute(
+            path: Routes.ledgerCustomer,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return LedgerHomeScreen(userMobile: mobile, initialTab: 1);
+            },
+          ),
+          GoRoute(
+            path: Routes.ledgerSupplier,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return LedgerHomeScreen(userMobile: mobile, initialTab: 2);
+            },
+          ),
+          GoRoute(
+            path: Routes.cashBook,
+            builder: (context, _) {
+              final mobile = Provider.of<AuthNotifier>(context, listen: false).userMobile!;
+              return LedgerHomeScreen(userMobile: mobile, initialTab: 3);
             },
           ),
           GoRoute(

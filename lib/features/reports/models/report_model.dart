@@ -624,8 +624,9 @@ class ProfitLossReport {
 
   Map<String, dynamic> toMap() {
     return {
-      'periodStart': FieldValue.serverTimestamp(),
-      'periodEnd': FieldValue.serverTimestamp(),
+      'period': formattedPeriod,
+      'periodStart': periodStart.toIso8601String(),
+      'periodEnd': periodEnd.toIso8601String(),
       'totalRevenue': totalRevenue,
       'totalCost': totalCost,
       'grossProfit': grossProfit,
@@ -633,7 +634,7 @@ class ProfitLossReport {
       'netProfit': netProfit,
       'profitMargin': profitMargin,
       'userMobile': userMobile,
-      'generatedAt': FieldValue.serverTimestamp(),
+      'generatedAt': generatedAt.toIso8601String(),
     };
   }
 

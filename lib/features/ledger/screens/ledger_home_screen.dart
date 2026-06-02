@@ -13,7 +13,8 @@ import 'package:inventory_app/core/theme/colors.dart';
 
 class LedgerHomeScreen extends StatefulWidget {
   final String userMobile;
-  const LedgerHomeScreen({super.key, required this.userMobile});
+  final int initialTab;
+  const LedgerHomeScreen({super.key, required this.userMobile, this.initialTab = 0});
 
   @override
   State<LedgerHomeScreen> createState() => _LedgerHomeScreenState();
@@ -36,7 +37,7 @@ class _LedgerHomeScreenState extends State<LedgerHomeScreen>
     _ledgerService = LedgerService(widget.userMobile);
     _customerService = CustomerService(widget.userMobile);
     _supplierService = SupplierService(widget.userMobile);
-    _tabController = TabController(length: 4, vsync: this)
+    _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTab)
       ..addListener(() {
         if (!_tabController.indexIsChanging) {
           setState(() => _currentTab = _tabController.index);

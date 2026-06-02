@@ -1204,37 +1204,52 @@ class _DashboardContentState extends State<DashboardContent> {
 
   ({List<double> data, double total}) _getYearData(List<Bill> salesBills) {
     final now = DateTime.now();
-    final monthlyData = List.generate(12, (monthIndex) {
-      final month = (now.month - monthIndex - 1) % 12 + 1;
-      final year = now.year - (monthIndex >= now.month ? 1 : 0);
+    // DateTime handles month underflow automatically: DateTime(2024, 0, 1) == Dec 2023
+    final monthlyData = List.generate(12, (monthsAgo) {
+      final target = DateTime(now.year, now.month - monthsAgo, 1);
       return salesBills
-          .where((bill) => 
-            bill.date.year == year &&
-            bill.date.month == month)
+          .where((bill) =>
+            bill.date.year == target.year &&
+            bill.date.month == target.month)
           .fold<double>(0, (sum, bill) => sum + bill.totalAmount);
-    }).reversed.toList();
-    
+    }).reversed.toList(); // oldest → newest
+
     final yearAgo = DateTime(now.year - 1, now.month, now.day);
-    final yearBills = salesBills.where((bill) => bill.date.isAfter(yearAgo)).toList();
-    
-    final total = yearBills.fold<double>(0, (sum, bill) => sum + bill.totalAmount);
-    
+    final total = salesBills
+        .where((bill) => bill.date.isAfter(yearAgo))
+        .fold<double>(0, (sum, bill) => sum + bill.totalAmount);
+
     return (data: monthlyData, total: total);
   }
 
   // ============ HELPER METHODS ============
 
   List<String> _getBottomLabels(TimeFilter filter) {
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final now = DateTime.now();
+
     switch (filter) {
       case TimeFilter.day:
-        return List.generate(24, (i) => '${i.toString().padLeft(2, '0')}:00');
+        return List.generate(24, (i) => '${i.toString().padLeft(2, '0')}h');
+
       case TimeFilter.week:
-        return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        // Actual day names for the last 7 days, oldest → newest
+        return List.generate(7, (i) {
+          final date = now.subtract(Duration(days: 6 - i));
+          return dayNames[date.weekday - 1]; // weekday: 1=Mon … 7=Sun
+        });
+
       case TimeFilter.month:
         return ['W1', 'W2', 'W3', 'W4'];
+
       case TimeFilter.year:
-        return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        // Actual month names for the rolling 12-month window, oldest → newest
+        return List.generate(12, (i) {
+          final date = DateTime(now.year, now.month - 11 + i, 1);
+          return monthNames[date.month - 1];
+        });
     }
   }
 
@@ -1253,19 +1268,19 @@ class _DashboardContentState extends State<DashboardContent> {
 
   double _calculateBalanceFromBills(List<Bill>? bills) {
     if (bills == null || bills.isEmpty) return 0.0;
-    
-    double totalSales = 0.0;
-    double totalPurchases = 0.0;
-    
+
+    double salesReceived = 0.0;
+    double purchasesPaid = 0.0;
+
     for (final bill in bills) {
       if (bill.type == 'sales') {
-        totalSales += bill.totalAmount;
+        salesReceived += bill.amountPaid;
       } else if (bill.type == 'purchase') {
-        totalPurchases += bill.totalAmount;
+        purchasesPaid += bill.amountPaid;
       }
     }
-    
-    return totalSales - totalPurchases;
+
+    return salesReceived - purchasesPaid;
   }
 
   bool _isToday(DateTime date) {

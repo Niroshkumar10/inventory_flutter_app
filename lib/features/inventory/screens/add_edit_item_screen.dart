@@ -172,6 +172,7 @@ _trackExpiry = widget.item?.trackExpiry ?? false;
     _lowStockController = TextEditingController(text: item?.lowStockThreshold.toString() ?? '10');
     _selectedUnit = item?.unit ?? 'pcs';
     _selectedQuality = item?.quality ?? 'Standard';
+    _trackByBatch = item?.trackByBatch ?? false;
     _locationController = TextEditingController(text: item?.location ?? '');
     
     // FIX: Use supplierName instead of supplierId
@@ -428,28 +429,37 @@ Future<void> _saveItem() async {
   final lowStockValidation = _validateLowStock(_lowStockController.text);
   final unitValidation = _validateUnit();
 
-  // Validate expiry date if tracking is enabled
-  if (_trackExpiry && _expiryDate == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Please select expiry date'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    return;
-  }
+  // Skip expiry/batch validations for items that already have batch tracking —
+  // expiry dates are managed per-batch in the Add Purchase screen.
+  final isEditingBatchItem = widget.item != null && widget.item!.trackByBatch;
+  final initQtyForValidation = int.tryParse(_quantityController.text.trim()) ?? 0;
 
-  // Validate batch tracking requirements
-  if (_trackByBatch && !_trackExpiry) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Batch tracking requires expiry tracking to be enabled'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    return;
+  if (!isEditingBatchItem) {
+    // Expiry date required when tracking expiry AND (not batch mode OR has initial stock)
+    if (_trackExpiry && _expiryDate == null) {
+      if (!_trackByBatch || initQtyForValidation > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please select expiry date'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
+    // Batch tracking requires expiry tracking only when there is initial stock to create a batch
+    if (_trackByBatch && !_trackExpiry && initQtyForValidation > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enable expiry tracking for the initial batch'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
   }
 
   // Set validation errors
@@ -589,9 +599,14 @@ Future<void> _saveItem() async {
       
       // Check if batch tracking is being enabled for the first time
       final isEnablingBatchTracking = _trackByBatch && !widget.item!.trackByBatch;
-      
-      // Calculate final quantity - if enabling batch tracking, clear simple quantity
-      final finalQuantity = _trackByBatch ? 0 : quantity;
+
+      // For already-batch-tracked items, keep existing quantity (managed by batches).
+      // For newly enabling batch tracking, zero it out so batches take over.
+      // For non-batch items, use the form value.
+      final alreadyBatchTracked = widget.item!.trackByBatch;
+      final finalQuantity = alreadyBatchTracked
+          ? widget.item!.quantity
+          : (_trackByBatch ? 0 : quantity);
       
       final updatedItem = widget.item!.copyWith(
         name: name,
@@ -881,6 +896,8 @@ Future<void> _saveItem() async {
                                 hintText: '0',
                                 errorText: _quantityError,
                                 keyboardType: TextInputType.number,
+                                // Batch-tracked items: quantity is managed by batches, not editable here
+                                readOnly: widget.item != null && widget.item!.trackByBatch,
                                 onChanged: (value) {
                                   if (_quantityError != null) {
                                     setState(() => _quantityError = null);

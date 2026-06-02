@@ -23,7 +23,7 @@ class ViewBillScreen extends StatelessWidget {
     final billService = BillService(userMobile);
     
     return StreamBuilder<Bill>(
-      stream: billService.getBillById(billId).asStream(),
+      stream: billService.getBillStream(billId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
@@ -682,12 +682,13 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
   }
 
   void _confirmDelete() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: colorScheme.surface,
           title: Text(
@@ -700,7 +701,7 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: Text(
                 'Cancel',
                 style: TextStyle(color: colorScheme.primary),
@@ -708,33 +709,28 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
+                Navigator.pop(dialogContext); // close dialog immediately
                 try {
                   await billService.deleteBill(widget.bill.id);
-                  if (context.mounted) {
-                    Navigator.pop(context); // Close dialog
-                    Navigator.pop(context); // Go back to bills list
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Transaction deleted'),
-                        backgroundColor: colorScheme.secondary,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                  nav.pop(); // go back to bills list
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: const Text('Transaction deleted'),
+                      backgroundColor: colorScheme.secondary,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  }
+                    ),
+                  );
                 } catch (e) {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error: $e'),
-                        backgroundColor: colorScheme.error,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: colorScheme.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(

@@ -1029,11 +1029,11 @@ void _addRestockToBill(int itemIndex, InventoryItem inventoryItem, Batch batch, 
   }
   
   final newBillItem = BillItem.create(
-    description: userFriendlyDescription,  // User-friendly description
+    description: userFriendlyDescription,
     quantity: quantity.toDouble(),
-    price: inventoryItem.price,
+    price: inventoryItem.cost,
     inventoryItemId: inventoryItem.id,
-    batchId: batch.id,  // Keep batch ID for backend
+    batchId: batch.id,
     batchNumber: batch.batchNumber,
     expiryDate: batch.expiryDate,
     purchasePrice: inventoryItem.cost,
@@ -1041,15 +1041,15 @@ void _addRestockToBill(int itemIndex, InventoryItem inventoryItem, Batch batch, 
     category: inventoryItem.category,
     name: inventoryItem.name,
   );
-  
+
   final List<BillItem> updatedItems = List.from(_items);
   updatedItems[itemIndex] = newBillItem;
-  
+
   setState(() {
     _items = updatedItems;
     _descControllers[itemIndex].text = userFriendlyDescription;
     _qtyControllers[itemIndex].text = quantity.toString();
-    _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
+    _priceControllers[itemIndex].text = inventoryItem.cost.toStringAsFixed(2);
     _calculateTotals();
   });
 }
@@ -1069,11 +1069,11 @@ void _addPurchaseItemWithBatch(
   appLogger.d('  Type: ${isNewBatch ? "New Batch" : "Restock"}');
   
   final newBillItem = BillItem.create(
-    description: isNewBatch 
+    description: isNewBatch
         ? '${inventoryItem.name} (New Batch)'
         : '${inventoryItem.name} (Restock)',
     quantity: 1.0,
-    price: inventoryItem.price,
+    price: inventoryItem.cost,
     inventoryItemId: inventoryItem.id,
     batchNumber: batchNumber,
     expiryDate: expiryDate,
@@ -1082,15 +1082,15 @@ void _addPurchaseItemWithBatch(
     category: inventoryItem.category,
     name: inventoryItem.name,
   );
-  
+
   final List<BillItem> updatedItems = List.from(_items);
   updatedItems[itemIndex] = newBillItem;
-  
+
   setState(() {
     _items = updatedItems;
     _descControllers[itemIndex].text = inventoryItem.name;
     _qtyControllers[itemIndex].text = '1';
-    _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
+    _priceControllers[itemIndex].text = inventoryItem.cost.toStringAsFixed(2);
     _calculateTotals();
   });
 }
@@ -1734,34 +1734,36 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
   appLogger.d('  Inventory ID: ${inventoryItem.id}');
   appLogger.d('  Unit: ${inventoryItem.unit}');
   appLogger.d('  Price: ${inventoryItem.price}');
-  
+
+  final itemPrice = widget.type == 'purchase' ? inventoryItem.cost : inventoryItem.price;
+
   // Create a new BillItem with ALL properties
   final newBillItem = BillItem.create(
     description: inventoryItem.name,
     quantity: 1.0,
-    price: inventoryItem.price,
+    price: itemPrice,
     inventoryItemId: inventoryItem.id,
     unit: inventoryItem.unit,
     category: inventoryItem.category,
     name: inventoryItem.name,
   );
-  
+
   appLogger.d('  Created new BillItem:');
   appLogger.d('    Inventory ID in newBillItem: ${newBillItem.inventoryItemId}');
   appLogger.d('    Unit in newBillItem: ${newBillItem.unit}');
-  
+
   // Update the items array FIRST
   final List<BillItem> updatedItems = List.from(_items);
   updatedItems[itemIndex] = newBillItem;
-  
+
   setState(() {
     // Update the main items array
     _items = updatedItems;
-    
+
     // Update controllers
     _descControllers[itemIndex].text = inventoryItem.name;
     _qtyControllers[itemIndex].text = '1';
-    _priceControllers[itemIndex].text = inventoryItem.price.toStringAsFixed(2);
+    _priceControllers[itemIndex].text = itemPrice.toStringAsFixed(2);
     
     _calculateTotals();
   });
@@ -2449,10 +2451,11 @@ Widget _buildItemRow(int index) {
                 flex: 4,
                 child: TextFormField(
                   controller: _descControllers[index],
-                  readOnly: true, // Always read-only
+                  readOnly: true,
+                  onTap: () => _showInventorySelectionDialog(index),
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
-                    labelText: 'Description',
+                    labelText: 'Tap to select item',
                     labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -2467,23 +2470,14 @@ Widget _buildItemRow(int index) {
                     ),
                     contentPadding: EdgeInsets.symmetric(horizontal: 8),
                     suffixIcon: Tooltip(
-                      message: 'From Inventory',
-                      child: Icon(Icons.inventory, color: colorScheme.secondary, size: 16),
+                      message: 'Select from Inventory',
+                      child: Icon(Icons.search, color: colorScheme.primary, size: 20),
                     ),
                     filled: true,
                     fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              
-              // Always show inventory selection button
-              IconButton(
-                onPressed: () => _showInventorySelectionDialog(index),
-                icon: Icon(Icons.search, color: colorScheme.primary),
-                tooltip: 'Select from Inventory',
-              ),
-              
               if (_items.length > 1)
                 IconButton(
                   onPressed: () => _removeItem(index),

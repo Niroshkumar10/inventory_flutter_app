@@ -80,6 +80,8 @@ Stream<List<Bill>> getBills({String? filter}) {
       if (filter != null && filter != 'all') {
         if (filter == 'due') {
           filteredBills = allBills.where((bill) => bill.amountDue > 0).toList();
+        } else if (filter == 'partial') {
+          filteredBills = allBills.where((bill) => bill.paymentStatus == 'partial').toList();
         } else {
           filteredBills = allBills.where((bill) => bill.type == filter).toList();
         }
@@ -108,6 +110,13 @@ Stream<List<Bill>> getBills({String? filter}) {
       //appLogger.e('❌ Error getting bill: $e');
       rethrow;
     }
+  }
+
+  Stream<Bill> getBillStream(String id) {
+    return _userBillsCollection.doc(id).snapshots().map((doc) {
+      if (!doc.exists) throw Exception('Bill not found');
+      return Bill.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    });
   }
 
   // ✅ SEARCH BILLS (Simple search without complex queries)

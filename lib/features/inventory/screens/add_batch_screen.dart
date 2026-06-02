@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/batch_model.dart';
+import '../../party/services/supplier_service.dart';
+import '../../party/models/supplier_model.dart';
 
 class AddBatchScreen extends StatefulWidget {
   final InventoryService inventoryService;
@@ -25,7 +27,6 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   final _quantityController = TextEditingController();
   final _purchasePriceController = TextEditingController();
   final _supplierInvoiceController = TextEditingController();
-  final _supplierNameController = TextEditingController();
 
   // New batch only
   DateTime? _expiryDate;
@@ -39,12 +40,20 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   bool _loadingBatches = false;
   Batch? _selectedBatch;
 
+  // Supplier
+  late final SupplierService _supplierService;
+  List<Supplier> _suppliers = [];
+  bool _loadingSuppliers = false;
+  Supplier? _selectedSupplier;
+
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _purchaseDate = DateTime.now();
+    _supplierService = SupplierService(widget.inventoryService.userMobile);
+    _loadSuppliers();
   }
 
   @override
@@ -52,8 +61,22 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     _quantityController.dispose();
     _purchasePriceController.dispose();
     _supplierInvoiceController.dispose();
-    _supplierNameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSuppliers() async {
+    setState(() => _loadingSuppliers = true);
+    try {
+      final suppliers = await _supplierService.getSuppliers().first;
+      if (mounted) {
+        setState(() {
+          _suppliers = suppliers.where((s) => s.isActive).toList();
+          _loadingSuppliers = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingSuppliers = false);
+    }
   }
 
   Future<void> _loadExistingBatches() async {
@@ -64,7 +87,6 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     try {
       final batches = await widget.inventoryService.batchService
           .getBatchesOnce(widget.inventoryId);
-      // Only show active, non-expired batches with remaining stock
       final active = batches
           .where((b) => !b.isExpired && b.remainingQuantity > 0)
           .toList();
@@ -101,16 +123,22 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       return;
     }
 
+    if (_selectedSupplier == null && _suppliers.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a supplier')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final qty = int.parse(_quantityController.text.trim());
       final price = double.parse(_purchasePriceController.text.trim());
       final invoice = _supplierInvoiceController.text.trim();
-      final supplier = _supplierNameController.text.trim();
+      final supplier = _selectedSupplier?.name ?? '';
 
       if (_isRestockMode) {
-        // ── Restock existing batch ────────────────────────────────
         await widget.inventoryService.restockBatch(
           inventoryId: widget.inventoryId,
           batchId: _selectedBatch!.id,
@@ -130,7 +158,6 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
           Navigator.pop(context, true);
         }
       } else {
-        // ── Add new batch ─────────────────────────────────────────
         await widget.inventoryService.purchaseStock(
           inventoryId: widget.inventoryId,
           quantity: qty,
@@ -336,25 +363,20 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
                     const SizedBox(height: 20),
 
-                    // Supplier info (both modes)
+                    // Supplier dropdown
+                    _sectionLabel('Purchased From (Supplier) *'),
+                    const SizedBox(height: 8),
+                    _buildSupplierPicker(colorScheme, isDark),
+
+                    const SizedBox(height: 20),
+
+                    // Invoice no.
                     _sectionLabel('Supplier Invoice No. (Optional)'),
                     const SizedBox(height: 8),
                     _buildField(
                       controller: _supplierInvoiceController,
                       hint: 'INV-001',
                       icon: Icons.receipt_outlined,
-                      colorScheme: colorScheme,
-                      isDark: isDark,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    _sectionLabel('Supplier Name (Optional)'),
-                    const SizedBox(height: 8),
-                    _buildField(
-                      controller: _supplierNameController,
-                      hint: 'Supplier name',
-                      icon: Icons.store_outlined,
                       colorScheme: colorScheme,
                       isDark: isDark,
                     ),
@@ -404,6 +426,168 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Supplier picker ─────────────────────────────────────────────────────────
+  Widget _buildSupplierPicker(ColorScheme colorScheme, bool isDark) {
+    if (_loadingSuppliers) {
+      return Container(
+        height: 56,
+        decoration: BoxDecoration(
+          border: Border.all(color: colorScheme.outline),
+          borderRadius: BorderRadius.circular(12),
+          color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+        ),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                    color: colorScheme.primary, strokeWidth: 2),
+              ),
+              const SizedBox(width: 10),
+              Text('Loading suppliers...',
+                  style: TextStyle(
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
+                      fontSize: 14)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_suppliers.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          border: Border.all(
+              color: colorScheme.outline.withValues(alpha: 0.5)),
+          borderRadius: BorderRadius.circular(12),
+          color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.store_outlined,
+                color: colorScheme.onSurface.withValues(alpha: 0.4), size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No suppliers found. Add suppliers from the Parties menu.',
+                style: TextStyle(
+                    color: colorScheme.onSurface.withValues(alpha: 0.55),
+                    fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: _selectedSupplier != null
+              ? colorScheme.primary
+              : colorScheme.outline,
+          width: _selectedSupplier != null ? 2 : 1.5,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<Supplier>(
+          value: _selectedSupplier,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(12),
+          dropdownColor:
+              isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+          menuMaxHeight: 320,
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: colorScheme.primary, size: 22),
+          hint: Row(
+            children: [
+              Icon(Icons.store_outlined,
+                  size: 20,
+                  color: colorScheme.onSurface.withValues(alpha: 0.4)),
+              const SizedBox(width: 12),
+              Text(
+                'Select supplier',
+                style: TextStyle(
+                    color: colorScheme.onSurface.withValues(alpha: 0.45),
+                    fontSize: 15),
+              ),
+            ],
+          ),
+          items: _suppliers.map((supplier) {
+            final isSelected = _selectedSupplier?.id == supplier.id;
+            return DropdownMenuItem<Supplier>(
+              value: supplier,
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        supplier.name[0].toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          supplier.name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: colorScheme.onSurface,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (supplier.phone.isNotEmpty)
+                          Text(
+                            supplier.phone,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onSurface
+                                  .withValues(alpha: 0.5),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (isSelected)
+                    Icon(Icons.check_rounded,
+                        color: colorScheme.primary, size: 18),
+                ],
+              ),
+            );
+          }).toList(),
+          onChanged: (s) => setState(() => _selectedSupplier = s),
+        ),
       ),
     );
   }

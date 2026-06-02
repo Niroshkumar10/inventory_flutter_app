@@ -1497,20 +1497,23 @@ Widget _buildBatchInfoTile({
   String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 
   void _showDeleteDialog(BuildContext context, InventoryItem item) {
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Item'),
         content: Text('Are you sure you want to delete "${item.name}"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
-              await _deleteItem(context, item);
+              Navigator.pop(dialogContext);
+              await _deleteItem(nav, messenger, item);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete'),
@@ -1820,19 +1823,17 @@ Future<void> _showAllSalesHistory() async {
   );
 }
 
-  Future<void> _deleteItem(BuildContext context, InventoryItem item) async {
+  Future<void> _deleteItem(NavigatorState nav, ScaffoldMessengerState messenger, InventoryItem item) async {
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Deleting "${item.name}"...'), backgroundColor: Colors.blue),
       );
       await widget.inventoryService.deleteInventoryItem(item.id);
-      if (mounted) Navigator.of(context).pop(item.name);
+      nav.pop(item.name);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 }
