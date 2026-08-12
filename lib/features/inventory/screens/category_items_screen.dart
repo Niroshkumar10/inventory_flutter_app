@@ -59,12 +59,24 @@ class _CategoryItemsScreenState extends State<CategoryItemsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.surface : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: Text(widget.category.name),
-        backgroundColor: const Color.fromARGB(255, 7, 54, 114),
-        foregroundColor: Colors.black,
-        elevation: 1,
+        backgroundColor: colorScheme.surface,
+        elevation: 0.5,
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        title: Text(
+          widget.category.name,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -76,14 +88,14 @@ class _CategoryItemsScreenState extends State<CategoryItemsScreen> {
                       Icon(
                         Icons.inventory_2,
                         size: 64,
-                        color: Colors.grey.shade300,
+                        color: colorScheme.onSurface.withValues(alpha:0.2),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'No items in this category',
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.grey,
+                          color: colorScheme.onSurface.withValues(alpha:0.5),
                         ),
                       ),
                     ],
@@ -97,9 +109,26 @@ class _CategoryItemsScreenState extends State<CategoryItemsScreen> {
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: ListTile(
-                        title: Text(item.name),
-                        subtitle: Text('Stock: ${item.quantity} ${item.unit}'),
-                        trailing: Text('₹${item.price.toStringAsFixed(2)}'),
+                        title: Text(
+                          item.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Stock: ${item.quantity} ${item.unit}',
+                          style: TextStyle(
+                            color: colorScheme.onSurface.withValues(alpha:0.6),
+                          ),
+                        ),
+                        trailing: Text(
+                          '₹${item.price.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.primary,
+                          ),
+                        ),
                       ),
                     );
                   },

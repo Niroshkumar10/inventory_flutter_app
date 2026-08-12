@@ -182,52 +182,43 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     return null;
   }
 
-  // Validation method for mobile (check if exists and 10 digits)
+  // Validation method for mobile (optional — validates format only if entered)
   String? _validateMobile(String? value) {
-    // Only validate if field has been touched or form is being submitted
-    if (!_mobileTouched) {
-      return null;
-    }
-    
-    if (value == null || value.trim().isEmpty) {
-      return 'Please enter mobile number';
-    }
-    
+    if (!_mobileTouched) return null;
+
+    if (value == null || value.trim().isEmpty) return null;
+
     final trimmedMobile = value.trim();
-    
+
     final mobileRegex = RegExp(r'^[0-9]+$');
     if (!mobileRegex.hasMatch(trimmedMobile)) {
       return 'Mobile number should contain only digits';
     }
-    
+
     if (trimmedMobile.length != 10) {
       return 'Mobile number must be exactly 10 digits';
     }
-    
-    if (!_isDataLoaded) {
-      return null;
-    }
-    
+
+    if (!_isDataLoaded) return null;
+
     if (widget.customer != null && widget.customer!.mobile == trimmedMobile) {
       return null;
     }
-    
+
     final mobileExists = _existingCustomers.any(
-      (customer) => customer.mobile == trimmedMobile
+      (customer) => customer.mobile == trimmedMobile,
     );
-    
+
     if (mobileExists) {
       return 'Customer with this mobile number already exists';
     }
-    
+
     return null;
   }
 
   Future<void> _saveCustomer() async {
-    // Mark all fields as touched before validation
     setState(() {
       _nameTouched = true;
-      _mobileTouched = true;
     });
     
     if (!_formKey.currentState!.validate()) return;
@@ -435,7 +426,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 focusNode: _mobileFocusNode,
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Mobile Number *',
+                  labelText: 'Mobile Number (Optional)',
                   labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -459,8 +450,8 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                   prefixIcon: Icon(Icons.phone, color: colorScheme.primary),
                   filled: true,
                   fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
-                  helperText: _isDataLoaded 
-                      ? '10-digit number, must be unique'
+                  helperText: _isDataLoaded
+                      ? 'Optional: 10-digit number, must be unique if entered'
                       : 'Loading existing customers...',
                   helperStyle: TextStyle(
                     color: _isDataLoaded 

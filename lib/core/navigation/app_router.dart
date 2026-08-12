@@ -43,7 +43,10 @@ class Routes {
   static const ledgerSupplier = '/ledger/supplier';
   static const customers = '/customers';
   static const suppliers = '/suppliers';
-  static const reports = '/reports';
+  static const reports              = '/reports';
+  static const reportsSalePurchase  = '/reports/sale-purchase';
+  static const reportsInventoryPL   = '/reports/inventory-pl';
+  static const reportsParty         = '/reports/party';
   static const profile = '/profile';
   static const settings = '/settings';
   static const feedback = '/feedback';
@@ -217,8 +220,25 @@ GoRouter createRouter(AuthNotifier authNotifier) {
             },
           ),
           GoRoute(
-            path: Routes.reports,
-            builder: (_, __) => ReportsDashboardScreen(),
+            path: Routes.reportsSalePurchase,
+            builder: (_, __) => const ReportsDashboardScreen(
+              initialTab: 0,
+              allowedTabs: [0, 1],
+            ),
+          ),
+          GoRoute(
+            path: Routes.reportsInventoryPL,
+            builder: (_, __) => const ReportsDashboardScreen(
+              initialTab: 3,
+              allowedTabs: [3, 2],
+            ),
+          ),
+          GoRoute(
+            path: Routes.reportsParty,
+            builder: (_, __) => const ReportsDashboardScreen(
+              initialTab: 4,
+              allowedTabs: [4, 5],
+            ),
           ),
           GoRoute(
             path: Routes.profile,

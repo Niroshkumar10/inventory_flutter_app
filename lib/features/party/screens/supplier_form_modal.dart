@@ -149,44 +149,35 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
     return null;
   }
 
-  // Validation method for phone (check if exists and 10 digits)
+  // Validation method for phone (optional — validates format only if entered)
   String? _validatePhone(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Please enter phone number';
-    }
-    
+    if (value == null || value.trim().isEmpty) return null;
+
     final trimmedPhone = value.trim();
-    
-    // Check if it contains only digits
+
     final phoneRegex = RegExp(r'^[0-9]+$');
     if (!phoneRegex.hasMatch(trimmedPhone)) {
       return 'Phone number should contain only digits';
     }
-    
-    // Check length (exactly 10 digits)
+
     if (trimmedPhone.length != 10) {
       return 'Phone number must be exactly 10 digits';
     }
-    
-    // Skip validation if data hasn't loaded yet
-    if (!_isDataLoaded) {
-      return null;
-    }
-    
-    // Skip validation if editing the same supplier
+
+    if (!_isDataLoaded) return null;
+
     if (widget.supplier != null && widget.supplier!.phone == trimmedPhone) {
       return null;
     }
-    
-    // Check if phone already exists
+
     final phoneExists = _existingSuppliers.any(
-      (supplier) => supplier.phone == trimmedPhone
+      (supplier) => supplier.phone == trimmedPhone,
     );
-    
+
     if (phoneExists) {
       return 'Supplier with this phone number already exists';
     }
-    
+
     return null;
   }
 
@@ -398,7 +389,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                 controller: _phoneController,
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Phone Number *',
+                  labelText: 'Phone Number (Optional)',
                   labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -422,8 +413,8 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                   prefixIcon: Icon(Icons.phone, color: colorScheme.tertiary),
                   filled: true,
                   fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
-                  helperText: _isDataLoaded 
-                      ? '10-digit number, must be unique'
+                  helperText: _isDataLoaded
+                      ? 'Optional: 10-digit number, must be unique if entered'
                       : 'Loading existing suppliers...',
                   helperStyle: TextStyle(
                     color: _isDataLoaded 

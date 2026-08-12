@@ -95,11 +95,26 @@ Future<void> _saveCategory() async {
 }
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final isEdit = widget.category != null;
 
     return Scaffold(
+      backgroundColor: isDark ? colorScheme.surface : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: Text(isEdit ? 'Edit Category' : 'Add Category'),
+        backgroundColor: colorScheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          isEdit ? 'Edit Category' : 'Add Category',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -109,9 +124,12 @@ Future<void> _saveCategory() async {
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Category Name',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                  ),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -123,9 +141,12 @@ Future<void> _saveCategory() async {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _descriptionController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Description (Optional)',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                  ),
                 ),
                 maxLines: 3,
               ),
@@ -135,9 +156,29 @@ Future<void> _saveCategory() async {
                 height: 50,
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _saveCategory,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                   child: _isSaving
-                      ? const CircularProgressIndicator()
-                      : Text(isEdit ? 'Update Category' : 'Add Category'),
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          isEdit ? 'Update Category' : 'Add Category',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ],

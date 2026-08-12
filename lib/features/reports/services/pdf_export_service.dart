@@ -356,18 +356,18 @@ class PdfExportService {
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: pw.EdgeInsets.all(10),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         build: (pw.Context context) {
           final widgets = <pw.Widget>[
             _buildPdfHeader(title, userMobile, startDate, endDate, reportType, dataRows.length),
           ];
           if (reportType == 'sales' || reportType == 'purchase') {
-            widgets.add(pw.SizedBox(height: 12));
+            widgets.add(pw.SizedBox(height: 6));
             widgets.add(_buildPdfSummary(summary, reportType));
           }
-          widgets.add(pw.SizedBox(height: 12));
+          widgets.add(pw.SizedBox(height: 6));
           widgets.add(_buildPdfDataTable(dataRows, reportType, context));
-          widgets.add(pw.SizedBox(height: 20));
+          widgets.add(pw.SizedBox(height: 8));
           widgets.add(_buildPdfFooter());
           return widgets;
         },
@@ -388,19 +388,19 @@ class PdfExportService {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(_businessName ?? 'My Business',
-                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                    style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 if (_userName != null && _userName!.isNotEmpty)
-                  pw.Text(_userName!, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(_userName!, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
                 if (_location != null && _location!.isNotEmpty)
-                  pw.Text(_location!, style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700), maxLines: 2),
+                  pw.Text(_location!, style: pw.TextStyle(fontSize: 9, color: PdfColors.grey700), maxLines: 1),
                 if (_address != null && _address!.isNotEmpty)
-                  pw.Text(_address!, style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600), maxLines: 2),
+                  pw.Text(_address!, style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600), maxLines: 1),
                 if (_gstNumber != null && _gstNumber!.isNotEmpty)
-                  pw.Text('GST: $_gstNumber', style: pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-                pw.SizedBox(height: 4),
+                  pw.Text('GST: $_gstNumber', style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                pw.SizedBox(height: 2),
                 pw.Row(children: [
-                  pw.Text('Phone: ', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                  pw.Text(userMobile, style: pw.TextStyle(fontSize: 10)),
+                  pw.Text('Phone: ', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(userMobile, style: pw.TextStyle(fontSize: 9)),
                 ]),
               ],
             ),
@@ -412,27 +412,27 @@ class PdfExportService {
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
                 pw.Text(title,
-                    style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800),
+                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800),
                     textAlign: pw.TextAlign.right),
                 pw.Text('Inventory Management System',
-                    style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
                     textAlign: pw.TextAlign.right),
                 pw.Text('Generated: ${formatDate(DateTime.now())} ${DateFormat('HH:mm').format(DateTime.now())}',
-                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+                    style: pw.TextStyle(fontSize: 7, color: PdfColors.grey500),
                     textAlign: pw.TextAlign.right),
               ],
             ),
           ),
         ],
       ),
-      pw.SizedBox(height: 16),
+      pw.SizedBox(height: 6),
       pw.Container(
         width: double.infinity,
-        padding: const pw.EdgeInsets.all(12),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: pw.BoxDecoration(
           color: PdfColors.blue50,
-          borderRadius: pw.BorderRadius.circular(6),
-          border: pw.Border.all(color: PdfColors.blue200, width: 0.8),
+          borderRadius: pw.BorderRadius.circular(4),
+          border: pw.Border.all(color: PdfColors.blue200, width: 0.5),
         ),
         child: pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -449,34 +449,34 @@ class PdfExportService {
           ],
         ),
       ),
-      pw.SizedBox(height: 16),
+      pw.SizedBox(height: 6),
     ]);
   }
 
   pw.Widget _buildInfoRow(String label, String value) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      padding: const pw.EdgeInsets.symmetric(vertical: 1),
       child: pw.Row(children: [
         pw.Text(label,
-            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-        pw.SizedBox(width: 4),
-        pw.Text(value, style: pw.TextStyle(fontSize: 10)),
+            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+        pw.SizedBox(width: 3),
+        pw.Text(value, style: pw.TextStyle(fontSize: 8)),
       ]),
     );
   }
 
   pw.Widget _buildPdfSummary(Map<String, dynamic> summary, String reportType) {
     return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
       decoration: pw.BoxDecoration(
         color: PdfColors.blue50,
-        borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border.all(color: PdfColors.blue200, width: 0.8),
+        borderRadius: pw.BorderRadius.circular(3),
+        border: pw.Border.all(color: PdfColors.blue200, width: 0.5),
       ),
       child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
         pw.Text('SUMMARY',
-            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-        pw.SizedBox(height: 6),
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+        pw.SizedBox(height: 4),
         pw.Table(
           border: pw.TableBorder.all(color: PdfColors.blue100, width: 0.5),
           children: [
@@ -495,10 +495,10 @@ class PdfExportService {
 
   pw.TableRow _buildSummaryRow(String l1, String v1, String l2, String v2) {
     cell(String text, {bool bold = false}) => pw.Padding(
-          padding: const pw.EdgeInsets.all(4),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: pw.Text(text,
               style: pw.TextStyle(
-                  fontSize: 8,
+                  fontSize: 7,
                   fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
         );
     return pw.TableRow(children: [cell(l1, bold: true), cell(v1), cell(l2, bold: true), cell(v2)]);
@@ -520,16 +520,16 @@ class PdfExportService {
     ];
     return pw.Column(children: [
       pw.Text(_getTableTitle(reportType),
-          style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
-      pw.SizedBox(height: 6),
+          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+      pw.SizedBox(height: 4),
       pw.TableHelper.fromTextArray(
         context: context,
         data: tableData,
-        border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-        headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+        border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.4),
+        headerStyle: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
         headerDecoration: pw.BoxDecoration(color: PdfColors.blue700),
-        cellStyle: pw.TextStyle(fontSize: 7),
-        cellPadding: const pw.EdgeInsets.all(3),
+        cellStyle: pw.TextStyle(fontSize: 6.5),
+        cellPadding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2),
         cellAlignment: pw.Alignment.centerLeft,
         columnWidths: _columnWidths(columns),
       ),

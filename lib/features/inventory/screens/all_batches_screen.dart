@@ -55,7 +55,10 @@ class _AllBatchesScreenState extends State<AllBatchesScreen>
             await widget.inventoryService.batchService.getBatchesOnce(item.id);
         for (final batch in batches) {
           result.add(_BatchWithItem(
-              batch: batch, itemName: item.name, itemUnit: item.unit));
+              batch: batch,
+              itemName: item.name,
+              itemUnit: item.unit,
+              itemId: item.id));
         }
       }
 
@@ -128,7 +131,7 @@ class _AllBatchesScreenState extends State<AllBatchesScreen>
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: theme.brightness == Brightness.dark ? colorScheme.surface : const Color(0xFFF5F6FA),
       appBar: AppBar(
         backgroundColor: colorScheme.primary,
         foregroundColor: Colors.white,
@@ -314,7 +317,10 @@ class _AllBatchesScreenState extends State<AllBatchesScreen>
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
-                (ctx, i) => _BatchCard(data: batches[i]),
+                (ctx, i) => _BatchCard(
+                    data: batches[i],
+                    inventoryService: widget.inventoryService,
+                    onUpdated: _loadAllBatches),
                 childCount: batches.length,
               ),
             ),
@@ -454,13 +460,262 @@ class _AllBatchesScreenState extends State<AllBatchesScreen>
 
 // ── Batch Card ───────────────────────────────────────────────────────────────
 
-class _BatchCard extends StatelessWidget {
+class _BatchCard extends StatefulWidget {
   final _BatchWithItem data;
-  const _BatchCard({required this.data});
+  final InventoryService inventoryService;
+  final VoidCallback onUpdated;
+  const _BatchCard(
+      {required this.data,
+      required this.inventoryService,
+      required this.onUpdated});
+
+  @override
+  State<_BatchCard> createState() => _BatchCardState();
+}
+
+class _BatchCardState extends State<_BatchCard> {
+  String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  void _showEditDialog() {
+    final batch = widget.data.batch;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    DateTime selectedExpiry = batch.expiryDate;
+    final priceController =
+        TextEditingController(text: batch.purchasePrice.toStringAsFixed(2));
+    final supplierController =
+        TextEditingController(text: batch.supplierName ?? '');
+    final invoiceController =
+        TextEditingController(text: batch.supplierInvoiceNo ?? '');
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          backgroundColor: colorScheme.surface,
+          title: Row(
+            children: [
+              Icon(Icons.edit, color: colorScheme.primary, size: 20),
+              const SizedBox(width: 8),
+              Text('Edit Batch',
+                  style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(batch.batchNumber,
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.onSurface.withValues(alpha: 0.5))),
+                const SizedBox(height: 4),
+                Text(widget.data.itemName,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurface.withValues(alpha: 0.4))),
+                const SizedBox(height: 16),
+
+                // Expiry date picker
+                Text('Expiry Date',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurface.withValues(alpha: 0.7))),
+                const SizedBox(height: 6),
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: selectedExpiry,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (picked != null) setDState(() => selectedExpiry = picked);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: colorScheme.outline),
+                      borderRadius: BorderRadius.circular(8),
+                      color: isDark
+                          ? colorScheme.surfaceContainerHighest
+                          : Colors.grey.shade50,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today,
+                            size: 16, color: colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(_fmtDate(selectedExpiry),
+                            style: TextStyle(
+                                color: colorScheme.onSurface,
+                                fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Purchase price
+                Text('Purchase Price (₹)',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurface.withValues(alpha: 0.7))),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: priceController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(color: colorScheme.onSurface),
+                  decoration: InputDecoration(
+                    prefixText: '₹ ',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide:
+                            BorderSide(color: colorScheme.primary, width: 2)),
+                    filled: true,
+                    fillColor: isDark
+                        ? colorScheme.surfaceContainerHighest
+                        : Colors.grey.shade50,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Supplier name
+                Text('Supplier Name',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurface.withValues(alpha: 0.7))),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: supplierController,
+                  style: TextStyle(color: colorScheme.onSurface),
+                  decoration: InputDecoration(
+                    hintText: 'Optional',
+                    hintStyle: TextStyle(
+                        color: colorScheme.onSurface.withValues(alpha: 0.4)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide:
+                            BorderSide(color: colorScheme.primary, width: 2)),
+                    filled: true,
+                    fillColor: isDark
+                        ? colorScheme.surfaceContainerHighest
+                        : Colors.grey.shade50,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Invoice number
+                Text('Invoice No.',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurface.withValues(alpha: 0.7))),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: invoiceController,
+                  style: TextStyle(color: colorScheme.onSurface),
+                  decoration: InputDecoration(
+                    hintText: 'Optional',
+                    hintStyle: TextStyle(
+                        color: colorScheme.onSurface.withValues(alpha: 0.4)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide:
+                            BorderSide(color: colorScheme.primary, width: 2)),
+                    filled: true,
+                    fillColor: isDark
+                        ? colorScheme.surfaceContainerHighest
+                        : Colors.grey.shade50,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text('Cancel',
+                  style: TextStyle(
+                      color: colorScheme.onSurface.withValues(alpha: 0.6))),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  await widget.inventoryService.batchService.updateBatch(
+                    widget.data.itemId,
+                    batch.id,
+                    expiryDate: selectedExpiry,
+                    purchasePrice:
+                        double.tryParse(priceController.text) ??
+                            batch.purchasePrice,
+                    supplierName: supplierController.text.trim().isEmpty
+                        ? null
+                        : supplierController.text.trim(),
+                    supplierInvoiceNo: invoiceController.text.trim().isEmpty
+                        ? null
+                        : invoiceController.text.trim(),
+                  );
+                  widget.onUpdated();
+                  messenger.showSnackBar(SnackBar(
+                    content: const Text('Batch updated successfully'),
+                    backgroundColor: colorScheme.secondary,
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                } catch (e) {
+                  messenger.showSnackBar(SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: colorScheme.error,
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final batch = data.batch;
+    final batch = widget.data.batch;
     final colorScheme = Theme.of(context).colorScheme;
 
     // Status
@@ -531,7 +786,7 @@ class _BatchCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  data.itemName,
+                                  widget.data.itemName,
                                   style: const TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
@@ -584,6 +839,21 @@ class _BatchCard extends StatelessWidget {
                               ],
                             ),
                           ),
+                          const SizedBox(width: 6),
+                          // Edit button
+                          GestureDetector(
+                            onTap: _showEditDialog,
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary
+                                    .withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.edit_outlined,
+                                  size: 15, color: colorScheme.primary),
+                            ),
+                          ),
                         ],
                       ),
 
@@ -596,14 +866,14 @@ class _BatchCard extends StatelessWidget {
                             icon: Icons.inventory_2_outlined,
                             label: 'Remaining',
                             value:
-                                '${batch.remainingQuantity} ${data.itemUnit}',
+                                '${batch.remainingQuantity} ${widget.data.itemUnit}',
                             color: Colors.green,
                           ),
                           const SizedBox(width: 8),
                           _pill(
                             icon: Icons.all_inbox_outlined,
                             label: 'Total',
-                            value: '${batch.quantity} ${data.itemUnit}',
+                            value: '${batch.quantity} ${widget.data.itemUnit}',
                             color: Colors.blue,
                           ),
                           const SizedBox(width: 8),
@@ -754,8 +1024,6 @@ class _BatchCard extends StatelessWidget {
     );
   }
 
-  String _fmtDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
 
 // ── Expiry chip ───────────────────────────────────────────────────────────────
@@ -813,10 +1081,12 @@ class _BatchWithItem {
   final Batch batch;
   final String itemName;
   final String itemUnit;
+  final String itemId;
 
   const _BatchWithItem({
     required this.batch,
     required this.itemName,
     required this.itemUnit,
+    required this.itemId,
   });
 }

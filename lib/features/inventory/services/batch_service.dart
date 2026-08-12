@@ -616,6 +616,26 @@ Future<Map<String, dynamic>> getSalesSummary(String inventoryId) async {
     'updatedAt': FieldValue.serverTimestamp(),
   });
 }
+  // Edit an existing batch's metadata fields
+  Future<void> updateBatch(
+    String inventoryId,
+    String batchId, {
+    DateTime? expiryDate,
+    double? purchasePrice,
+    String? supplierName,
+    String? supplierInvoiceNo,
+  }) async {
+    final updates = <String, dynamic>{
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (expiryDate != null) updates['expiryDate'] = Timestamp.fromDate(expiryDate);
+    if (purchasePrice != null) updates['purchasePrice'] = purchasePrice;
+    updates['supplierName'] = supplierName ?? '';
+    updates['supplierInvoiceNo'] = supplierInvoiceNo ?? '';
+
+    await _getBatchesCollection(inventoryId).doc(batchId).update(updates);
+  }
+
   // Generate unique batch number
 // In batch_service.dart, update _generateBatchNumber method:
 

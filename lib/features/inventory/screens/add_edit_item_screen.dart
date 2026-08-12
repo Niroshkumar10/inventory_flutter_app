@@ -846,7 +846,7 @@ Future<void> _saveItem() async {
                                 hintText: '0.00',
                                 errorText: _priceError,
                                 keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                prefixText: '₹ ',
+                                prefixText: ' ',
                                 onChanged: (value) {
                                   if (_priceError != null) {
                                     setState(() => _priceError = null);
@@ -865,7 +865,7 @@ Future<void> _saveItem() async {
                                 hintText: '0.00',
                                 errorText: _costError,
                                 keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                prefixText: '₹ ',
+                                prefixText: ' ',
                                 optional: true,
                                 onChanged: (value) {
                                   if (_costError != null) {

@@ -1,9 +1,11 @@
 // lib/features/bill/screens/view_bill_screen.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'add_edit_bill_screen.dart';
 import '../services/bill_service.dart';
 import '../models/bill_model.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/services/whatsapp_service.dart';
 
 class ViewBillScreen extends StatelessWidget {
   final String billId;
@@ -91,6 +93,11 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
         elevation: 0.5,
         iconTheme: IconThemeData(color: colorScheme.onSurface),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+            tooltip: 'Share via WhatsApp',
+            onPressed: () => _shareViaWhatsApp(context),
+          ),
           IconButton(
             icon: Icon(Icons.edit, color: colorScheme.onSurface),
             onPressed: () {
@@ -407,6 +414,59 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
             
             const SizedBox(height: 20),
             
+            if (widget.bill.notes.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Card(
+                color: colorScheme.surface,
+                elevation: isDark ? 4 : 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.note_alt_outlined,
+                              size: 18, color: colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Notes',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: colorScheme.outline.withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          widget.bill.notes,
+                          style: TextStyle(
+                              color: colorScheme.onSurface.withValues(alpha: 0.8),
+                              height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 20),
+
             // Payment Status
             Card(
               color: colorScheme.surface,
@@ -448,38 +508,6 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                 ),
               ),
             ),
-            
-            if (widget.bill.notes.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Card(
-                color: colorScheme.surface,
-                elevation: isDark ? 4 : 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Notes:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.bill.notes,
-                        style: TextStyle(color: colorScheme.onSurface),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
             
             const SizedBox(height: 40),
           ],
@@ -535,6 +563,105 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  // ── WhatsApp share ────────────────────────────────────────────────────────
+  void _shareViaWhatsApp(BuildContext context) {
+    final bill = widget.bill;
+    final cs   = Theme.of(context).colorScheme;
+
+    final message = WhatsAppService.buildInvoiceMessage(
+      invoiceNumber: bill.invoiceNumber,
+      businessName:  'My Business',
+      partyName:     bill.partyName,
+      date:          DateFormat('dd MMM yyyy').format(bill.date),
+      totalAmount:   bill.totalAmount,
+      amountPaid:    bill.amountPaid,
+      amountDue:     bill.amountDue,
+      paymentStatus: bill.paymentStatus,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: cs.outline.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.chat, color: Color(0xFF25D366), size: 28),
+                  const SizedBox(width: 12),
+                  Text('Share via WhatsApp',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Send to customer directly if phone available
+              if (bill.partyPhone.isNotEmpty)
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFF25D366).withValues(alpha: 0.12),
+                    child: const Icon(Icons.person, color: Color(0xFF25D366)),
+                  ),
+                  title: Text('Send to ${bill.partyName}',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(bill.partyPhone,
+                      style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final result = await WhatsAppService.instance
+                        .sendToNumber(bill.partyPhone, message);
+                    if (context.mounted) result.showSnackBar(context);
+                  },
+                ),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: cs.primary.withValues(alpha: 0.1),
+                  child: Icon(Icons.share, color: cs.primary),
+                ),
+                title: const Text('Share to any contact',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Pick a contact from WhatsApp'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await WhatsAppService.instance.shareText(message);
+                  if (context.mounted) result.showSnackBar(context);
+                },
+              ),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: cs.surfaceContainerHighest,
+                  child: Icon(Icons.ios_share, color: cs.onSurface),
+                ),
+                title: const Text('Share via other apps',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('SMS, Email, Copy…'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await WhatsAppService.instance
+                      .shareViaSheet(message, subject: 'Invoice ${bill.invoiceNumber}');
+                  if (context.mounted) result.showSnackBar(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _shareBill() {

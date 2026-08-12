@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/category_model.dart';
@@ -166,32 +166,32 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
               SliverToBoxAdapter(
                 child: Container(
                   color: colorScheme.surface,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     children: [
                       // Category Info
                       Row(
                         children: [
                           Container(
-                            width: 60,
-                            height: 60,
+                            width: 48,
+                            height: 48,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [color, color.withOpacity(0.7)],
+                                colors: [color, color.withValues(alpha: 0.7)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: Center(
                               child: Icon(
                                 _getCategoryIcon(widget.category.name),
-                                size: 30,
+                                size: 22,
                                 color: Colors.white,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,7 +199,7 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                                 Text(
                                   widget.category.name,
                                   style: TextStyle(
-                                    fontSize: 22,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                     color: colorScheme.onSurface,
                                   ),
@@ -211,8 +211,8 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                                     child: Text(
                                       widget.category.description!,
                                       style: TextStyle(
-                                        fontSize: 14,
-                                        color: colorScheme.onSurface.withOpacity(0.6),
+                                        fontSize: 12,
+                                        color: colorScheme.onSurface.withValues(alpha: 0.6),
                                       ),
                                     ),
                                   ),
@@ -222,11 +222,11 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                         ],
                       ),
                       
-                      const SizedBox(height: 20),
-                      
+                      const SizedBox(height: 12),
+
                       // Item Count Chip
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         decoration: BoxDecoration(
                           color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(30),
@@ -235,12 +235,12 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.inventory_2, size: 16, color: color),
+                            Icon(Icons.inventory_2, size: 14, color: color),
                             const SizedBox(width: 8),
                             Text(
                               '${items.length} Items in Category',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w500,
                                 color: color,
                               ),
@@ -261,10 +261,10 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                   child: GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.5,
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 1.0,
                     children: [
                       _buildCompactStatCard(
                         'Total Items',
@@ -301,18 +301,17 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                   color: colorScheme.surface,
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                   child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(gradient: LinearGradient(
                         colors: [
-                          colorScheme.primary.withOpacity(0.1),
-                          colorScheme.primary.withOpacity(0.2),
+                          colorScheme.primary.withValues(alpha: 0.1),
+                          colorScheme.primary.withValues(alpha: 0.2),
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
+                      border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
@@ -323,12 +322,12 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            Icons.attach_money, 
-                            color: colorScheme.primary, 
-                            size: 24
+                            Icons.attach_money,
+                            color: colorScheme.primary,
+                            size: 20,
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,13 +336,13 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                                 'Total Inventory Value',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                  color: colorScheme.onSurface.withValues(alpha: 0.6),
                                 ),
                               ),
                               Text(
                                 '₹${stats['totalValue'].toStringAsFixed(2)}',
                                 style: TextStyle(
-                                  fontSize: 24,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: colorScheme.primary,
                                 ),
@@ -377,7 +376,7 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                           children: [
                             Icon(
                               Icons.search, 
-                              color: colorScheme.onSurface.withOpacity(0.5), 
+                              color: colorScheme.onSurface.withValues(alpha: 0.5), 
                               size: 20
                             ),
                             const SizedBox(width: 12),
@@ -388,7 +387,7 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                                 decoration: InputDecoration(
                                   hintText: 'Search items...',
                                   hintStyle: TextStyle(
-                                    color: colorScheme.onSurface.withOpacity(0.5)
+                                    color: colorScheme.onSurface.withValues(alpha: 0.5)
                                   ),
                                   border: InputBorder.none,
                                 ),
@@ -404,7 +403,7 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                                 icon: Icon(
                                   Icons.clear, 
                                   size: 18, 
-                                  color: colorScheme.onSurface.withOpacity(0.5)
+                                  color: colorScheme.onSurface.withValues(alpha: 0.5)
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -436,9 +435,9 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                                   });
                                 },
                                 backgroundColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade100,
-                                selectedColor: color.withOpacity(0.2),
+                                selectedColor: color.withValues(alpha: 0.2),
                                 labelStyle: TextStyle(
-                                  color: isSelected ? color : colorScheme.onSurface.withOpacity(0.7),
+                                  color: isSelected ? color : colorScheme.onSurface.withValues(alpha: 0.7),
                                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                                 ),
                                 checkmarkColor: color,
@@ -492,7 +491,7 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: color.withOpacity(0.1),
+                              color: color.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -541,30 +540,30 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.15 : 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(isDark ? 0.3 : 0.2), width: 1),
+        color: color.withValues(alpha: isDark ? 0.15 : 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.3 : 0.2), width: 1),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: 4),
           Text(
             value,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 9,
               color: color,
               fontWeight: FontWeight.w500,
             ),
@@ -625,7 +624,7 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                 height: 50,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [categoryColor, categoryColor.withOpacity(0.7)],
+                    colors: [categoryColor, categoryColor.withValues(alpha: 0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -660,16 +659,16 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                           item.sku,
                           style: TextStyle(
                             fontSize: 11,
-                            color: colorScheme.onSurface.withOpacity(0.6),
+                            color: colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
+                            color: statusColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: statusColor.withOpacity(0.2)),
+                            border: Border.all(color: statusColor.withValues(alpha: 0.2)),
                           ),
                           child: Text(
                             statusText,
@@ -728,13 +727,13 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: categoryColor.withOpacity(0.1),
+                color: categoryColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 isCategoryEmpty ? Icons.inventory_2_outlined : Icons.search_off,
                 size: 64,
-                color: categoryColor.withOpacity(0.5),
+                color: categoryColor.withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(height: 24),
@@ -753,7 +752,7 @@ class _CategoryDashboardScreenState extends State<CategoryDashboardScreen> {
                   : 'Try changing your search or filter',
               style: TextStyle(
                 fontSize: 14,
-                color: colorScheme.onSurface.withOpacity(0.6),
+                color: colorScheme.onSurface.withValues(alpha: 0.6),
               ),
               textAlign: TextAlign.center,
             ),

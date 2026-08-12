@@ -114,13 +114,30 @@ class _SidebarMenuState extends State<SidebarMenu> {
                     ),
                     // ────────────────────────────────────────────────────────
 
-                    _buildMenuItem(
-                      index: 4,
+                    // ── Reports ──────────────────────────────────────────────
+                    _buildExpandableMenu(
                       icon: Icons.bar_chart,
                       title: 'Reports',
-                      isSelected: widget.selectedIndex == 4,
-                      onTap: () => widget.onNavigate(Routes.reports),
+                      isSelectedGroup: widget.selectedIndex == 4,
+                      children: [
+                        _buildSubMenuItem(
+                          icon: Icons.swap_horiz_rounded,
+                          title: 'Sale & Purchase',
+                          onTap: () => widget.onNavigate(Routes.reportsSalePurchase),
+                        ),
+                        _buildSubMenuItem(
+                          icon: Icons.analytics_outlined,
+                          title: 'Inventory & P&L',
+                          onTap: () => widget.onNavigate(Routes.reportsInventoryPL),
+                        ),
+                        _buildSubMenuItem(
+                          icon: Icons.people_outline,
+                          title: 'Party Report',
+                          onTap: () => widget.onNavigate(Routes.reportsParty),
+                        ),
+                      ],
                     ),
+                    // ─────────────────────────────────────────────────────────
 
                     Divider(color: colorScheme.onSurface.withValues(alpha:0.1)),
 

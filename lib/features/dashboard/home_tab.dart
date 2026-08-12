@@ -12,6 +12,9 @@ import '../../features/feedback/services/feedback_service.dart'; // Add this
 
 import '../bill/screens/view_bill_screen.dart';
 
+import 'package:go_router/go_router.dart';
+
+import '../../core/navigation/app_router.dart';
 import '../../core/providers/ai_provider.dart';
 import '../../features/ai/screens/ai_chat_screen.dart';
 
@@ -227,6 +230,7 @@ class _DashboardContentState extends State<DashboardContent> {
                     icon: Icons.person,
                     color: colorScheme.primary,
                     stream: widget.customerService.getCustomers(),
+                    route: Routes.customers,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -236,6 +240,7 @@ class _DashboardContentState extends State<DashboardContent> {
                     icon: Icons.people,
                     color: colorScheme.secondary,
                     stream: widget.supplierService.getSuppliers(),
+                    route: Routes.suppliers,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -245,6 +250,7 @@ class _DashboardContentState extends State<DashboardContent> {
                     icon: Icons.inventory_2,
                     color: colorScheme.tertiary,
                     stream: widget.inventoryService.getInventoryItems(),
+                    route: Routes.inventory,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -931,55 +937,60 @@ class _DashboardContentState extends State<DashboardContent> {
     required IconData icon,
     required Color color,
     required Stream stream,
+    required String route,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+
     return Container(
       constraints: const BoxConstraints(minWidth: 70),
       child: StreamBuilder(
         stream: stream,
         builder: (context, snapshot) {
           final count = snapshot.hasData ? (snapshot.data as List).length : 0;
-          
+
           return Card(
             margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    color: color,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 8),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      '$count',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => context.push(route),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      color: color,
+                      size: 24,
+                    ),
+                    const SizedBox(height: 8),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '$count',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurface.withOpacity(0.6),
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );

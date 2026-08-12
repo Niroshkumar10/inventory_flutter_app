@@ -7,9 +7,13 @@ import '../models/report_model.dart';
 import '../../session/session_service_new.dart';
 import '../services/export_service.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';
+import 'package:inventory_app/core/services/whatsapp_service.dart';
 
 class ReportsDashboardScreen extends StatefulWidget {
-  const ReportsDashboardScreen({super.key});
+  final int initialTab;
+  // When set, only these original tab indices (0-5) are visible in the selector.
+  final List<int>? allowedTabs;
+  const ReportsDashboardScreen({super.key, this.initialTab = 0, this.allowedTabs});
 
   @override
   State<ReportsDashboardScreen> createState() => _ReportsDashboardScreenState();
@@ -18,10 +22,10 @@ class ReportsDashboardScreen extends StatefulWidget {
 class _ReportsDashboardScreenState extends State<ReportsDashboardScreen> {
   final ReportService _reportService = ReportService();
   final ExportService _exportService = ExportService();
-  
+
   final List<String> _periods = ['Today', 'This Week', 'This Month', 'Last Month', 'Custom'];
   String _selectedPeriod = 'This Month';
-  int _selectedTab = 0;
+  late int _selectedTab;
   String _searchQuery = '';
   String _inventoryFilter = "all"; // all | low | out
 String _getFilterLabel() {
@@ -55,6 +59,7 @@ bool _exportLowStockOnly = false;
   @override
   void initState() {
     super.initState();
+    _selectedTab = widget.initialTab;
     _loadCurrentUserAndReports();
   }
 
@@ -168,15 +173,15 @@ bool _exportLowStockOnly = false;
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Date Range Card
-          _buildDateRangeCard(),
-          
-          // Report Type Selector
+          // Report Type Selector — pick the report first
           _buildReportTypeSelector(),
-          
+
+          // Date Range Card — then choose the range
+          _buildDateRangeCard(),
+
           // Dynamic Content based on selected tab
           _buildReportContent(),
-          
+
           const SizedBox(height: 20),
         ],
       ),
@@ -212,6 +217,53 @@ bool _exportLowStockOnly = false;
     ),
   );
 }
+
+
+  Widget _buildDateBox(String label, String date, IconData icon) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11, 
+              color: colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: colorScheme.primary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  date,
+                  style: TextStyle(
+                    fontSize: 13, 
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildDateRangeCard() {
     final theme = Theme.of(context);
@@ -410,66 +462,24 @@ bool _exportLowStockOnly = false;
     );
   }
 
-  Widget _buildDateBox(String label, String date, IconData icon) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11, 
-              color: colorScheme.onSurface.withOpacity(0.6),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(icon, size: 14, color: colorScheme.primary),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  date,
-                  style: TextStyle(
-                    fontSize: 13, 
-                    fontWeight: FontWeight.w500,
-                    color: colorScheme.onSurface,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildReportTypeSelector() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final types = ['Sales', 'Purchase', 'P&L', 'Inventory', 'Customer', 'Supplier'];
-    
+    const allTypes = ['Sales', 'Purchase', 'P&L', 'Inventory', 'Customer', 'Supplier'];
+    // If allowedTabs is set, only show those indices; otherwise show all.
+    final visibleIndices = widget.allowedTabs ?? List.generate(allTypes.length, (i) => i);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       height: 90,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: types.length,
-        itemBuilder: (context, index) {
+        itemCount: visibleIndices.length,
+        itemBuilder: (context, listPos) {
+          final index = visibleIndices[listPos]; // original tab index
           final isSelected = _selectedTab == index;
           final tabColor = _getTabColor(index);
-          
+
           return GestureDetector(
             onTap: () {
               setState(() {
@@ -507,7 +517,7 @@ bool _exportLowStockOnly = false;
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    types[index],
+                    allTypes[index],
                     style: TextStyle(
                       color: isSelected ? tabColor : colorScheme.onSurface.withOpacity(0.7),
                       fontSize: 12,
@@ -2440,6 +2450,20 @@ Widget _buildInventoryReport() {
                 },
               ),
 
+              const SizedBox(height: 16),
+
+              // WhatsApp Share
+              _buildExportOption(
+                icon: Icons.chat,
+                title: 'Share via WhatsApp',
+                subtitle: 'Send report summary as a message',
+                color: const Color(0xFF25D366),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareReportViaWhatsApp();
+                },
+              ),
+
               const SizedBox(height: 24),
 
               // Cancel Button
@@ -2715,6 +2739,50 @@ Future<String?> _showExportFilterDialog() async {
       default: return 'sales';
     }
   }
+
+  Future<void> _shareReportViaWhatsApp() async {
+    final type   = _getReportTitle();
+    final period = '${_dateFormat(_startDate)} – ${_dateFormat(_endDate)}';
+
+    double total = 0;
+    String extra = '';
+
+    switch (_selectedTab) {
+      case 0: // Sales
+        total = _salesReports.fold(0, (s, r) => s + r.totalAmount);
+        final due = _salesReports.fold(0.0, (s, r) => s + r.amountDue);
+        extra = 'Invoices: ${_salesReports.length}  |  Due: ₹${due.toStringAsFixed(2)}';
+        break;
+      case 1: // Purchase
+        total = _purchaseReports.fold(0, (s, r) => s + r.totalAmount);
+        extra = 'Invoices: ${_purchaseReports.length}';
+        break;
+      case 3: // Inventory
+        extra = 'Items: ${_inventoryReports.length}';
+        break;
+      case 4: // Customer
+        extra = 'Customers: ${_customerReports.length}';
+        break;
+      case 5: // Supplier
+        extra = 'Suppliers: ${_supplierReports.length}';
+        break;
+      default:
+        break;
+    }
+
+    final message = WhatsAppService.buildReportMessage(
+      reportType: type,
+      period:     period,
+      totalAmount: total,
+      extra:      extra.isNotEmpty ? extra : null,
+    );
+
+    final result = await WhatsAppService.instance.shareText(message);
+    if (mounted) result.showSnackBar(context);
+  }
+
+  String _dateFormat(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   void _showSuccess(String message) {
     if (!mounted) return;

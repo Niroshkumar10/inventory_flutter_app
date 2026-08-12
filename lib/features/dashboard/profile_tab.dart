@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:inventory_app/core/navigation/auth_notifier.dart';
 import 'package:inventory_app/features/session/session_service_new.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';
@@ -20,13 +21,21 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoggingOut = false;
   bool _isEditing = false;
+  bool _isEditingBusiness = false;
   bool _controllersInitialized = false;
+  String _appVersion = '';
 
   // Stream stored once — never recreated on rebuild
   late final Stream<DocumentSnapshot> _userStream;
 
+  // Personal controllers
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
+
+  // Business controllers
+  final TextEditingController _businessNameController = TextEditingController();
+  final TextEditingController _gstController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
 
   @override
   void initState() {
@@ -35,12 +44,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         .collection('users')
         .doc(widget.userMobile)
         .snapshots();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() => _appVersion = 'v${info.version}');
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _locationController.dispose();
+    _businessNameController.dispose();
+    _gstController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -82,6 +102,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error updating profile: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    }
+  }
+
+  Future<void> _updateBusinessProfile() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userMobile)
+          .update({
+        'businessName': _businessNameController.text.trim(),
+        'gst': _gstController.text.trim(),
+        'address': _addressController.text.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      setState(() => _isEditingBusiness = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Business details updated successfully'),
+          backgroundColor: Theme.of(context).colorScheme.secondary,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error updating business details: $e'),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
@@ -161,6 +217,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (!_controllersInitialized) {
           _nameController.text = name;
           _locationController.text = location;
+          _businessNameController.text =
+              data['businessName']?.toString() ?? 'My Business';
+          _gstController.text = data['gst']?.toString() ?? '';
+          _addressController.text = data['address']?.toString() ?? '';
           _controllersInitialized = true;
         }
 
@@ -323,17 +383,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 cs: cs,
                 isDark: isDark,
                 isSmallScreen: isSmallScreen,
-                children: [
-                  _buildInfoRow('Business',
-                      businessName, cs,
-                      isSmallScreen: isSmallScreen),
-                  _buildInfoRow(
-                      'GST', data['gst']?.toString() ?? 'Not added', cs,
-                      isSmallScreen: isSmallScreen),
-                  _buildInfoRow('Address',
-                      data['address']?.toString() ?? 'Not added', cs,
-                      isSmallScreen: isSmallScreen),
-                ],
+                trailing: _isEditingBusiness
+                    ? null
+                    : IconButton(
+                        icon: Icon(Icons.edit_outlined,
+                            size: 20, color: cs.primary),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Edit Business Details',
+                        onPressed: () {
+                          _businessNameController.text = businessName;
+                          _gstController.text =
+                              data['gst']?.toString() ?? '';
+                          _addressController.text =
+                              data['address']?.toString() ?? '';
+                          setState(() => _isEditingBusiness = true);
+                        },
+                      ),
+                children: _isEditingBusiness
+                    ? [
+                        _buildEditableField(
+                            'Business Name', _businessNameController, cs,
+                            isDark,
+                            isSmallScreen: isSmallScreen),
+                        const SizedBox(height: 16),
+                        _buildEditableField(
+                            'GST Number', _gstController, cs, isDark,
+                            isSmallScreen: isSmallScreen),
+                        const SizedBox(height: 16),
+                        _buildEditableField(
+                            'Address', _addressController, cs, isDark,
+                            isSmallScreen: isSmallScreen),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _updateBusinessProfile,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: cs.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Save Changes'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () =>
+                                    setState(() => _isEditingBusiness = false),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: cs.onSurface,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12)),
+                                  side: BorderSide(color: cs.outline),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ]
+                    : [
+                        _buildInfoRow('Business', businessName, cs,
+                            isSmallScreen: isSmallScreen),
+                        _buildInfoRow(
+                            'GST',
+                            data['gst']?.toString().isEmpty == true
+                                ? 'Not added'
+                                : data['gst']?.toString() ?? 'Not added',
+                            cs,
+                            isSmallScreen: isSmallScreen),
+                        _buildInfoRow(
+                            'Address',
+                            data['address']?.toString().isEmpty == true
+                                ? 'Not added'
+                                : data['address']?.toString() ?? 'Not added',
+                            cs,
+                            isSmallScreen: isSmallScreen),
+                      ],
               ),
 
               const SizedBox(height: 24),
@@ -365,6 +501,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
+              const SizedBox(height: 16),
+
+              // ── App version ─────────────────────────────────────────
+              if (_appVersion.isNotEmpty)
+                Text(
+                  _appVersion,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withValues(alpha: 0.4),
+                  ),
+                ),
+
               const SizedBox(height: 20),
             ],
           ),
@@ -384,6 +533,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required bool isDark,
     required bool isSmallScreen,
     required List<Widget> children,
+    Widget? trailing,
   }) {
     return Container(
       width: double.infinity,
@@ -413,11 +563,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Icon(icon, color: cs.primary, size: 20),
               ),
               const SizedBox(width: 12),
-              Text(title,
-                  style: TextStyle(
-                      fontSize: isSmallScreen ? 16 : 18,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface)),
+              Expanded(
+                child: Text(title,
+                    style: TextStyle(
+                        fontSize: isSmallScreen ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface)),
+              ),
+              if (trailing != null) trailing,
             ],
           ),
           const SizedBox(height: 16),
