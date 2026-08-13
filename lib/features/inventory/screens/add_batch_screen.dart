@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/required_field_label.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/batch_model.dart';
 import '../../party/services/supplier_service.dart';
@@ -739,7 +740,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   Widget _sectionLabel(String text) {
-    return Text(
+    return requiredFieldLabel(
       text,
       style: TextStyle(
         fontSize: 13,

@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:inventory_app/core/widgets/required_field_label.dart';
 import '../models/supplier_model.dart';
 import '../services/supplier_service.dart';
 import 'location_picker.dart';
@@ -347,7 +348,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                 controller: _nameController,
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Supplier Name *',
+                  label: requiredFieldLabel('Supplier Name *'),
                   labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),

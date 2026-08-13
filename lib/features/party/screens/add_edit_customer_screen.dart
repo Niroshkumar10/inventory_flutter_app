@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:inventory_app/core/widgets/required_field_label.dart';
 import '../models/customer_model.dart';
 import '../services/customer_service.dart';
 import 'location_picker.dart'; // Make sure this import path is correct
@@ -366,7 +367,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 focusNode: _nameFocusNode,
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Customer Name *',
+                  label: requiredFieldLabel('Customer Name *'),
                   labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),

@@ -1,5 +1,6 @@
 // lib/features/auth/screens/password_setup_screen.dart
 import 'package:flutter/material.dart';
+import '../../../core/widgets/required_field_label.dart';
 import '../services/password_auth_service.dart';
 
 class PasswordSetupScreen extends StatefulWidget {
@@ -143,7 +144,7 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
               controller: _passwordController,
               obscureText: _obscurePassword,
               decoration: InputDecoration(
-                labelText: 'Password *',
+                label: requiredFieldLabel('Password *'),
                 hintText: 'Enter password (min 6 characters)',
                 prefixIcon: const Icon(Icons.lock),
                 suffixIcon: IconButton(
@@ -169,7 +170,7 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
               controller: _confirmPasswordController,
               obscureText: _obscureConfirmPassword,
               decoration: InputDecoration(
-                labelText: 'Confirm Password *',
+                label: requiredFieldLabel('Confirm Password *'),
                 hintText: 'Re-enter your password',
                 prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(

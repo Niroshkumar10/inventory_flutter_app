@@ -1,6 +1,7 @@
 ﻿// lib/features/bill/screens/add_edit_bill_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/widgets/required_field_label.dart';
 import '../services/bill_service.dart';
 import '../models/bill_model.dart';
 import '../../party/services/supplier_service.dart';
@@ -739,11 +740,11 @@ void _showNewBatchDialog(int itemIndex, InventoryItem inventoryItem) {
             child: AbsorbPointer(
               child: TextField(
                 controller: expiryDateController,
-                decoration: const InputDecoration(
-                  labelText: 'Expiry Date *',
+                decoration: InputDecoration(
+                  label: requiredFieldLabel('Expiry Date *'),
                   hintText: 'Select expiry date',
-                  border: OutlineInputBorder(),
-                  suffixIcon: Icon(Icons.calendar_today),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: const Icon(Icons.calendar_today),
                 ),
               ),
             ),
@@ -928,7 +929,7 @@ void _showRestockBatchDialog(int itemIndex, InventoryItem inventoryItem, List<Ma
                   controller: quantityController,
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
-                    labelText: 'Quantity to Add *',
+                    label: requiredFieldLabel('Quantity to Add *'),
                     labelStyle: TextStyle(
                       color: colorScheme.onSurface.withOpacity(0.6),
                     ),
@@ -1122,7 +1123,7 @@ void _addPurchaseItemWithBatch(
                   controller: nameController,
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
-                    labelText: '$partyType Name *',
+                    label: requiredFieldLabel('$partyType Name *'),
                     labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -2070,7 +2071,7 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                             focusedBorder: InputBorder.none,
                             errorBorder: InputBorder.none,
                             focusedErrorBorder: InputBorder.none,
-                            labelText: '$partyType Name *',
+                            label: requiredFieldLabel('$partyType Name *'),
                             labelStyle: TextStyle(
                               fontSize: 14,
                               color: colorScheme.onSurface.withOpacity(0.6),
