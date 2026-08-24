@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/widgets/required_field_label.dart';
+import '../../../core/utils/focus_utils.dart';
 import '../services/user_service.dart';
 import '../models/user_model.dart';
 import '../../session/session_service_new.dart';
@@ -30,6 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   final _mobileFocus = FocusNode();
   final _nameFocus = FocusNode();
+  final _locationFocus = FocusNode();
   final _passwordFocus = FocusNode();
   final _confirmPasswordFocus = FocusNode();
 
@@ -58,6 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _confirmPasswordController.dispose();
     _mobileFocus.dispose();
     _nameFocus.dispose();
+    _locationFocus.dispose();
     _passwordFocus.dispose();
     _confirmPasswordFocus.dispose();
     super.dispose();
@@ -247,6 +250,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       helperText:
                           _mobileFocus.hasFocus ? 'Enter only numbers' : null),
                   validator: _validateMobile,
+                  onChanged: (value) {
+                    // Mobile is always 10 digits — advance the instant it's
+                    // complete, same as an OTP box.
+                    if (value.length == 10) {
+                      advanceFocus(context, _nameFocus);
+                    }
+                  },
+                  onFieldSubmitted: (_) => advanceFocus(context, _nameFocus),
                 ),
 
                 const SizedBox(height: 20),
@@ -270,6 +281,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       helperText:
                           _nameFocus.hasFocus ? 'Enter only letters' : null),
                   validator: _validateName,
+                  onFieldSubmitted: (_) => advanceFocus(context, _locationFocus),
                 ),
 
                 const SizedBox(height: 20),
@@ -279,12 +291,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _locationController,
+                  focusNode: _locationFocus,
                   textInputAction: TextInputAction.next,
                   style: TextStyle(color: cs.onSurface),
                   decoration: _decoration(cs, isDark,
                       hint: 'City or area',
                       prefixIcon: Icons.location_on_outlined),
                   validator: _validateLocation,
+                  onFieldSubmitted: (_) => advanceFocus(context, _passwordFocus),
                 ),
 
                 const SizedBox(height: 20),
@@ -315,6 +329,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             setState(() => _obscurePassword = !_obscurePassword),
                       )),
                   validator: _validatePassword,
+                  onFieldSubmitted: (_) => advanceFocus(context, _confirmPasswordFocus),
                 ),
 
                 const SizedBox(height: 20),

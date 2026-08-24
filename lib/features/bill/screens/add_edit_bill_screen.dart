@@ -1,7 +1,9 @@
 ﻿// lib/features/bill/screens/add_edit_bill_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/widgets/required_field_label.dart';
+import '../../../core/utils/focus_utils.dart';
 import '../services/bill_service.dart';
 import '../models/bill_model.dart';
 import '../../party/services/supplier_service.dart';
@@ -10,15 +12,47 @@ import '../../party/services/customer_service.dart';
 import '../../party/models/customer_model.dart';
 import '../../inventory/services/inventory_repo_service.dart';
 import '../../inventory/models/inventory_item_model.dart';
+import '../../inventory/screens/add_edit_item_screen.dart';
 
 import '../../inventory/models/batch_model.dart';
+import '../../../core/widgets/barcode_scanner_screen.dart';
+import '../../../core/services/current_location_service.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';
+import '../services/bill_invoice_pdf_service.dart';
+import '../../reports/services/pdf_common.dart';
+
+/// Blocks any keystroke that would push the field's numeric value above
+/// [getMax]'s current value — e.g. Amount Paid can never be typed past the
+/// bill's total. Partial/in-progress numbers (like a trailing "60.") are
+/// let through untouched so normal decimal typing still works; only a
+/// fully-parseable value that exceeds the max is rejected.
+class _MaxValueInputFormatter extends TextInputFormatter {
+  final double Function() getMax;
+  _MaxValueInputFormatter(this.getMax);
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+    final parsed = double.tryParse(newValue.text);
+    if (parsed == null) return newValue;
+    if (parsed > getMax()) return oldValue;
+    return newValue;
+  }
+}
 
 class AddEditBillScreen extends StatefulWidget {
   final String type; // 'sales' or 'purchase'
   final String userMobile;
   final Bill? billToEdit;
   final BillService billService;
+  /// When true, automatically generates and opens a PDF of the bill right
+  /// after a NEW bill is saved — used by the dashboard's "Bills" quick-entry
+  /// shortcut, which skips the normal transaction list and its Download
+  /// button. The normal Accounts → Bills entry point leaves this false.
+  final bool autoDownloadPdfOnSave;
 
   const AddEditBillScreen({
     super.key,
@@ -26,6 +60,7 @@ class AddEditBillScreen extends StatefulWidget {
     required this.userMobile,
     this.billToEdit,
     required this.billService,
+    this.autoDownloadPdfOnSave = false,
   });
 
   @override
@@ -40,10 +75,15 @@ class _AddEditBillScreenState extends State<AddEditBillScreen> {
   final _gstRateController = TextEditingController(text: '18');
   final _amountPaidController = TextEditingController(text: '0');
   final _notesController = TextEditingController();
-  
+
+  // Auto-advance focus chain — see focus_utils.dart's advanceFocus().
+  final _partyPhoneFocusNode = FocusNode();
+  final _amountPaidFocusNode = FocusNode();
+
   // ITEM FIELD CONTROLLERS
   final List<TextEditingController> _descControllers = [];
   final List<TextEditingController> _qtyControllers = [];
+  final List<FocusNode> _qtyFocusNodes = [];
   final List<TextEditingController> _priceControllers = [];
   
   bool _isGST = true;
@@ -574,16 +614,21 @@ void _filterItems() {
     for (final c in _priceControllers) {
       c.dispose();
     }
-    
+    for (final f in _qtyFocusNodes) {
+      f.dispose();
+    }
+
     _descControllers.clear();
     _qtyControllers.clear();
     _priceControllers.clear();
-    
+    _qtyFocusNodes.clear();
+
     // Create new controllers for each item
     for (final item in _items) {
       _descControllers.add(TextEditingController(text: item.description));
       _qtyControllers.add(TextEditingController(text: item.quantity.toString()));
       _priceControllers.add(TextEditingController(text: item.price.toStringAsFixed(2)));
+      _qtyFocusNodes.add(FocusNode());
     }
   }
 
@@ -591,13 +636,26 @@ void _filterItems() {
     _subtotal = _items.fold(0.0, (sum, item) {
       return sum + (item.quantity * item.price);
     });
-    
+
     final gstRate = double.tryParse(_gstRateController.text) ?? 0.0;
     _gstAmount = _isGST ? (_subtotal * gstRate / 100) : 0.0;
     _totalAmount = _subtotal + _gstAmount;
-    final amountPaid = double.tryParse(_amountPaidController.text) ?? 0.0;
+
+    var amountPaid = double.tryParse(_amountPaidController.text) ?? 0.0;
+    // `_MaxValueInputFormatter` only blocks new keystrokes from exceeding
+    // the total — it can't retroactively shrink an already-typed Amount
+    // Paid when the total itself drops afterward (e.g. reducing an item's
+    // quantity while editing). Re-clamp here on every recalculation so a
+    // stale, now-too-large Amount Paid can never save a negative
+    // Amount Due.
+    if (amountPaid > _totalAmount) {
+      amountPaid = _totalAmount;
+      _amountPaidController.text = amountPaid == 0
+          ? '0'
+          : amountPaid.toStringAsFixed(2);
+    }
     _amountDue = _totalAmount - amountPaid;
-    
+
     if (mounted) setState(() {});
   }
 
@@ -612,7 +670,13 @@ void _filterItems() {
       for (final supplier in _suppliers) {
         if (supplier.name == value) {
           _partyPhoneController.text = supplier.phone;
-          _partyAddressController.text = supplier.address;
+          // Prefer the GPS-verified location saved on the supplier (from
+          // the current-location button on their profile) over the plain
+          // typed address, when one exists.
+          _partyAddressController.text =
+              (supplier.locationAddress != null && supplier.locationAddress!.isNotEmpty)
+                  ? supplier.locationAddress!
+                  : supplier.address;
           break;
         }
       }
@@ -620,10 +684,28 @@ void _filterItems() {
       for (final customer in _customers) {
         if (customer.name == value) {
           _partyPhoneController.text = customer.mobile;
-          _partyAddressController.text = customer.address;
+          // Prefer the GPS-verified location saved on the customer over the
+          // plain typed address, when one exists.
+          _partyAddressController.text =
+              (customer.locationAddress != null && customer.locationAddress!.isNotEmpty)
+                  ? customer.locationAddress!
+                  : customer.address;
           break;
         }
       }
+    }
+  }
+
+  /// Once the party's mobile number is complete, jump straight into picking
+  /// the first item — but only for a fresh bill, and only if that first row
+  /// is still an empty "Tap to select item" placeholder, so this never
+  /// disrupts editing an existing bill or overwrites an item already picked.
+  void _autoOpenFirstItemPicker() {
+    if (widget.billToEdit != null) return;
+    if (_items.isEmpty) return;
+    final first = _items[0];
+    if ((first.inventoryItemId ?? '').isEmpty) {
+      _showInventorySelectionDialog(0);
     }
   }
 
@@ -1108,7 +1190,22 @@ void _addPurchaseItemWithBatch(
         final nameController = TextEditingController();
         final phoneController = TextEditingController();
         final addressController = TextEditingController();
-        
+        final nameFocusNode = FocusNode();
+        final phoneFocusNode = FocusNode();
+        final addressFocusNode = FocusNode();
+        var isFetchingLocation = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> useCurrentLocation() async {
+              setDialogState(() => isFetchingLocation = true);
+              final result = await CurrentLocationService.getCurrentLocation(context);
+              setDialogState(() {
+                isFetchingLocation = false;
+                if (result != null) addressController.text = result.address;
+              });
+            }
+
         return AlertDialog(
           backgroundColor: colorScheme.surface,
           title: Text(
@@ -1121,6 +1218,9 @@ void _addPurchaseItemWithBatch(
               children: [
                 TextFormField(
                   controller: nameController,
+                  focusNode: nameFocusNode,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(phoneFocusNode),
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     label: requiredFieldLabel('$partyType Name *'),
@@ -1144,6 +1244,7 @@ void _addPurchaseItemWithBatch(
                 SizedBox(height: 12),
                 TextFormField(
                   controller: phoneController,
+                  focusNode: phoneFocusNode,
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     labelText: 'Mobile Number',
@@ -1161,12 +1262,24 @@ void _addPurchaseItemWithBatch(
                     ),
                     filled: true,
                     fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+                    counterText: '',
                   ),
                   keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                  textInputAction: TextInputAction.next,
+                  onChanged: (value) {
+                    // Mobile numbers are always 10 digits — advance the
+                    // moment it's complete, same as an OTP box.
+                    if (value.length == 10) {
+                      FocusScope.of(context).requestFocus(addressFocusNode);
+                    }
+                  },
+                  onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(addressFocusNode),
                 ),
                 SizedBox(height: 12),
                 TextFormField(
                   controller: addressController,
+                  focusNode: addressFocusNode,
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     labelText: 'Address',
@@ -1181,6 +1294,20 @@ void _addPurchaseItemWithBatch(
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    ),
+                    suffixIcon: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: IconButton(
+                        onPressed: isFetchingLocation ? null : useCurrentLocation,
+                        tooltip: 'Use current location',
+                        icon: isFetchingLocation
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
+                              )
+                            : Icon(Icons.my_location, color: colorScheme.primary),
+                      ),
                     ),
                     filled: true,
                     fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
@@ -1265,6 +1392,8 @@ void _addPurchaseItemWithBatch(
               child: const Text('Save'),
             ),
           ],
+        );
+          },
         );
       },
     );
@@ -1776,8 +1905,145 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
     appLogger.d('  Inventory ID in _items: ${_items[itemIndex].inventoryItemId}');
     appLogger.d('  Unit in _items: ${_items[itemIndex].unit}');
     appLogger.d('  Price in _items: ${_items[itemIndex].price}');
+
+    // Item picked — the next typed field is this row's Quantity.
+    if (mounted && itemIndex < _qtyFocusNodes.length) {
+      advanceFocus(context, _qtyFocusNodes[itemIndex]);
+    }
   });
 }
+  // ─── barcode scanning ──────────────────────────────────────────────────────
+
+  Future<void> _scanBarcodeForBill() async {
+    final code = await showBarcodeScanner(context);
+    if (!mounted || code == null || code.isEmpty) return;
+
+    // Check the already-loaded inventory list first (fast, no network hop).
+    InventoryItem? matched;
+    try {
+      matched = _inventoryItems.firstWhere((item) => item.barcode == code);
+    } catch (_) {
+      matched = null;
+    }
+
+    // Fall back to a fresh Firestore lookup in case _inventoryItems is stale
+    // (e.g. the item was added since this screen was opened).
+    matched ??= await _inventoryService.getItemByBarcode(code);
+    if (!mounted) return;
+
+    if (matched == null) {
+      _showBarcodeNotFoundDialog(code);
+      return;
+    }
+
+    await _handleScannedItem(matched);
+  }
+
+  Future<void> _handleScannedItem(InventoryItem inventoryItem) async {
+    final existingIndex = _items.indexWhere(
+      (item) => item.inventoryItemId == inventoryItem.id,
+    );
+
+    // Already on the bill and not batch-tracked: bump quantity by 1.
+    if (existingIndex != -1 && !inventoryItem.trackByBatch) {
+      final current = _items[existingIndex];
+      final newQty = current.quantity + 1.0;
+      setState(() {
+        _items[existingIndex] = current.copyWith(quantity: newQty);
+        _qtyControllers[existingIndex].text = newQty == newQty.roundToDouble()
+            ? newQty.toInt().toString()
+            : newQty.toString();
+        _calculateTotals();
+      });
+      return;
+    }
+
+    final targetIndex = _findOrCreateEmptySlot();
+
+    if (inventoryItem.trackByBatch) {
+      if (widget.type == 'sales') {
+        final batchesData =
+            await _inventoryService.batchService.getBatchesWithDetails(inventoryItem.id);
+        if (!mounted) return;
+        final activeBatchCount = batchesData.where((batchData) {
+          final remaining = batchData['remainingQuantity'] ?? 0;
+          final batch = batchData['batch'];
+          return batch is Batch && remaining > 0 && batch.isActive && !batch.isExpired;
+        }).length;
+        if (activeBatchCount > 1) {
+          await _showBatchSelectionForSale(targetIndex, inventoryItem);
+        } else {
+          _addInventoryItemToBill(targetIndex, inventoryItem);
+        }
+      } else {
+        _showBatchDetailsForPurchase(targetIndex, inventoryItem);
+      }
+      return;
+    }
+
+    _addInventoryItemToBill(targetIndex, inventoryItem);
+  }
+
+  /// Returns the index of the first row still in its placeholder state
+  /// (no inventory item bound yet), or appends a new row via _addItem().
+  int _findOrCreateEmptySlot() {
+    final emptyIndex =
+        _items.indexWhere((item) => item.inventoryItemId == null || item.inventoryItemId!.isEmpty);
+    if (emptyIndex != -1) return emptyIndex;
+    _addItem();
+    return _items.length - 1;
+  }
+
+  void _showBarcodeNotFoundDialog(String code) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Barcode Not Found'),
+        content: Text('No inventory item matches barcode "$code".'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _scanBarcodeForBill();
+            },
+            child: const Text('Scan Again'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              final created = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddEditItemScreen(
+                    inventoryService: _inventoryService,
+                    userMobile: widget.userMobile,
+                    initialBarcode: code,
+                  ),
+                ),
+              );
+              if (created == true && mounted) {
+                await _loadInventoryData();
+                if (!mounted) return;
+                InventoryItem? newItem;
+                try {
+                  newItem = _inventoryItems.firstWhere((item) => item.barcode == code);
+                } catch (_) {
+                  newItem = null;
+                }
+                if (newItem != null) await _handleScannedItem(newItem);
+              }
+            },
+            child: const Text('Create New Item'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<InventoryItem?> _getInventoryItemById(String id) async {
     try {
       return await _inventoryService.getInventoryItem(id);
@@ -2054,6 +2320,8 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                               _showAddPartyDialog();
                             } else {
                               _onPartySelected(value);
+                              // Party picked — the next typed field is Mobile.
+                              advanceFocus(context, _partyPhoneFocusNode);
                             }
                           },
                           decoration: InputDecoration(
@@ -2094,6 +2362,7 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                     
                     TextFormField(
                       controller: _partyPhoneController,
+                      focusNode: _partyPhoneFocusNode,
                       style: TextStyle(color: colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: widget.type == 'sales' ? 'Customer Mobile' : 'Supplier Phone',
@@ -2112,8 +2381,19 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                         prefixIcon: Icon(Icons.phone, color: colorScheme.primary),
                         filled: true,
                         fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+                        counterText: '',
                       ),
                       keyboardType: TextInputType.phone,
+                      maxLength: 10,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      textInputAction: TextInputAction.done,
+                      onChanged: (value) {
+                        // Mobile is always 10 digits — once complete, jump
+                        // straight into picking the first item, same as an
+                        // OTP box auto-advancing.
+                        if (value.length == 10) _autoOpenFirstItemPicker();
+                      },
+                      onFieldSubmitted: (_) => _autoOpenFirstItemPicker(),
                     ),
                     
                     const SizedBox(height: 12),
@@ -2141,9 +2421,9 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                       ),
                       maxLines: 2,
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     Card(
                       color: colorScheme.surface,
                       elevation: isDark ? 4 : 2,
@@ -2187,7 +2467,7 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                         Text(
                           'Items',
                           style: TextStyle(
-                            fontSize: 16, 
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: colorScheme.onSurface,
                           ),
@@ -2198,28 +2478,18 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
     Text(
       'Items',
       style: TextStyle(
-        fontSize: 16, 
+        fontSize: 16,
         fontWeight: FontWeight.bold,
         color: colorScheme.onSurface,
       ),
     ),
     Row(
       children: [
-        // REMOVE THIS ICON BUTTON
-        // IconButton(
-        //   onPressed: () {
-        //     setState(() {
-        //       _isSelectingFromInventory = !_isSelectingFromInventory;
-        //     });
-        //   },
-        //   icon: Icon(
-        //     _isSelectingFromInventory ? Icons.list : Icons.inventory,
-        //     color: _isSelectingFromInventory ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
-        //   ),
-        //   tooltip: _isSelectingFromInventory 
-        //       ? 'Manual Entry' 
-        //       : 'Select from Inventory',
-        // ),
+        IconButton(
+          onPressed: _scanBarcodeForBill,
+          icon: Icon(Icons.qr_code_scanner, color: colorScheme.primary),
+          tooltip: 'Scan Barcode',
+        ),
         IconButton(
           onPressed: _addItem,
           icon: Icon(Icons.add_circle, color: colorScheme.primary),
@@ -2304,7 +2574,7 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                     Text(
                       'Payment Details',
                       style: TextStyle(
-                        fontSize: 16, 
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: colorScheme.onSurface,
                       ),
@@ -2313,6 +2583,7 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                     
                     TextFormField(
                       controller: _amountPaidController,
+                      focusNode: _amountPaidFocusNode,
                       style: TextStyle(color: colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: 'Amount Paid',
@@ -2328,6 +2599,14 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                           borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide(color: colorScheme.primary, width: 2),
                         ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.error),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colorScheme.error, width: 2),
+                        ),
                         prefixIcon: Icon(Icons.payments, color: colorScheme.primary),
                         prefixText: '₹ ',
                         prefixStyle: TextStyle(color: colorScheme.onSurface),
@@ -2336,6 +2615,20 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                       ),
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
+                      textInputAction: TextInputAction.done,
+                      // Hard-blocks any keystroke that would push the value
+                      // past the current total (re-read live via getMax, so
+                      // it stays correct as items/quantities change).
+                      inputFormatters: [_MaxValueInputFormatter(() => _totalAmount)],
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      validator: (value) {
+                        final paid = double.tryParse(value ?? '') ?? 0.0;
+                        if (paid < 0) return 'Amount cannot be negative';
+                        if (paid > _totalAmount) {
+                          return 'Cannot exceed total amount (₹${_totalAmount.toStringAsFixed(2)})';
+                        }
+                        return null;
+                      },
                       onChanged: (value) => _calculateTotals(),
                     ),
                     
@@ -2397,9 +2690,9 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                       ),
                       maxLines: 3,
                     ),
-                    
+
                     const SizedBox(height: 32),
-                    
+
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -2419,7 +2712,7 @@ void _addInventoryItemToBill(int itemIndex, InventoryItem inventoryItem) {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -2495,6 +2788,7 @@ Widget _buildItemRow(int index) {
               Expanded(
                 child: TextFormField(
                   controller: _qtyControllers[index],
+                  focusNode: index < _qtyFocusNodes.length ? _qtyFocusNodes[index] : null,
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     labelText: 'Quantity',
@@ -2515,6 +2809,10 @@ Widget _buildItemRow(int index) {
                     fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                   ),
                   keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  // Price (below) is a read-only computed display — the
+                  // next real field is Amount Paid, further down the form.
+                  onFieldSubmitted: (_) => advanceFocus(context, _amountPaidFocusNode),
                   onChanged: (value) {
                     final qty = double.tryParse(value) ?? 1.0;
                     setState(() {
@@ -2524,9 +2822,9 @@ Widget _buildItemRow(int index) {
                   },
                 ),
               ),
-              
+
               const SizedBox(width: 8),
-              
+
               // Price field - hidden, showing only total
               Expanded(
                 child: Card(
@@ -2878,6 +3176,18 @@ Future<void> _saveBill() async {
             ),
           );
         }
+
+        if (widget.autoDownloadPdfOnSave) {
+          // Best-effort — a PDF failure here shouldn't block navigation or
+          // show a misleading "failed to save" message, since the bill
+          // itself already saved successfully above.
+          try {
+            final profile = await BusinessProfile.fetch(widget.userMobile);
+            await BillInvoicePdfService().generateAndOpen(bill, profile);
+          } catch (e) {
+            appLogger.e('❌ Error auto-generating invoice PDF: $e');
+          }
+        }
       } catch (e, stackTrace) {
         appLogger.e('❌ Error adding bill to database: $e');
         appLogger.d('Stack trace: $stackTrace');
@@ -3064,7 +3374,8 @@ Future<void> _handleInventoryUpdatesForNewBill(Bill bill) async {
     _descControllers.add(TextEditingController(text: 'Tap to select item'));
     _qtyControllers.add(TextEditingController(text: '1'));
     _priceControllers.add(TextEditingController(text: '0.00'));
-    
+    _qtyFocusNodes.add(FocusNode());
+
     _calculateTotals();
   });
 }
@@ -3073,15 +3384,17 @@ Future<void> _handleInventoryUpdatesForNewBill(Bill bill) async {
     if (_items.length > 1) {
       setState(() {
         _items.removeAt(index);
-        
+
         _descControllers[index].dispose();
         _qtyControllers[index].dispose();
         _priceControllers[index].dispose();
-        
+        _qtyFocusNodes[index].dispose();
+
         _descControllers.removeAt(index);
         _qtyControllers.removeAt(index);
         _priceControllers.removeAt(index);
-        
+        _qtyFocusNodes.removeAt(index);
+
         _calculateTotals();
       });
     }
@@ -3096,12 +3409,13 @@ void _addEmptyItem() {
       inventoryItemId: '',
       unit: '',
     ));
-    
+
     _descControllers.add(TextEditingController(text: 'Tap to select item'));
     _qtyControllers.add(TextEditingController(text: '1'));
     _priceControllers.add(TextEditingController(text: '0.00'));
+    _qtyFocusNodes.add(FocusNode());
   });
-  
+
   WidgetsBinding.instance.addPostFrameCallback((_) {
     _calculateTotals();
   });
@@ -3118,7 +3432,12 @@ void _addEmptyItem() {
     for (final c in _priceControllers) {
       c.dispose();
     }
-    
+    for (final f in _qtyFocusNodes) {
+      f.dispose();
+    }
+    _partyPhoneFocusNode.dispose();
+    _amountPaidFocusNode.dispose();
+
     _partyNameController.dispose();
     _partyPhoneController.dispose();
     _partyAddressController.dispose();

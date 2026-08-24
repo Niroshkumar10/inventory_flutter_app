@@ -1,5 +1,6 @@
 ﻿// lib/features/reports/screens/reports_dashboard_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/report_service.dart';
@@ -463,72 +464,107 @@ bool _exportLowStockOnly = false;
   }
 
   Widget _buildReportTypeSelector() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     const allTypes = ['Sales', 'Purchase', 'P&L', 'Inventory', 'Customer', 'Supplier'];
     // If allowedTabs is set, only show those indices; otherwise show all.
     final visibleIndices = widget.allowedTabs ?? List.generate(allTypes.length, (i) => i);
 
+    // A small pair (e.g. Sales|Purchase) spreads to the two edges of the row
+    // — left chip flush left, right chip flush right, with the empty space
+    // between them instead of trailing off to one side. A larger set (e.g.
+    // the full 6-type list) doesn't fit spread out, so it keeps the
+    // horizontally-scrolling packed layout instead.
+    final useSpreadLayout = visibleIndices.length <= 3;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       height: 90,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: visibleIndices.length,
-        itemBuilder: (context, listPos) {
-          final index = visibleIndices[listPos]; // original tab index
-          final isSelected = _selectedTab == index;
-          final tabColor = _getTabColor(index);
-
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedTab = index;
-                _paymentStatusFilter = 'all';
-              });
-            },
-            child: Container(
-              width: 90,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: isSelected 
-                    ? tabColor.withOpacity(0.1) 
-                    : colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected ? tabColor : colorScheme.outline,
-                  width: isSelected ? 2 : 1,
-                ),
-                boxShadow: isSelected ? null : [
-                  BoxShadow(
-                    color: colorScheme.shadow.withOpacity(0.05),
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    _getTabIcon(index),
-                    color: isSelected ? tabColor : colorScheme.onSurface.withOpacity(0.6),
-                    size: 26,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    allTypes[index],
-                    style: TextStyle(
-                      color: isSelected ? tabColor : colorScheme.onSurface.withOpacity(0.7),
-                      fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    ),
-                  ),
-                ],
+      child: useSpreadLayout
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (final index in visibleIndices) _buildTypeChip(index, allTypes),
+              ],
+            )
+          : ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: visibleIndices.length,
+              itemBuilder: (context, listPos) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _buildTypeChip(visibleIndices[listPos], allTypes),
               ),
             ),
-          );
-        },
+    );
+  }
+
+  /// Bold section heading shown above a list of records — e.g. "Products"
+  /// above the Inventory list, "Transactions" above Sales/Purchase, so each
+  /// list is clearly labeled instead of starting straight into bare rows.
+  Widget _sectionHeading(String text) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+          color: colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeChip(int index, List<String> allTypes) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isSelected = _selectedTab == index;
+    final tabColor = _getTabColor(index);
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedTab = index;
+          _paymentStatusFilter = 'all';
+        });
+      },
+      child: Container(
+        width: 90,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? tabColor.withOpacity(0.1)
+              : colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? tabColor : colorScheme.outline,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected ? null : [
+            BoxShadow(
+              color: colorScheme.shadow.withOpacity(0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _getTabIcon(index),
+              color: isSelected ? tabColor : colorScheme.onSurface.withOpacity(0.6),
+              size: 26,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              allTypes[index],
+              style: TextStyle(
+                color: isSelected ? tabColor : colorScheme.onSurface.withOpacity(0.7),
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -710,13 +746,16 @@ bool _exportLowStockOnly = false;
           ),
         ),
 
+        // Section heading
+        _sectionHeading('Transactions'),
+
         // Results count
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'Showing ${filteredReports.length} of ${_salesReports.length} transactions',
             style: TextStyle(
-              fontSize: 13, 
+              fontSize: 13,
               color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
             ),
           ),
@@ -1062,12 +1101,15 @@ bool _exportLowStockOnly = false;
           ),
         ),
 
+        // Section heading
+        _sectionHeading('Transactions'),
+
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'Showing ${filteredReports.length} of ${_purchaseReports.length} transactions',
             style: TextStyle(
-              fontSize: 13, 
+              fontSize: 13,
               color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
             ),
           ),
@@ -1533,6 +1575,9 @@ Widget _buildInventoryReport() {
 
       const SizedBox(height: 10),
 
+      // Section heading
+      _sectionHeading('Products'),
+
       // ✅ LIST OF ITEMS (IMPORTANT)
       ...filteredReports.map((report) {
         return _buildInventoryCard(report); // your existing card UI
@@ -1722,6 +1767,7 @@ Widget _buildInventoryReport() {
             Colors.purple,
           ),
         ),
+        _sectionHeading('Customers'),
         ..._customerReports.map((report) => _buildCustomerCard(report)),
         const SizedBox(height: 16),
       ],
@@ -1883,6 +1929,7 @@ Widget _buildInventoryReport() {
             Colors.purple,
           ),
         ),
+        _sectionHeading('Suppliers'),
         ..._supplierReports.map((report) => _buildSupplierCard(report)),
         const SizedBox(height: 16),
       ],
@@ -2456,11 +2503,11 @@ Widget _buildInventoryReport() {
               _buildExportOption(
                 icon: Icons.chat,
                 title: 'Share via WhatsApp',
-                subtitle: 'Send report summary as a message',
+                subtitle: 'Send report as a PDF file',
                 color: const Color(0xFF25D366),
                 onTap: () {
                   Navigator.pop(context);
-                  _shareReportViaWhatsApp();
+                  _shareReportViaWhatsApp(paymentStatus: selectedStatus);
                 },
               ),
 
@@ -2556,6 +2603,29 @@ Widget _buildInventoryReport() {
     );
   }
 
+/// Fetches the current user's Firestore profile doc (name, business name,
+/// location, etc.) used to fill the PDF letterhead. Shared by `_handleExport`
+/// and `_shareReportViaWhatsApp` so both build the exact same PDF.
+Future<Map<String, dynamic>?> _fetchUserData() async {
+  appLogger.d('📱 Fetching user data for: $_userMobile');
+  final userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(_userMobile!)
+      .get();
+
+  if (!userDoc.exists) {
+    appLogger.w('⚠️ No user document found for $_userMobile');
+    return null;
+  }
+
+  final userData = userDoc.data() as Map<String, dynamic>;
+  appLogger.i('✅ User data fetched:');
+  appLogger.d('  - name: ${userData['name']}');
+  appLogger.d('  - businessName: ${userData['businessName']}');
+  appLogger.d('  - location: ${userData['location']}');
+  return userData;
+}
+
 Future<void> _handleExport(String format, {String paymentStatus = 'all'}) async {
   if (_userMobile == null) {
     _showError('Please login to export reports');
@@ -2565,23 +2635,7 @@ Future<void> _handleExport(String format, {String paymentStatus = 'all'}) async 
   setState(() => _isExporting = true);
 
   try {
-    // IMPORTANT: Fetch the user data from Firestore
-    appLogger.d('📱 Fetching user data for: $_userMobile');
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(_userMobile!)
-        .get();
-    
-    Map<String, dynamic>? userData;
-    if (userDoc.exists) {
-      userData = userDoc.data() as Map<String, dynamic>;
-      appLogger.i('✅ User data fetched:');
-      appLogger.d('  - name: ${userData['name']}');
-      appLogger.d('  - businessName: ${userData['businessName']}');
-      appLogger.d('  - location: ${userData['location']}');
-    } else {
-      appLogger.w('⚠️ No user document found for $_userMobile');
-    }
+    final userData = await _fetchUserData();
 
     final reportType = _getCurrentReportType();
     final reportData = await _getCurrentReportData(paymentStatus: paymentStatus);
@@ -2740,45 +2794,89 @@ Future<String?> _showExportFilterDialog() async {
     }
   }
 
-  Future<void> _shareReportViaWhatsApp() async {
-    final type   = _getReportTitle();
-    final period = '${_dateFormat(_startDate)} – ${_dateFormat(_endDate)}';
-
-    double total = 0;
-    String extra = '';
-
-    switch (_selectedTab) {
-      case 0: // Sales
-        total = _salesReports.fold(0, (s, r) => s + r.totalAmount);
-        final due = _salesReports.fold(0.0, (s, r) => s + r.amountDue);
-        extra = 'Invoices: ${_salesReports.length}  |  Due: ₹${due.toStringAsFixed(2)}';
-        break;
-      case 1: // Purchase
-        total = _purchaseReports.fold(0, (s, r) => s + r.totalAmount);
-        extra = 'Invoices: ${_purchaseReports.length}';
-        break;
-      case 3: // Inventory
-        extra = 'Items: ${_inventoryReports.length}';
-        break;
-      case 4: // Customer
-        extra = 'Customers: ${_customerReports.length}';
-        break;
-      case 5: // Supplier
-        extra = 'Suppliers: ${_supplierReports.length}';
-        break;
-      default:
-        break;
+  /// WhatsApp sharing must always send a real PDF file — never plain text
+  /// (same rule already applied to Bills, Dues & Borrowing, and Cash Book).
+  /// This builds the exact same PDF as the "PDF Document" export option,
+  /// then hands the saved file to the share sheet with a short caption.
+  Future<void> _shareReportViaWhatsApp({String paymentStatus = 'all'}) async {
+    if (_userMobile == null) {
+      _showError('Please login to share reports');
+      return;
     }
 
-    final message = WhatsAppService.buildReportMessage(
-      reportType: type,
-      period:     period,
-      totalAmount: total,
-      extra:      extra.isNotEmpty ? extra : null,
-    );
+    setState(() => _isExporting = true);
 
-    final result = await WhatsAppService.instance.shareText(message);
-    if (mounted) result.showSnackBar(context);
+    try {
+      final userData = await _fetchUserData();
+      final reportType = _getCurrentReportType();
+      final reportData = await _getCurrentReportData(paymentStatus: paymentStatus);
+
+      if (reportData.isEmpty) {
+        _showError('No data available to share');
+        return;
+      }
+
+      final filePath = await _exportService.exportToPdfFile(
+        reportType: reportType,
+        userMobile: _userMobile!,
+        startDate: _startDate,
+        endDate: _endDate,
+        data: reportData,
+        title: _getReportTitle(),
+        userData: userData,
+      );
+
+      if (filePath == null) {
+        _showError(kIsWeb
+            ? 'Sharing via WhatsApp needs a saved file, which isn\'t available on web.'
+            : 'Failed to generate PDF for sharing.');
+        return;
+      }
+
+      final type = _getReportTitle();
+      final period = '${_dateFormat(_startDate)} – ${_dateFormat(_endDate)}';
+
+      double total = 0;
+      String extra = '';
+
+      switch (_selectedTab) {
+        case 0: // Sales
+          total = _salesReports.fold(0, (s, r) => s + r.totalAmount);
+          final due = _salesReports.fold(0.0, (s, r) => s + r.amountDue);
+          extra = 'Invoices: ${_salesReports.length}  |  Due: ₹${due.toStringAsFixed(2)}';
+          break;
+        case 1: // Purchase
+          total = _purchaseReports.fold(0, (s, r) => s + r.totalAmount);
+          extra = 'Invoices: ${_purchaseReports.length}';
+          break;
+        case 3: // Inventory
+          extra = 'Items: ${_inventoryReports.length}';
+          break;
+        case 4: // Customer
+          extra = 'Customers: ${_customerReports.length}';
+          break;
+        case 5: // Supplier
+          extra = 'Suppliers: ${_supplierReports.length}';
+          break;
+        default:
+          break;
+      }
+
+      final caption = WhatsAppService.buildReportMessage(
+        reportType: type,
+        period: period,
+        totalAmount: total,
+        extra: extra.isNotEmpty ? extra : null,
+      );
+
+      final result = await WhatsAppService.instance.shareFile(filePath, caption: caption);
+      if (mounted) result.showSnackBar(context);
+    } catch (e) {
+      appLogger.e('❌ WhatsApp share error: $e');
+      _showError('Failed to share report: ${e.toString()}');
+    } finally {
+      setState(() => _isExporting = false);
+    }
   }
 
   String _dateFormat(DateTime d) =>

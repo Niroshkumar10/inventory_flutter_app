@@ -1,12 +1,14 @@
 ﻿// ./lib/features/inventory/screens/inventory_item_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:barcode_widget/barcode_widget.dart';
 import '../models/inventory_item_model.dart';
 import '../models/batch_model.dart';
 import '../services/inventory_repo_service.dart';
 import './add_edit_item_screen.dart';
 import './add_batch_screen.dart';
 import './batches_screen.dart';
+import '../widgets/edit_batch_dialog.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';
 
 class InventoryItemScreen extends StatefulWidget {
@@ -142,7 +144,7 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
               _buildBatchSummarySection(),
               const SizedBox(height: 24),
             ],
-            _buildBatchDetailsSection(),  // ← ADD THIS LINE
+            _buildBatchDetailsSection(),
             const SizedBox(height: 24),
 
             _buildInfoSection(),
@@ -431,65 +433,63 @@ class _InventoryItemScreenState extends State<InventoryItemScreen> {
     );
   }
 
-  // Widget _buildQuickActionButtons() {
-  //   final theme = Theme.of(context);
-  //   final colorScheme = theme.colorScheme;
-    
-  //   return Row(
-  //     children: [
-  //       Expanded(
-  //         child: ElevatedButton.icon(
-  //           onPressed: _item.trackByBatch
-  //               ? () => _handlePurchase()
-  //               : () => _showStockAdjustmentDialog(),
-  //           icon: const Icon(Icons.shopping_cart),
-  //           label: Text(_item.trackByBatch ? 'Add Batch' : 'Purchase Stock'),
-  //           style: ElevatedButton.styleFrom(
-  //             backgroundColor: colorScheme.primary,
-  //             foregroundColor: Colors.white,
-  //             padding: const EdgeInsets.symmetric(vertical: 12),
-  //           ),
-  //         ),
-  //       ),
-  //       const SizedBox(width: 12),
-  //     ],
-  //   );
-  // }
   Widget _buildQuickActionButtons() {
-  final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
-  
-  return Row(
-    children: [
-      Expanded(
-        child: ElevatedButton.icon(
-          onPressed: _item.trackByBatch
-              ? () => _handlePurchase()
-              : () => _showStockAdjustmentDialog(),
-          icon: const Icon(Icons.shopping_cart),
-          label: Text(_item.trackByBatch ? 'Add Batch' : 'Purchase Stock'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colorScheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-          ),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _item.trackByBatch
+                    ? () => _handlePurchase()
+                    : () => _showStockAdjustmentDialog(),
+                icon: const Icon(Icons.shopping_cart),
+                label: Text(_item.trackByBatch ? 'Add Batch' : 'Purchase Stock'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _showSalesHistory(),
+                icon: const Icon(Icons.history),
+                label: const Text('Sales History'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
         ),
-      ),      
-      // ADD THIS NEW BUTTON
-      const SizedBox(width: 12),
-      Expanded(
-        child: OutlinedButton.icon(
-          onPressed: () => _showSalesHistory(),
-          icon: const Icon(Icons.history),
-          label: const Text('Sales History'),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+        // Sell Stock is only offered for non-batch-tracked items. Batch-tracked
+        // items must keep selling through the batch-aware Bills flow so
+        // FIFO/batch-consumption logic isn't bypassed.
+        if (!_item.trackByBatch) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showSellDialog(),
+              icon: const Icon(Icons.point_of_sale),
+              label: const Text('Sell Stock'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
-        ),
-      ),
-    ],
-  );
-}
+        ],
+      ],
+    );
+  }
 
 
 // Add this method to _InventoryItemScreenState
@@ -984,240 +984,12 @@ Widget _buildBatchInfoTile({
   }
 
   void _showEditBatchDialog(Batch batch) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    DateTime selectedExpiry = batch.expiryDate;
-    final priceController =
-        TextEditingController(text: batch.purchasePrice.toStringAsFixed(2));
-    final supplierController =
-        TextEditingController(text: batch.supplierName ?? '');
-    final invoiceController =
-        TextEditingController(text: batch.supplierInvoiceNo ?? '');
-
-    String formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
-
-    showDialog(
+    showEditBatchDialog(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(builder: (ctx, setDState) {
-          return AlertDialog(
-            backgroundColor: colorScheme.surface,
-            title: Row(
-              children: [
-                Icon(Icons.edit, color: colorScheme.primary, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Edit Batch',
-                  style: TextStyle(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(batch.batchNumber,
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: colorScheme.onSurface.withValues(alpha: 0.5))),
-                  const SizedBox(height: 16),
-
-                  Text('Expiry Date',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: colorScheme.onSurface.withValues(alpha: 0.7))),
-                  const SizedBox(height: 6),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: selectedExpiry,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) setDState(() => selectedExpiry = picked);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: colorScheme.outline),
-                        borderRadius: BorderRadius.circular(8),
-                        color: isDark
-                            ? colorScheme.surfaceContainerHighest
-                            : Colors.grey.shade50,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today,
-                              size: 16, color: colorScheme.primary),
-                          const SizedBox(width: 8),
-                          Text(
-                            formatDate(selectedExpiry),
-                            style: TextStyle(
-                                color: colorScheme.onSurface,
-                                fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  Text('Purchase Price (₹)',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: colorScheme.onSurface.withValues(alpha: 0.7))),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: priceController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    style: TextStyle(color: colorScheme.onSurface),
-                    decoration: InputDecoration(
-                      prefixText: '₹ ',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide:
-                            BorderSide(color: colorScheme.primary, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: isDark
-                          ? colorScheme.surfaceContainerHighest
-                          : Colors.grey.shade50,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  Text('Supplier Name',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: colorScheme.onSurface.withValues(alpha: 0.7))),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: supplierController,
-                    style: TextStyle(color: colorScheme.onSurface),
-                    decoration: InputDecoration(
-                      hintText: 'Optional',
-                      hintStyle: TextStyle(
-                          color: colorScheme.onSurface.withValues(alpha: 0.4)),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide:
-                            BorderSide(color: colorScheme.primary, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: isDark
-                          ? colorScheme.surfaceContainerHighest
-                          : Colors.grey.shade50,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  Text('Invoice No.',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: colorScheme.onSurface.withValues(alpha: 0.7))),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: invoiceController,
-                    style: TextStyle(color: colorScheme.onSurface),
-                    decoration: InputDecoration(
-                      hintText: 'Optional',
-                      hintStyle: TextStyle(
-                          color: colorScheme.onSurface.withValues(alpha: 0.4)),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide:
-                            BorderSide(color: colorScheme.primary, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: isDark
-                          ? colorScheme.surfaceContainerHighest
-                          : Colors.grey.shade50,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text('Cancel',
-                    style: TextStyle(
-                        color: colorScheme.onSurface.withValues(alpha: 0.6))),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () async {
-                  Navigator.pop(dialogContext);
-                  final messenger = ScaffoldMessenger.of(context);
-                  try {
-                    await widget.inventoryService.batchService.updateBatch(
-                      _item.id,
-                      batch.id,
-                      expiryDate: selectedExpiry,
-                      purchasePrice:
-                          double.tryParse(priceController.text) ??
-                              batch.purchasePrice,
-                      supplierName: supplierController.text.trim().isEmpty
-                          ? null
-                          : supplierController.text.trim(),
-                      supplierInvoiceNo:
-                          invoiceController.text.trim().isEmpty
-                              ? null
-                              : invoiceController.text.trim(),
-                    );
-                    await _loadBatchSummary();
-                    messenger.showSnackBar(SnackBar(
-                      content: const Text('Batch updated successfully'),
-                      backgroundColor: colorScheme.secondary,
-                      behavior: SnackBarBehavior.floating,
-                    ));
-                  } catch (e) {
-                    messenger.showSnackBar(SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: colorScheme.error,
-                      behavior: SnackBarBehavior.floating,
-                    ));
-                  }
-                },
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        });
-      },
+      batch: batch,
+      inventoryId: _item.id,
+      inventoryService: widget.inventoryService,
+      onUpdated: _loadBatchSummary,
     );
   }
 
@@ -1418,7 +1190,31 @@ Widget _buildBatchInfoTile({
             const SizedBox(height: 12),
             _buildInfoRow('Description', _item.description.isNotEmpty ? _item.description : 'No description'),
             const Divider(),
+            _buildInfoRow('Brand', _item.brand != null && _item.brand!.isNotEmpty ? _item.brand! : 'Not set'),
+            const Divider(),
+            _buildInfoRow('Pack Size', _item.packSize != null && _item.packSize!.isNotEmpty ? _item.packSize! : 'Not set'),
+            const Divider(),
             _buildInfoRow('Unit', _item.unit),
+            const Divider(),
+            _buildInfoRow(
+              'Barcode',
+              _item.barcode != null && _item.barcode!.isNotEmpty
+                  ? _item.barcode!
+                  : 'Not set',
+            ),
+            if (_item.barcode != null && _item.barcode!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: BarcodeWidget(
+                  barcode: Barcode.code128(),
+                  data: _item.barcode!,
+                  width: 200,
+                  height: 60,
+                  drawText: true,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
             const Divider(),
             _buildInfoRowWithBadge('Quality', _item.quality),
             const Divider(),

@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:inventory_app/core/widgets/required_field_label.dart';
+import 'package:inventory_app/core/services/current_location_service.dart';
 import '../models/customer_model.dart';
 import '../services/customer_service.dart';
 import 'location_picker.dart'; // Make sure this import path is correct
@@ -43,6 +44,9 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
   // Add controllers for listening to text changes
   late FocusNode _nameFocusNode;
   late FocusNode _mobileFocusNode;
+  late FocusNode _addressFocusNode;
+
+  bool _isFetchingLocation = false;
 
   @override
   void initState() {
@@ -53,6 +57,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     // Initialize focus nodes
     _nameFocusNode = FocusNode();
     _mobileFocusNode = FocusNode();
+    _addressFocusNode = FocusNode();
     
     // Add listeners to clear validation when typing starts
     _nameController.addListener(_onNameChanged);
@@ -148,7 +153,23 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     _addressController.dispose();
     _nameFocusNode.dispose();
     _mobileFocusNode.dispose();
+    _addressFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => _isFetchingLocation = true);
+    final result = await CurrentLocationService.getCurrentLocation(context);
+    if (!mounted) return;
+    setState(() {
+      _isFetchingLocation = false;
+      if (result != null) {
+        _addressController.text = result.address;
+        _selectedLatitude = result.latitude;
+        _selectedLongitude = result.longitude;
+        _selectedLocationAddress = result.address;
+      }
+    });
   }
 
   // Validation method for name (check if exists)
@@ -401,6 +422,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                   errorMaxLines: 2,
                 ),
                 validator: _validateName,
+                textInputAction: TextInputAction.next,
                 onFieldSubmitted: (_) {
                   // Mark as touched when user submits the field
                   if (!_nameTouched) {
@@ -408,6 +430,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                       _nameTouched = true;
                     });
                   }
+                  FocusScope.of(context).requestFocus(_mobileFocusNode);
                 },
                 onTap: () {
                   // Mark as touched when user taps the field
@@ -466,12 +489,22 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 keyboardType: TextInputType.phone,
                 maxLength: 10,
                 validator: _validateMobile,
+                textInputAction: TextInputAction.next,
+                onChanged: (value) {
+                  // Mobile numbers are always 10 digits — advance the moment
+                  // it's complete, same as an OTP box, instead of waiting
+                  // for the user to tap "next" themselves.
+                  if (value.length == 10) {
+                    FocusScope.of(context).requestFocus(_addressFocusNode);
+                  }
+                },
                 onFieldSubmitted: (_) {
                   if (!_mobileTouched) {
                     setState(() {
                       _mobileTouched = true;
                     });
                   }
+                  FocusScope.of(context).requestFocus(_addressFocusNode);
                 },
                 onTap: () {
                   if (!_mobileTouched) {
@@ -487,6 +520,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
               // Address field
               TextFormField(
                 controller: _addressController,
+                focusNode: _addressFocusNode,
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Address',
@@ -503,6 +537,20 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                     borderSide: BorderSide(color: colorScheme.primary, width: 2),
                   ),
                   prefixIcon: Icon(Icons.location_on, color: colorScheme.primary),
+                  suffixIcon: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: IconButton(
+                      onPressed: _isFetchingLocation ? null : _useCurrentLocation,
+                      tooltip: 'Use current location',
+                      icon: _isFetchingLocation
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
+                            )
+                          : Icon(Icons.my_location, color: colorScheme.primary),
+                    ),
+                  ),
                   filled: true,
                   fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                 ),

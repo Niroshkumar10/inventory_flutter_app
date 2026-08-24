@@ -7,6 +7,7 @@ import '../models/bill_model.dart';
 import 'add_edit_bill_screen.dart';
 import 'view_bill_screen.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/widgets/summary_stat_card.dart';
 import '../../analytics/services/analytics_service.dart';
 
 class BillHomeScreen extends StatefulWidget {
@@ -258,8 +259,9 @@ Widget build(BuildContext context) {
               ),
               const SizedBox(height: 24),
 
-              // Summary Cards Row
+              // Primary pair: Total Sales (left) and Outstanding (right)
               Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
                     child: _buildAnimatedSummaryCard(
@@ -268,119 +270,38 @@ Widget build(BuildContext context) {
                       icon: Icons.trending_up,
                       color: colorScheme.secondary,
                       prefix: '₹',
+                      colorScheme: colorScheme,
                     ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: _buildAnimatedSummaryCard(
-                      title: 'Total Purchases',
-                      amount: summary.totalPurchases,
-                      icon: Icons.trending_down,
-                      color: colorScheme.tertiary,
+                      title: 'Outstanding',
+                      amount: summary.totalDue,
+                      icon: Icons.warning_amber_rounded,
+                      color: colorScheme.error,
                       prefix: '₹',
+                      colorScheme: colorScheme,
+                      badgeText: '${summary.dueCount} pending',
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
-              // Due Card with shimmer effect
-              TweenAnimationBuilder(
-                tween: Tween<double>(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 500),
-                builder: (context, value, child) {
-                  return Opacity(
-                    opacity: value,
-                    child: Transform.translate(
-                      offset: Offset(0, 20 * (1 - value)),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        colorScheme.error.withOpacity(0.12),
-                        colorScheme.error.withOpacity(0.05),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: colorScheme.error.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.error.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.warning_amber_rounded,
-                          color: colorScheme.error,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Outstanding Amount',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colorScheme.error,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              '₹${NumberFormat('#,##0.00').format(summary.totalDue)}',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.error,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: colorScheme.error.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Text(
-                          '${summary.dueCount} pending',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.error,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              // Secondary strip: Total Purchases (supplementary, compact)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withOpacity(0.35),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: SummaryStatCard.chip(
+                  label: 'Total Purchases',
+                  value: '₹${NumberFormat('#,##0.00').format(summary.totalPurchases)}',
+                  color: colorScheme.tertiary,
+                  icon: Icons.trending_down,
                 ),
               ),
             ],
@@ -396,6 +317,8 @@ Widget build(BuildContext context) {
     required IconData icon,
     required Color color,
     required String prefix,
+    required ColorScheme colorScheme,
+    String? badgeText,
   }) {
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: amount),
@@ -403,6 +326,7 @@ Widget build(BuildContext context) {
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
         return Container(
+          width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -416,51 +340,70 @@ Widget build(BuildContext context) {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: color.withOpacity(0.2), width: 1),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  if (badgeText != null) ...[
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: color.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        badgeText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
-                ),
-                child: Icon(icon, color: color, size: 20),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: color,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$prefix${NumberFormat('#,##0.00').format(value)}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                        letterSpacing: -0.3,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
                 ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$prefix${NumberFormat('#,##0.00').format(value)}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  letterSpacing: -0.5,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

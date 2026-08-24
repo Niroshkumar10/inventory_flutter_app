@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/category_model.dart';
+import '../../../core/utils/focus_utils.dart';
+import '../../../core/widgets/required_field_label.dart';
 
 class AddEditCategoryScreen extends StatefulWidget {
   final InventoryService inventoryService;
@@ -21,6 +23,7 @@ class _AddEditCategoryScreenState extends State<AddEditCategoryScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _descriptionFocusNode = FocusNode();
   bool _isSaving = false;
 
   @override
@@ -36,10 +39,9 @@ class _AddEditCategoryScreenState extends State<AddEditCategoryScreen> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _descriptionFocusNode.dispose();
     super.dispose();
   }
-// screens/add_edit_category_screen.dart - Line ~40-70
-
 Future<void> _saveCategory() async {
   if (!_formKey.currentState!.validate()) return;
 
@@ -64,12 +66,12 @@ Future<void> _saveCategory() async {
         ),
       );
     } else {
-      // Update existing category - PASS THE OLD CATEGORY NAME
+      // Update existing category
       await widget.inventoryService.updateCategory(
         widget.category!.id,
         name,
         description: description.isNotEmpty ? description : null,
-        oldCategoryName: widget.category!.name, // ADD THIS LINE
+        oldCategoryName: widget.category!.name,
       );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -124,8 +126,10 @@ Future<void> _saveCategory() async {
             children: [
               TextFormField(
                 controller: _nameController,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) => advanceFocus(context, _descriptionFocusNode),
                 decoration: InputDecoration(
-                  labelText: 'Category Name',
+                  label: requiredFieldLabel('Category Name *'),
                   border: const OutlineInputBorder(),
                   focusedBorder: OutlineInputBorder(
                     borderSide: BorderSide(color: colorScheme.primary, width: 2),
@@ -141,6 +145,9 @@ Future<void> _saveCategory() async {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _descriptionController,
+                focusNode: _descriptionFocusNode,
+                // Multiline field — keep the default "newline" keyboard
+                // action so users can still write multi-line descriptions.
                 decoration: InputDecoration(
                   labelText: 'Description (Optional)',
                   border: const OutlineInputBorder(),

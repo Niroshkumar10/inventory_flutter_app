@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/utils/focus_utils.dart';
 import '../services/user_service.dart';
 import '../../session/session_service_new.dart';
 import '../services/password_auth_service.dart';
@@ -262,14 +263,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           helperText:
                               _mobileFocus.hasFocus ? 'Enter only numbers' : null,
                         ),
-                        onChanged: (_) {
+                        onChanged: (value) {
                           if (_mobileError != null || _generalError != null) {
                             setState(() {
                               _mobileError = null;
                               _generalError = null;
                             });
                           }
+                          // Mobile is always 10 digits — advance the instant
+                          // it's complete, same as an OTP box.
+                          if (value.length == 10) {
+                            advanceFocus(context, _passwordFocus);
+                          }
                         },
+                        onFieldSubmitted: (_) => advanceFocus(context, _passwordFocus),
                       ),
 
                       const SizedBox(height: 16),

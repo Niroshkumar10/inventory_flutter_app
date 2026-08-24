@@ -5,6 +5,7 @@ import './add_edit_item_screen.dart';
 import './inventory_item_screen.dart';
 import './categories_screen.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';
+import 'package:inventory_app/core/widgets/summary_stat_card.dart';
 
 class InventoryDashboard extends StatefulWidget {
   final InventoryService inventoryService;
@@ -97,73 +98,69 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
   Widget _buildStatsCard() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
-    return Card(
-      elevation: isDark ? 4 : 1,
-      color: colorScheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    final stats = <_InventoryStat>[
+      _InventoryStat(
+        label: 'Total',
+        value: _stats['totalItems']?.toString() ?? '0',
+        icon: Icons.inventory_2,
+        color: colorScheme.primary,
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Inventory Summary',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ),
-            const SizedBox(height: 8),
-            
-            // Compact Stats Grid
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 5,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 0.75,
-              children: [
-                _statItem('Total', _stats['totalItems']?.toString() ?? '0', colorScheme.primary),
-                _statItem('In Stock', _stats['inStockItems']?.toString() ?? '0', colorScheme.secondary),
-                _statItem('Low', _stats['lowStockItems']?.toString() ?? '0', colorScheme.tertiary),
-                _statItem('Out', _stats['outOfStockItems']?.toString() ?? '0', colorScheme.error),
-                _statItem('Expired', _stats['expiredItems']?.toString() ?? _expiredItems.length.toString(), Colors.red),
-              ],
-            ),
-          ],
-        ),
+      _InventoryStat(
+        label: 'In Stock',
+        value: _stats['inStockItems']?.toString() ?? '0',
+        icon: Icons.check_circle,
+        color: Colors.green,
       ),
-    );
-  }
-
-  Widget _statItem(String title, String value, Color color) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+      _InventoryStat(
+        label: 'Low Stock',
+        value: _stats['lowStockItems']?.toString() ?? '0',
+        icon: Icons.warning_amber,
+        color: Colors.orange,
+      ),
+      _InventoryStat(
+        label: 'Out of Stock',
+        value: _stats['outOfStockItems']?.toString() ?? '0',
+        icon: Icons.remove_circle_outline,
+        color: colorScheme.error,
+      ),
+      _InventoryStat(
+        label: 'Expired',
+        value: _stats['expiredItems']?.toString() ?? _expiredItems.length.toString(),
+        icon: Icons.event_busy,
+        color: Colors.red,
+      ),
+    ];
 
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          value,
+          'Inventory Summary',
           style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface.withOpacity(0.6),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 10,
-            color: colorScheme.onSurface.withOpacity(0.5),
-            fontWeight: FontWeight.w500,
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final stat in stats) ...[
+                SizedBox(
+                  width: 132,
+                  child: SummaryStatCard.card(
+                    label: stat.label,
+                    value: stat.value,
+                    color: stat.color,
+                    icon: stat.icon,
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+            ],
           ),
         ),
       ],
@@ -1277,49 +1274,21 @@ class _InventoryDashboardState extends State<InventoryDashboard> {
     );
   }
 
-  Future<void> _deleteItem(InventoryItem item) async {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+}
 
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Deleting "${item.name}"...'),
-          backgroundColor: colorScheme.primary,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+/// Small value holder for a single stat card rendered in [_buildStatsCard].
+class _InventoryStat {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
 
-      await widget.inventoryService.deleteInventoryItem(item.id);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('"${item.name}" deleted successfully'),
-            backgroundColor: colorScheme.secondary,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        _loadData();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error deleting item: $e'),
-            backgroundColor: colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    }
-  }
+  const _InventoryStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
 }
 
 // Search Delegate for Inventory

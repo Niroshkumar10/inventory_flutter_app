@@ -164,7 +164,9 @@ List<Category> getCategories() {
       return item.name.toLowerCase().contains(lowerQuery) ||
              item.sku.toLowerCase().contains(lowerQuery) ||
              item.description.toLowerCase().contains(lowerQuery) ||
-             item.category.toLowerCase().contains(lowerQuery);
+             item.category.toLowerCase().contains(lowerQuery) ||
+             (item.barcode?.toLowerCase().contains(lowerQuery) ?? false) ||
+             (item.brand?.toLowerCase().contains(lowerQuery) ?? false);
     }).toList();
   }
 
@@ -187,7 +189,9 @@ List<Category> getCategories() {
         matches = matches && (
           item.name.toLowerCase().contains(lowerQuery) ||
           item.sku.toLowerCase().contains(lowerQuery) ||
-          item.description.toLowerCase().contains(lowerQuery)
+          item.description.toLowerCase().contains(lowerQuery) ||
+          (item.barcode?.toLowerCase().contains(lowerQuery) ?? false) ||
+          (item.brand?.toLowerCase().contains(lowerQuery) ?? false)
         );
       }
 
@@ -298,6 +302,9 @@ List<Category> getCategories() {
       if (item.sku.toLowerCase().contains(lowerPartial)) {
         suggestions.add(item.sku);
       }
+      if (item.barcode != null && item.barcode!.toLowerCase().contains(lowerPartial)) {
+        suggestions.add(item.barcode!);
+      }
     }
     
     return suggestions.take(5).toList();
@@ -346,6 +353,16 @@ List<Category> getCategories() {
     final items = getInventoryItems();
     try {
       return items.firstWhere((item) => item.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Get item by barcode
+  InventoryItem? getItemByBarcode(String barcode) {
+    final items = getInventoryItems();
+    try {
+      return items.firstWhere((item) => item.barcode == barcode);
     } catch (e) {
       return null;
     }

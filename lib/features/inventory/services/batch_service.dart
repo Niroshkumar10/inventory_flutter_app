@@ -1,4 +1,4 @@
-﻿// lib/features/inventory/services/batch_service.dart
+﻿                                                                                                                             // lib/features/inventory/services/batch_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/batch_model.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';

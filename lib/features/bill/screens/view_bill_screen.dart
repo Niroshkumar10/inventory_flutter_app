@@ -1,11 +1,13 @@
 // lib/features/bill/screens/view_bill_screen.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'add_edit_bill_screen.dart';
 import '../services/bill_service.dart';
+import '../services/bill_invoice_pdf_service.dart';
 import '../models/bill_model.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/whatsapp_service.dart';
+import '../../../core/widgets/document_export_dialog.dart';
+import '../../reports/services/pdf_common.dart';
 
 class ViewBillScreen extends StatelessWidget {
   final String billId;
@@ -94,9 +96,9 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
         iconTheme: IconThemeData(color: colorScheme.onSurface),
         actions: [
           IconButton(
-            icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
-            tooltip: 'Share via WhatsApp',
-            onPressed: () => _shareViaWhatsApp(context),
+            icon: Icon(Icons.download_rounded, color: colorScheme.onSurface),
+            tooltip: 'Download',
+            onPressed: () => _showExportOptions(context),
           ),
           IconButton(
             icon: Icon(Icons.edit, color: colorScheme.onSurface),
@@ -565,21 +567,173 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  // ── WhatsApp share ────────────────────────────────────────────────────────
-  void _shareViaWhatsApp(BuildContext context) {
+  // ── Export options dialog (PDF / Excel / WhatsApp) ──────────────────────
+  void _showExportOptions(BuildContext context) {
+    showDocumentExportDialog(
+      context: context,
+      title: 'Export Invoice',
+      subtitle: 'Choose how to export this invoice',
+      onPdf: () async => _downloadInvoice(context),
+      onExcel: () async => _downloadInvoiceExcel(context),
+      onWhatsApp: () async => _shareViaWhatsApp(context),
+    );
+  }
+
+  // ── Download invoice PDF ────────────────────────────────────────────────
+  void _downloadInvoice(BuildContext context) async {
+    final bill = widget.bill;
+    final cs = Theme.of(context).colorScheme;
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 16),
+            Text('Generating invoice PDF...'),
+          ],
+        ),
+        backgroundColor: cs.primary,
+        duration: const Duration(seconds: 30),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      final profile = await BusinessProfile.fetch(bill.userMobile);
+      await BillInvoicePdfService().generateAndOpen(bill, profile);
+      messenger.hideCurrentSnackBar();
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('Invoice downloaded successfully'),
+            backgroundColor: cs.secondary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate invoice: $e'),
+            backgroundColor: cs.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Download invoice spreadsheet (CSV/Excel) ────────────────────────────
+  void _downloadInvoiceExcel(BuildContext context) async {
+    final bill = widget.bill;
+    final cs = Theme.of(context).colorScheme;
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 16),
+            Text('Generating invoice spreadsheet...'),
+          ],
+        ),
+        backgroundColor: cs.primary,
+        duration: const Duration(seconds: 30),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      await BillInvoicePdfService().generateExcelAndOpen(bill);
+      messenger.hideCurrentSnackBar();
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('Invoice spreadsheet downloaded successfully'),
+            backgroundColor: cs.secondary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate spreadsheet: $e'),
+            backgroundColor: cs.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── WhatsApp share (PDF only) ───────────────────────────────────────────
+  void _shareViaWhatsApp(BuildContext context) async {
     final bill = widget.bill;
     final cs   = Theme.of(context).colorScheme;
+    final messenger = ScaffoldMessenger.of(context);
 
-    final message = WhatsAppService.buildInvoiceMessage(
-      invoiceNumber: bill.invoiceNumber,
-      businessName:  'My Business',
-      partyName:     bill.partyName,
-      date:          DateFormat('dd MMM yyyy').format(bill.date),
-      totalAmount:   bill.totalAmount,
-      amountPaid:    bill.amountPaid,
-      amountDue:     bill.amountDue,
-      paymentStatus: bill.paymentStatus,
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 16),
+            Text('Preparing invoice PDF...'),
+          ],
+        ),
+        backgroundColor: cs.primary,
+        duration: const Duration(seconds: 30),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
+
+    String? filePath;
+    try {
+      final profile = await BusinessProfile.fetch(bill.userMobile);
+      filePath = await BillInvoicePdfService().generateToFile(bill, profile);
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate invoice PDF: $e'),
+            backgroundColor: cs.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    messenger.hideCurrentSnackBar();
+    if (!context.mounted) return;
+
+    // Web has no local file to hand to a share sheet — the browser's
+    // print/save dialog was already shown by generateToFile above.
+    if (filePath == null) return;
+    final resolvedPath = filePath;
 
     showModalBottomSheet(
       context: context,
@@ -605,7 +759,7 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                 children: [
                   const Icon(Icons.chat, color: Color(0xFF25D366), size: 28),
                   const SizedBox(width: 12),
-                  Text('Share via WhatsApp',
+                  Text('Share Invoice PDF via WhatsApp',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface)),
                 ],
               ),
@@ -619,12 +773,12 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                   ),
                   title: Text('Send to ${bill.partyName}',
                       style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(bill.partyPhone,
+                  subtitle: Text('Choose WhatsApp from the share sheet',
                       style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
                   onTap: () async {
                     Navigator.pop(context);
                     final result = await WhatsAppService.instance
-                        .sendToNumber(bill.partyPhone, message);
+                        .shareFile(resolvedPath, caption: 'Invoice ${bill.invoiceNumber}');
                     if (context.mounted) result.showSnackBar(context);
                   },
                 ),
@@ -635,10 +789,11 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                 ),
                 title: const Text('Share to any contact',
                     style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('Pick a contact from WhatsApp'),
+                subtitle: const Text('Choose WhatsApp from the share sheet'),
                 onTap: () async {
                   Navigator.pop(context);
-                  final result = await WhatsAppService.instance.shareText(message);
+                  final result = await WhatsAppService.instance
+                      .shareFile(resolvedPath, caption: 'Invoice ${bill.invoiceNumber}');
                   if (context.mounted) result.showSnackBar(context);
                 },
               ),
@@ -649,30 +804,16 @@ class __BillDetailScreenState extends State<_BillDetailScreen> {
                 ),
                 title: const Text('Share via other apps',
                     style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('SMS, Email, Copy…'),
+                subtitle: const Text('SMS, Email, Drive…'),
                 onTap: () async {
                   Navigator.pop(context);
                   final result = await WhatsAppService.instance
-                      .shareViaSheet(message, subject: 'Invoice ${bill.invoiceNumber}');
+                      .shareFile(resolvedPath, caption: 'Invoice ${bill.invoiceNumber}');
                   if (context.mounted) result.showSnackBar(context);
                 },
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  void _shareBill() {
-    final theme = Theme.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Share functionality coming soon'),
-        backgroundColor: theme.colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
         ),
       ),
     );

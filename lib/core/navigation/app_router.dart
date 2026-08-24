@@ -47,6 +47,10 @@ class Routes {
   static const reportsSalePurchase  = '/reports/sale-purchase';
   static const reportsInventoryPL   = '/reports/inventory-pl';
   static const reportsParty         = '/reports/party';
+  static const reportsSales         = '/reports/sales';
+  static const reportsPurchase      = '/reports/purchase';
+  static const reportsInventory     = '/reports/inventory';
+  static const reportsPL            = '/reports/pl';
   static const profile = '/profile';
   static const settings = '/settings';
   static const feedback = '/feedback';
@@ -238,6 +242,34 @@ GoRouter createRouter(AuthNotifier authNotifier) {
             builder: (_, __) => const ReportsDashboardScreen(
               initialTab: 4,
               allowedTabs: [4, 5],
+            ),
+          ),
+          GoRoute(
+            path: Routes.reportsSales,
+            builder: (_, __) => const ReportsDashboardScreen(
+              initialTab: 0,
+              allowedTabs: [0, 1],
+            ),
+          ),
+          GoRoute(
+            path: Routes.reportsPurchase,
+            builder: (_, __) => const ReportsDashboardScreen(
+              initialTab: 1,
+              allowedTabs: [0, 1],
+            ),
+          ),
+          GoRoute(
+            path: Routes.reportsInventory,
+            builder: (_, __) => const ReportsDashboardScreen(
+              initialTab: 3,
+              allowedTabs: [3, 2],
+            ),
+          ),
+          GoRoute(
+            path: Routes.reportsPL,
+            builder: (_, __) => const ReportsDashboardScreen(
+              initialTab: 2,
+              allowedTabs: [3, 2],
             ),
           ),
           GoRoute(

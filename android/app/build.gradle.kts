@@ -40,8 +40,9 @@ android {
 
     defaultConfig {
         applicationId = "com.pushpa.inventory"
-        minSdk = flutter.minSdkVersion
-        targetSdk = 35
+        // mobile_scanner requires minSdk 23
+        minSdk = maxOf(flutter.minSdkVersion, 23)
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
