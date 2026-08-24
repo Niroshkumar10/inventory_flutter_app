@@ -205,6 +205,14 @@ class InventoryService {
         throw Exception('SKU "${item.sku}" already exists for this user');
       }
 
+      // Verify barcode doesn't already exist for this user (optional field)
+      if (item.barcode != null && item.barcode!.isNotEmpty) {
+        final barcodeExists = await _barcodeExistsForUser(item.barcode!);
+        if (barcodeExists) {
+          throw Exception('Barcode "${item.barcode}" already exists for this user');
+        }
+      }
+
       // Prepare data with server timestamps
       final itemData = item.toMap();
 
@@ -254,6 +262,9 @@ Future<void> updateInventoryItem(InventoryItem item) async {
       'userMobile': item.userMobile,
       'trackExpiry': item.trackExpiry,
       'trackByBatch': item.trackByBatch,  // ← ADD THIS LINE
+      'barcode': item.barcode,
+      'brand': item.brand,
+      'packSize': item.packSize,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -325,6 +336,22 @@ Future<void> updateInventoryItem(InventoryItem item) async {
     } catch (e) {
       //appLogger.e('❌ Error getting inventory item: $e');
       throw Exception('Failed to get inventory item: $e');
+    }
+  }
+
+  // Look up an active inventory item by barcode (returns null if none match)
+  Future<InventoryItem?> getItemByBarcode(String barcode) async {
+    try {
+      final snapshot = await _userInventoryCollection
+          .where('barcode', isEqualTo: barcode)
+          .where('isActive', isEqualTo: true)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) return null;
+      final doc = snapshot.docs.first;
+      return InventoryItem.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    } catch (e) {
+      return null;
     }
   }
 
@@ -547,6 +574,29 @@ Future<void> updateInventoryItem(InventoryItem item) async {
   // Public method to check SKU (for UI validation)
   Future<bool> skuExists(String sku, {String? excludeId}) async {
     return _skuExistsForUser(sku, excludeId: excludeId);
+  }
+
+  // Check if a barcode already exists for this user
+  Future<bool> _barcodeExistsForUser(String barcode, {String? excludeId}) async {
+    try {
+      final query = _userInventoryCollection
+          .where('barcode', isEqualTo: barcode)
+          .where('isActive', isEqualTo: true);
+
+      final snapshot = await query.get();
+
+      if (excludeId != null) {
+        return snapshot.docs.any((doc) => doc.id != excludeId);
+      }
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Public method to check barcode uniqueness (for UI validation)
+  Future<bool> barcodeExists(String barcode, {String? excludeId}) async {
+    return _barcodeExistsForUser(barcode, excludeId: excludeId);
   }
 
   // Get inventory stats for this user (with cache fallback)

@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:inventory_app/features/ledger/services/ledger_service.dart';
 import 'package:inventory_app/features/ledger/models/ledger_model.dart';
 import 'package:inventory_app/features/ledger/screens/add_ledger_entry_screen.dart';
+import 'package:inventory_app/features/ledger/screens/ledger_entry_detail_screen.dart';
+import 'package:inventory_app/core/widgets/summary_stat_card.dart';
 
 // ─── Filter helpers ───────────────────────────────────────────────────────────
 
@@ -122,6 +124,7 @@ class _BorrowsDashboardScreenState extends State<BorrowsDashboardScreen>
                   fmt: _fmt,
                   startDate: start,
                   endDate: end,
+                  userMobile: widget.userMobile,
                 ),
                 _EntryList(
                   ledgerService: _ledgerService,
@@ -129,6 +132,7 @@ class _BorrowsDashboardScreenState extends State<BorrowsDashboardScreen>
                   fmt: _fmt,
                   startDate: start,
                   endDate: end,
+                  userMobile: widget.userMobile,
                 ),
               ],
             ),
@@ -162,6 +166,7 @@ class _EntryList extends StatelessWidget {
   final NumberFormat fmt;
   final DateTime startDate;
   final DateTime endDate;
+  final String userMobile;
 
   const _EntryList({
     required this.ledgerService,
@@ -169,6 +174,7 @@ class _EntryList extends StatelessWidget {
     required this.fmt,
     required this.startDate,
     required this.endDate,
+    required this.userMobile,
   });
 
   @override
@@ -197,29 +203,51 @@ class _EntryList extends StatelessWidget {
           children: [
             Container(
               color: cs.surface,
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              child: Column(
                 children: [
-                  _Chip(
-                    label: isCustomer ? 'Total Receivable' : 'Total Payable',
-                    value: '₹${fmt.format(totalAmt)}',
-                    color: accentColor,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SummaryStatCard.card(
+                          label: isCustomer ? 'Total Receivable' : 'Total Payable',
+                          value: '₹${fmt.format(totalAmt)}',
+                          color: accentColor,
+                          icon: isCustomer ? Icons.arrow_downward : Icons.arrow_upward,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SummaryStatCard.card(
+                          label: 'Pending',
+                          value: '$pending',
+                          color: cs.error,
+                          icon: Icons.hourglass_bottom,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  _Chip(
-                    label: 'Pending',
-                    value: '$pending',
-                    color: cs.error,
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text('${entries.length} entries',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurface.withValues(alpha: 0.5))),
                   ),
-                  const Spacer(),
-                  Text('${entries.length} entries',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurface.withValues(alpha: 0.5))),
                 ],
               ),
             ),
             const Divider(height: 1),
+            if (entries.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text('Transactions',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface)),
+              ),
             Expanded(
               child: entries.isEmpty
                   ? Center(
@@ -261,7 +289,19 @@ class _EntryList extends StatelessWidget {
                             side: BorderSide(
                                 color: cs.outline.withValues(alpha: 0.15)),
                           ),
-                          child: ListTile(
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => LedgerEntryDetailScreen(
+                                  entry: e,
+                                  userMobile: userMobile,
+                                ),
+                              ),
+                            ),
+                            child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 6),
                             leading: CircleAvatar(
@@ -316,6 +356,7 @@ class _EntryList extends StatelessWidget {
                                   ),
                                 ),
                               ],
+                            ),
                             ),
                           ),
                         );
@@ -380,32 +421,6 @@ class _FilterChipRow extends StatelessWidget {
           }).toList(),
         ),
       ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _Chip({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.5))),
-        Text(value,
-            style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w700, color: color)),
-      ],
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:inventory_app/features/bill/models/bill_model.dart';
 import 'package:inventory_app/core/providers/app_providers.dart';
 import 'package:inventory_app/features/bill/screens/add_edit_bill_screen.dart';
 import 'package:inventory_app/features/bill/screens/view_bill_screen.dart';
+import 'package:inventory_app/core/widgets/summary_stat_card.dart';
 
 // ─── Filter helpers ───────────────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ class _TransactionsDashboardScreenState
     return Scaffold(
       backgroundColor: isDark ? cs.surface : const Color(0xffF5F6FA),
       appBar: AppBar(
-        title: Text('Transactions',
+        title: Text('Bills',
             style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w700)),
         backgroundColor: cs.surface,
         elevation: 0,
@@ -203,29 +204,51 @@ class _BillList extends StatelessWidget {
           children: [
             Container(
               color: cs.surface,
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              child: Column(
                 children: [
-                  _SummaryChip(
-                    label: isSales ? 'Total Sales' : 'Total Purchases',
-                    value: '₹${NumberFormat('#,##0').format(total)}',
-                    color: accentColor,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SummaryStatCard.card(
+                          label: isSales ? 'Total Sales' : 'Total Purchases',
+                          value: '₹${NumberFormat('#,##0').format(total)}',
+                          color: accentColor,
+                          icon: isSales ? Icons.trending_up : Icons.trending_down,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SummaryStatCard.card(
+                          label: 'Outstanding',
+                          value: '₹${NumberFormat('#,##0').format(due)}',
+                          color: cs.error,
+                          icon: Icons.error_outline,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  _SummaryChip(
-                    label: 'Outstanding',
-                    value: '₹${NumberFormat('#,##0').format(due)}',
-                    color: cs.error,
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text('${bills.length} bills',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurface.withValues(alpha: 0.5))),
                   ),
-                  const Spacer(),
-                  Text('${bills.length} bills',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurface.withValues(alpha: 0.5))),
                 ],
               ),
             ),
             const Divider(height: 1),
+            if (bills.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text('Transactions',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface)),
+              ),
             Expanded(
               child: bills.isEmpty
                   ? Center(
@@ -389,28 +412,6 @@ class _FilterChipRow extends StatelessWidget {
           }).toList(),
         ),
       ),
-    );
-  }
-}
-
-class _SummaryChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _SummaryChip({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5))),
-        Text(value,
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color)),
-      ],
     );
   }
 }

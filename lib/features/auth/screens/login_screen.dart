@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../core/utils/focus_utils.dart';
 import '../services/user_service.dart';
 import '../../session/session_service_new.dart';
 import '../services/password_auth_service.dart';
@@ -19,6 +21,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _mobileController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  final _mobileFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+
   bool _isLoading = false;
   bool _obscurePassword = true;
 
@@ -30,9 +35,18 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordService = PasswordAuthService();
 
   @override
+  void initState() {
+    super.initState();
+    _mobileFocus.addListener(() => setState(() {}));
+    _passwordFocus.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _mobileController.dispose();
     _passwordController.dispose();
+    _mobileFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -49,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) return 'Password is required';
-    if (value.length < 6) return 'At least 6 characters';
+    if (value.length < 5) return 'At least 5 characters';
     return null;
   }
 
@@ -206,16 +220,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Welcome back',
-                          style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: cs.onSurface)),
+                      SizedBox(
+                        width: double.infinity,
+                        child: Text('Welcome back',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: cs.onSurface)),
+                      ),
                       const SizedBox(height: 4),
-                      Text('Login to your account',
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: cs.onSurface.withValues(alpha: 0.6))),
+                      SizedBox(
+                        width: double.infinity,
+                        child: Text('Login to your account',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: cs.onSurface.withValues(alpha: 0.6))),
+                      ),
 
                       const SizedBox(height: 24),
 
@@ -224,25 +246,37 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _mobileController,
+                        focusNode: _mobileFocus,
                         keyboardType: TextInputType.phone,
                         maxLength: 10,
                         textInputAction: TextInputAction.next,
                         style: TextStyle(color: cs.onSurface),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: _inputDecoration(
                           cs, isDark,
                           hint: '10-digit mobile number',
                           prefixIcon: Icons.phone,
                           prefix: '+91  ',
                           errorText: _mobileError,
+                          helperText:
+                              _mobileFocus.hasFocus ? 'Enter only numbers' : null,
                         ),
-                        onChanged: (_) {
+                        onChanged: (value) {
                           if (_mobileError != null || _generalError != null) {
                             setState(() {
                               _mobileError = null;
                               _generalError = null;
                             });
                           }
+                          // Mobile is always 10 digits — advance the instant
+                          // it's complete, same as an OTP box.
+                          if (value.length == 10) {
+                            advanceFocus(context, _passwordFocus);
+                          }
                         },
+                        onFieldSubmitted: (_) => advanceFocus(context, _passwordFocus),
                       ),
 
                       const SizedBox(height: 16),
@@ -252,6 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _passwordController,
+                        focusNode: _passwordFocus,
                         obscureText: _obscurePassword,
                         textInputAction: TextInputAction.done,
                         style: TextStyle(color: cs.onSurface),
@@ -260,6 +295,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           hint: 'Enter your password',
                           prefixIcon: Icons.lock_outline,
                           errorText: _passwordError,
+                          helperText: _passwordFocus.hasFocus
+                              ? 'Enter only characters, numbers and symbols. Atleast 5 characters'
+                              : null,
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
@@ -306,6 +344,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ],
+
+                      const SizedBox(height: 14),
 
                       // forgot password
                       Align(
@@ -448,6 +488,7 @@ class _LoginScreenState extends State<LoginScreen> {
     required IconData prefixIcon,
     String? prefix,
     String? errorText,
+    String? helperText,
     Widget? suffixIcon,
   }) {
     return InputDecoration(
@@ -460,6 +501,9 @@ class _LoginScreenState extends State<LoginScreen> {
       prefixStyle: TextStyle(color: cs.onSurface, fontSize: 14),
       suffixIcon: suffixIcon,
       errorText: errorText,
+      helperText: helperText,
+      helperStyle: TextStyle(color: cs.error, fontSize: 11.5),
+      helperMaxLines: 2,
       filled: true,
       fillColor: isDark ? cs.surface : Colors.grey.shade50,
       counterText: '',

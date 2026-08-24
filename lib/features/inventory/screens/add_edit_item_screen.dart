@@ -1,31 +1,56 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:barcode_widget/barcode_widget.dart';
+import '../../../core/widgets/barcode_scanner_screen.dart';
 import '../services/inventory_repo_service.dart';
+import '../services/barcode_generator_service.dart';
+import '../services/open_food_facts_service.dart';
+import '../services/image_upload_service.dart';
 import '../models/inventory_item_model.dart';
+import '../../../core/utils/focus_utils.dart';
+import '../../../core/widgets/required_field_label.dart';
 import 'package:inventory_app/core/utils/app_logger.dart';
+
+enum EntryMode { manual, barcode }
+
+enum BarcodeStage { initial, loading, notFound, ready }
+
+class _BarcodeModeState {
+  BarcodeStage stage = BarcodeStage.initial;
+  String? scannedCode;
+  OffProduct? offProduct;
+  String? errorMessage;
+  bool isNetworkError = false;
+}
 
 class AddEditItemScreen extends StatefulWidget {
   final InventoryService inventoryService;
   final InventoryItem? item;
   final String userMobile;
   final String? initialCategory;
-  
+  final String? initialBarcode;
+
   const AddEditItemScreen({
     super.key,
     required this.inventoryService,
     this.item,
     required this.userMobile,
     this.initialCategory,
-  }); 
+    this.initialBarcode,
+  });
 
   @override
   State<AddEditItemScreen> createState() => _AddEditItemScreenState();
 }
 
 class _AddEditItemScreenState extends State<AddEditItemScreen> {
-  final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
   late TextEditingController _skuController;
+  late TextEditingController _barcodeController;
+  late TextEditingController _brandController;
+  late TextEditingController _packSizeController;
   late TextEditingController _categoryController;
   late TextEditingController _priceController;
   late TextEditingController _costController;
@@ -34,10 +59,36 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
   late TextEditingController _locationController;
   late TextEditingController _supplierController;
 
+  // Auto-advance focus chain — see focus_utils.dart's advanceFocus().
+  final _nameFocusNode = FocusNode();
+  final _descriptionFocusNode = FocusNode();
+  final _brandFocusNode = FocusNode();
+  final _packSizeFocusNode = FocusNode();
+  final _skuFocusNode = FocusNode();
+  final _barcodeFieldFocusNode = FocusNode();
+  final _priceFocusNode = FocusNode();
+  final _costFocusNode = FocusNode();
+  final _quantityFocusNode = FocusNode();
+  final _lowStockFocusNode = FocusNode();
+  final _locationFocusNode = FocusNode();
+
   String _selectedUnit = 'pcs';
   String _selectedQuality = 'Standard';
   bool _isLoading = false;
   bool _trackByBatch = false;
+
+  EntryMode _entryMode = EntryMode.manual;
+  final _BarcodeModeState _barcodeState = _BarcodeModeState();
+  final _openFoodFactsService = OpenFoodFactsService();
+  final _imageUploadService = ImageUploadService();
+  String? _pickedImageUrl;
+  bool _isUploadingImage = false;
+
+  bool get _canSave {
+    if (widget.item != null) return true;
+    if (_entryMode == EntryMode.manual) return true;
+    return _barcodeState.stage == BarcodeStage.ready;
+  }
 
   static final Map<String, List<Map<String, String>>> _unitGroups = {
     'Count': [
@@ -120,7 +171,6 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
 
   List<String> _categories = [];
   List<String> _suppliers = [];
-  final Map<String, String> _supplierMap = {};
 
   // Validation error messages
   String? _nameError;
@@ -151,6 +201,10 @@ bool get _canEnableBatchTracking {
     _nameController = TextEditingController(text: item?.name ?? '');
     _descriptionController = TextEditingController(text: item?.description ?? '');
     _skuController = TextEditingController(text: item?.sku ?? '');
+    _barcodeController = TextEditingController(text: item?.barcode ?? widget.initialBarcode ?? '');
+    _brandController = TextEditingController(text: item?.brand ?? '');
+    _packSizeController = TextEditingController(text: item?.packSize ?? '');
+    _pickedImageUrl = item?.imageUrl;
 
 _trackExpiry = widget.item?.trackExpiry ?? false;
     _expiryDate = widget.item?.expiryDate;
@@ -551,6 +605,10 @@ Future<void> _saveItem() async {
         lowStockThreshold: lowStockThreshold,
         unit: unit,
         quality: quality,
+        barcode: _barcodeController.text.trim().isNotEmpty ? _barcodeController.text.trim() : null,
+        brand: _brandController.text.trim().isNotEmpty ? _brandController.text.trim() : null,
+        packSize: _packSizeController.text.trim().isNotEmpty ? _packSizeController.text.trim() : null,
+        imageUrl: _pickedImageUrl,
         location: location.isNotEmpty ? location : null,
         supplierId: supplierId,
         supplierName: supplierName.isNotEmpty ? supplierName : null,
@@ -618,6 +676,10 @@ Future<void> _saveItem() async {
         lowStockThreshold: lowStockThreshold,
         unit: unit,
         quality: quality,
+        barcode: _barcodeController.text.trim().isNotEmpty ? _barcodeController.text.trim() : null,
+        brand: _brandController.text.trim().isNotEmpty ? _brandController.text.trim() : null,
+        packSize: _packSizeController.text.trim().isNotEmpty ? _packSizeController.text.trim() : null,
+        imageUrl: _pickedImageUrl,
         location: location.isNotEmpty ? location : null,
         supplierId: supplierId ?? widget.item!.supplierId,
         supplierName: supplierName.isNotEmpty ? supplierName : widget.item!.supplierName,
@@ -751,7 +813,20 @@ Future<void> _saveItem() async {
                       horizontal: 24.0,
                       vertical: 24.0,
                     ),
-                    child: Column(
+                    child: _buildModeAwareContent(colorScheme, isDark),
+                  ),
+                ),
+
+                // Bottom Action Buttons
+                _buildFooter(colorScheme, isDark),
+              ],
+            ),
+    );
+  }
+
+  // ============ FORM FIELDS (shared by Manual mode and ready-stage Barcode mode) ============
+  Widget _buildFormFields(ColorScheme colorScheme, bool isDark) {
+    return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Product Information Section
@@ -760,22 +835,29 @@ Future<void> _saveItem() async {
                           required: true,
                         ),
                         const SizedBox(height: 20),
-                        
+
+                        _buildImagePicker(colorScheme, isDark),
+
+                        const SizedBox(height: 24),
+
                         _buildInputField(
                           controller: _nameController,
                           label: 'Item Name',
                           icon: Icons.shopping_bag_outlined,
                           hintText: 'Enter item name',
                           errorText: _nameError,
+                          focusNode: _nameFocusNode,
+                          textInputAction: TextInputAction.next,
+                          onSubmitted: (_) => advanceFocus(context, _descriptionFocusNode),
                           onChanged: (value) {
                             if (_nameError != null) {
                               setState(() => _nameError = null);
                             }
                           },
                         ),
-                        
+
                         const SizedBox(height: 24),
-                        
+
                         _buildInputField(
                           controller: _descriptionController,
                           label: 'Description',
@@ -783,10 +865,46 @@ Future<void> _saveItem() async {
                           hintText: 'Enter description (optional)',
                           maxLines: 3,
                           optional: true,
+                          focusNode: _descriptionFocusNode,
+                          // Multiline field — keep the default "newline" keyboard
+                          // action so users can still write multi-line
+                          // descriptions; no forced auto-advance out of it.
                         ),
-                        
+
+                        const SizedBox(height: 24),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _brandController,
+                                label: 'Brand',
+                                icon: Icons.local_offer_outlined,
+                                hintText: 'e.g. Aashirvaad',
+                                optional: true,
+                                focusNode: _brandFocusNode,
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) => advanceFocus(context, _packSizeFocusNode),
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              child: _buildInputField(
+                                controller: _packSizeController,
+                                label: 'Pack Size / Quantity',
+                                icon: Icons.straighten_outlined,
+                                hintText: 'e.g. 500g, 1L',
+                                optional: true,
+                                focusNode: _packSizeFocusNode,
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) => advanceFocus(context, _skuFocusNode),
+                              ),
+                            ),
+                          ],
+                        ),
+
                         const SizedBox(height: 40),
-                        
+
                         // Identification Section
                         _buildSectionHeader(
                           title: 'Identification',
@@ -806,7 +924,7 @@ Future<void> _saveItem() async {
                                 // Make SKU read-only when editing
                                 readOnly: widget.item != null,
                                 // Add a hint that it's read-only
-                                suffixIcon: widget.item != null 
+                                suffixIcon: widget.item != null
                                     ? Padding(
                                         padding: const EdgeInsets.only(right: 12),
                                         child: Icon(
@@ -816,19 +934,42 @@ Future<void> _saveItem() async {
                                         ),
                                       )
                                     : null,
+                                focusNode: _skuFocusNode,
+                                textInputAction: TextInputAction.done,
+                                // Category is a picker (not a keyboard field) —
+                                // finishing SKU just dismisses the keyboard
+                                // rather than force-opening the picker.
                               ),
                             ),
-                            
+
                             const SizedBox(width: 20),
-                            
+
                             Expanded(
                               child: _buildCategoryDropdown(),
                             ),
                           ],
                         ),
-                        
+
+                        const SizedBox(height: 20),
+
+                        _buildBarcodeField(colorScheme),
+
                         const SizedBox(height: 40),
-                        
+
+                        // "Your Business Data" eyebrow — visually separates
+                        // shop-specific fields (Pricing/Stock below) from the
+                        // product-identity fields above.
+                        Text(
+                          'YOUR BUSINESS DATA',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                            color: colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
                         // Pricing Section
                         _buildSectionHeader(
                           title: 'Pricing',
@@ -847,6 +988,9 @@ Future<void> _saveItem() async {
                                 errorText: _priceError,
                                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                                 prefixText: ' ',
+                                focusNode: _priceFocusNode,
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) => advanceFocus(context, _costFocusNode),
                                 onChanged: (value) {
                                   if (_priceError != null) {
                                     setState(() => _priceError = null);
@@ -854,19 +998,22 @@ Future<void> _saveItem() async {
                                 },
                               ),
                             ),
-                            
+
                             const SizedBox(width: 20),
-                            
+
                             Expanded(
                               child: _buildInputField(
                                 controller: _costController,
-                                label: 'Cost Price',
+                                label: 'Purchase Price',
                                 icon: Icons.currency_rupee,
                                 hintText: '0.00',
                                 errorText: _costError,
                                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                                 prefixText: ' ',
                                 optional: true,
+                                focusNode: _costFocusNode,
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) => advanceFocus(context, _quantityFocusNode),
                                 onChanged: (value) {
                                   if (_costError != null) {
                                     setState(() => _costError = null);
@@ -891,13 +1038,16 @@ Future<void> _saveItem() async {
                             Expanded(
                               child: _buildInputField(
                                 controller: _quantityController,
-                                label: 'Current Stock',
+                                label: widget.item == null ? 'Opening Stock' : 'Current Stock',
                                 icon: Icons.inventory_outlined,
                                 hintText: '0',
                                 errorText: _quantityError,
                                 keyboardType: TextInputType.number,
                                 // Batch-tracked items: quantity is managed by batches, not editable here
                                 readOnly: widget.item != null && widget.item!.trackByBatch,
+                                focusNode: _quantityFocusNode,
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) => advanceFocus(context, _lowStockFocusNode),
                                 onChanged: (value) {
                                   if (_quantityError != null) {
                                     setState(() => _quantityError = null);
@@ -905,17 +1055,21 @@ Future<void> _saveItem() async {
                                 },
                               ),
                             ),
-                            
+
                             const SizedBox(width: 20),
-                            
+
                             Expanded(
                               child: _buildInputField(
                                 controller: _lowStockController,
-                                label: 'Reorder Level',
+                                label: 'Low Stock Alert',
                                 icon: Icons.warning_outlined,
                                 hintText: '10',
                                 errorText: _lowStockError,
                                 keyboardType: TextInputType.number,
+                                focusNode: _lowStockFocusNode,
+                                textInputAction: TextInputAction.done,
+                                // Unit is a picker (not a keyboard field) —
+                                // finishing here just dismisses the keyboard.
                                 onChanged: (value) {
                                   if (_lowStockError != null) {
                                     setState(() => _lowStockError = null);
@@ -939,6 +1093,10 @@ Future<void> _saveItem() async {
                                 icon: Icons.location_on_outlined,
                                 hintText: 'Warehouse, Shelf, etc.',
                                 optional: true,
+                                focusNode: _locationFocusNode,
+                                textInputAction: TextInputAction.done,
+                                // Quality is a picker (not a keyboard field) —
+                                // finishing here just dismisses the keyboard.
                               ),
                             ),
                           ],
@@ -1257,12 +1415,11 @@ Container(
                         
                         const SizedBox(height: 24),
                       ],
-                    ),
-                  ),
-                ),
-                
-                // Bottom Action Buttons
-                Container(
+    );
+  }
+
+  Widget _buildFooter(ColorScheme colorScheme, bool isDark) {
+    return Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: colorScheme.surface,
@@ -1308,7 +1465,7 @@ Container(
                       const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _saveItem,
+                          onPressed: (_isLoading || !_canSave) ? null : _saveItem,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colorScheme.primary,
                             foregroundColor: Colors.white,
@@ -1338,10 +1495,7 @@ Container(
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-    );
+                );
   }
 
 Widget _buildExpiryWarningCard(DateTime expiryDate) {
@@ -1406,22 +1560,12 @@ Widget _buildExpiryWarningCard(DateTime expiryDate) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text('Unit',
-                style: TextStyle(
-                    fontSize: 15,
-                    color: colorScheme.onSurface.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.w600)),
-            const Padding(
-              padding: EdgeInsets.only(left: 2),
-              child: Text('*',
-                  style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold)),
-            ),
-          ],
+        requiredFieldLabel(
+          'Unit *',
+          style: TextStyle(
+              fontSize: 15,
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
+              fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         GestureDetector(
@@ -1592,6 +1736,8 @@ Widget _buildExpiryWarningCard(DateTime expiryDate) {
                                     _unitError = null;
                                   });
                                   Navigator.pop(sheetContext);
+                                  // Unit picked — the next typed field is Location.
+                                  advanceFocus(context, _locationFocusNode);
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -1707,6 +1853,576 @@ Widget _buildExpiryWarningCard(DateTime expiryDate) {
     );
   }
 
+  // ============ MODE-AWARE CONTENT ============
+
+  Widget _buildModeAwareContent(ColorScheme colorScheme, bool isDark) {
+    // Editing an existing item: no mode toggle, always show the full form.
+    if (widget.item != null) {
+      return _buildFormFields(colorScheme, isDark);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildEntryModeToggle(colorScheme),
+        const SizedBox(height: 24),
+        if (_entryMode == EntryMode.manual)
+          _buildFormFields(colorScheme, isDark)
+        else
+          _buildBarcodeModeContent(colorScheme, isDark),
+      ],
+    );
+  }
+
+  Widget _buildEntryModeToggle(ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _buildModeTab('Manual', EntryMode.manual, colorScheme)),
+          Expanded(child: _buildModeTab('Barcode', EntryMode.barcode, colorScheme)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeTab(String label, EntryMode mode, ColorScheme colorScheme) {
+    final selected = _entryMode == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _entryMode = mode),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? colorScheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : colorScheme.onSurface.withOpacity(0.7),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============ BARCODE MODE ============
+
+  Widget _buildBarcodeModeContent(ColorScheme colorScheme, bool isDark) {
+    switch (_barcodeState.stage) {
+      case BarcodeStage.initial:
+        return _buildBarcodeScanGate(colorScheme, isDark);
+      case BarcodeStage.loading:
+        return _buildBarcodeLoading(colorScheme);
+      case BarcodeStage.notFound:
+        return _buildBarcodeNotFound(colorScheme);
+      case BarcodeStage.ready:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildBarcodeStatusBanner(colorScheme),
+            const SizedBox(height: 24),
+            _buildFormFields(colorScheme, isDark),
+          ],
+        );
+    }
+  }
+
+  Widget _buildBarcodeScanGate(ColorScheme colorScheme, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outline),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.qr_code_scanner, size: 48, color: colorScheme.primary),
+          const SizedBox(height: 12),
+          Text(
+            'Scan Product Barcode',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colorScheme.onSurface),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "We'll check your inventory, then the product database",
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withOpacity(0.6)),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _startBarcodeModeScan,
+              icon: const Icon(Icons.camera_alt),
+              label: const Text('Scan Barcode'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: _showManualBarcodeEntryDialog,
+            child: const Text('Enter barcode manually'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBarcodeLoading(ColorScheme colorScheme) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(40),
+      alignment: Alignment.center,
+      child: Column(
+        children: [
+          CircularProgressIndicator(color: colorScheme.primary),
+          const SizedBox(height: 16),
+          Text('Looking up product…', style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBarcodeNotFound(ColorScheme colorScheme) {
+    final isNetworkError = _barcodeState.isNetworkError;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: colorScheme.error.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.error.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(isNetworkError ? Icons.wifi_off : Icons.search_off, size: 48, color: colorScheme.error),
+          const SizedBox(height: 12),
+          Text(
+            isNetworkError ? "Couldn't reach the product database" : 'Barcode not found',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colorScheme.onSurface),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isNetworkError
+                ? (_barcodeState.errorMessage ?? 'Check your connection and try again.')
+                : 'We couldn\'t find product information for barcode "${_barcodeState.scannedCode}".',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: colorScheme.onSurface.withOpacity(0.7)),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                final code = _barcodeState.scannedCode;
+                if (code != null) {
+                  _handleScannedBarcode(code);
+                } else {
+                  setState(() => _barcodeState.stage = BarcodeStage.initial);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Try Again'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () {
+                setState(() {
+                  final code = _barcodeState.scannedCode;
+                  if (_barcodeController.text.trim().isEmpty && code != null) {
+                    _barcodeController.text = code;
+                  }
+                  _entryMode = EntryMode.manual;
+                });
+              },
+              child: const Text('Add Manually'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: null,
+              child: Text('Scan Product Label (Coming Soon)'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBarcodeStatusBanner(ColorScheme colorScheme) {
+    final fromOff = _barcodeState.offProduct != null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Colors.green, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              fromOff ? '✓ Product found — Source: External Product Database' : '✓ Barcode ready',
+              style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startBarcodeModeScan() async {
+    final code = await showBarcodeScanner(context, title: 'Scan Product Barcode');
+    if (!mounted || code == null || code.isEmpty) return;
+    await _handleScannedBarcode(code);
+  }
+
+  Future<void> _showManualBarcodeEntryDialog() async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Enter Barcode'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Barcode number'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Search Product'),
+          ),
+        ],
+      ),
+    );
+    if (code != null && code.isNotEmpty) {
+      await _handleScannedBarcode(code);
+    }
+  }
+
+  /// Core barcode orchestration: check our own inventory first (existing-item
+  /// duplicate protection), then fall back to Open Food Facts, then the
+  /// not-found fallback. Used by both the scan button and manual entry.
+  Future<void> _handleScannedBarcode(String code) async {
+    setState(() {
+      _barcodeState.stage = BarcodeStage.loading;
+      _barcodeState.scannedCode = code;
+    });
+
+    InventoryItem? existingItem;
+    try {
+      existingItem = await widget.inventoryService.getItemByBarcode(code);
+    } catch (e) {
+      existingItem = null;
+    }
+    if (!mounted) return;
+
+    if (existingItem != null) {
+      final matched = existingItem;
+      setState(() => _barcodeState.stage = BarcodeStage.initial);
+      final openExisting = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Existing Product Found'),
+          content: Text(
+            '✓ This barcode is already linked to "${matched.name}" in your inventory '
+            '(Stock: ${matched.quantity} ${matched.unit}). Open it instead of adding a duplicate?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('View Existing Item'),
+            ),
+          ],
+        ),
+      );
+      if (openExisting == true && mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AddEditItemScreen(
+              inventoryService: widget.inventoryService,
+              item: matched,
+              userMobile: widget.userMobile,
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Not in our inventory — try the external product database.
+    final offResult = await _openFoodFactsService.lookup(code);
+    if (!mounted) return;
+
+    if (offResult.status == OffLookupStatus.found && offResult.product != null) {
+      _applyOffProduct(offResult.product!, code);
+      setState(() {
+        _barcodeState.offProduct = offResult.product;
+        _barcodeState.stage = BarcodeStage.ready;
+      });
+      unawaited(_autoFillSkuIfEmpty());
+      return;
+    }
+
+    setState(() {
+      _barcodeState.isNetworkError = offResult.status == OffLookupStatus.networkError;
+      _barcodeState.errorMessage = offResult.errorMessage;
+      _barcodeState.stage = BarcodeStage.notFound;
+    });
+  }
+
+  /// Fills empty fields only — never overwrites something the user already typed.
+  /// Product Image is deliberately NOT auto-filled from Open Food Facts: OFF's
+  /// "front" photo for a listing is often just a picture of the barcode/label
+  /// rather than the actual product, so the image always comes from the
+  /// user's own camera/gallery instead, in both entry modes.
+  void _applyOffProduct(OffProduct product, String code) {
+    setState(() {
+      if (_nameController.text.trim().isEmpty && (product.name ?? '').isNotEmpty) {
+        _nameController.text = product.name!;
+      }
+      if (_brandController.text.trim().isEmpty && (product.brand ?? '').isNotEmpty) {
+        _brandController.text = product.brand!;
+      }
+      if (_packSizeController.text.trim().isEmpty && (product.packSize ?? '').isNotEmpty) {
+        _packSizeController.text = product.packSize!;
+      }
+      if (_categoryController.text.trim().isEmpty && (product.category ?? '').isNotEmpty) {
+        _categoryController.text = product.category!;
+      }
+      if (_barcodeController.text.trim().isEmpty) {
+        _barcodeController.text = code;
+      }
+    });
+  }
+
+  Future<void> _autoFillSkuIfEmpty() async {
+    if (_skuController.text.trim().isNotEmpty) return;
+    final generated = await _generateUniqueSku();
+    if (mounted && _skuController.text.trim().isEmpty) {
+      setState(() => _skuController.text = generated);
+    }
+  }
+
+  Future<String> _generateUniqueSku() async {
+    final random = Random();
+    for (var i = 0; i < 5; i++) {
+      final candidate = 'ITM${List.generate(6, (_) => random.nextInt(10)).join()}';
+      final exists = await widget.inventoryService.skuExists(candidate);
+      if (!exists) return candidate;
+    }
+    return 'ITM${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  // ============ PRODUCT IMAGE ============
+
+  Widget _buildImagePicker(ColorScheme colorScheme, bool isDark) {
+    final hasImage = (_pickedImageUrl ?? '').isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Product Image',
+          style: TextStyle(fontSize: 15, color: colorScheme.onSurface.withOpacity(0.7), fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _isUploadingImage ? null : _pickAndUploadImage,
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colorScheme.outline),
+              image: hasImage
+                  ? DecorationImage(image: NetworkImage(_pickedImageUrl!), fit: BoxFit.cover)
+                  : null,
+            ),
+            child: _isUploadingImage
+                ? const Center(child: CircularProgressIndicator())
+                : !hasImage
+                    ? Icon(Icons.add_a_photo_outlined, color: colorScheme.onSurface.withOpacity(0.4), size: 28)
+                    : Align(
+                        alignment: Alignment.topRight,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _pickedImageUrl = null),
+                          child: Container(
+                            margin: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                            child: const Icon(Icons.close, color: Colors.white, size: 16),
+                          ),
+                        ),
+                      ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final fromCamera = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Take Photo'),
+              onTap: () => Navigator.pop(ctx, true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(ctx, false),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (fromCamera == null || !mounted) return;
+
+    final file = await _imageUploadService.pickImage(fromCamera: fromCamera);
+    if (file == null || !mounted) return;
+
+    setState(() => _isUploadingImage = true);
+    final (url, error) = await _imageUploadService.uploadItemImage(file: file, userMobile: widget.userMobile);
+    if (!mounted) return;
+    setState(() {
+      _isUploadingImage = false;
+      if (url != null) _pickedImageUrl = url;
+    });
+    if (url == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error ?? 'Image upload failed — you can still save the item without an image'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
+  // ============ BARCODE FIELD (existing manual scan/generate) ============
+
+  Future<void> _scanBarcode() async {
+    final code = await showBarcodeScanner(context);
+    if (mounted && code != null && code.isNotEmpty) {
+      setState(() => _barcodeController.text = code);
+    }
+  }
+
+  Future<void> _generateBarcode() async {
+    try {
+      final code = await BarcodeGeneratorService.generateUnique(widget.inventoryService);
+      if (mounted) setState(() => _barcodeController.text = code);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not generate barcode: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildBarcodeField(ColorScheme colorScheme) {
+    final barcodeValue = _barcodeController.text.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: _buildInputField(
+                controller: _barcodeController,
+                label: 'Barcode',
+                icon: Icons.qr_code_2_outlined,
+                hintText: 'Scan or enter barcode (optional)',
+                optional: true,
+                onChanged: (_) => setState(() {}),
+                focusNode: _barcodeFieldFocusNode,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => advanceFocus(context, _priceFocusNode),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              onPressed: _scanBarcode,
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: 'Scan',
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              onPressed: _generateBarcode,
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: 'Generate',
+            ),
+          ],
+        ),
+        if (barcodeValue.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: BarcodeWidget(
+              barcode: Barcode.code128(),
+              data: barcodeValue,
+              width: 220,
+              height: 60,
+              drawText: true,
+              style: TextStyle(fontSize: 11, color: colorScheme.onSurface),
+              errorBuilder: (context, error) => Text(
+                'Invalid barcode value',
+                style: TextStyle(color: colorScheme.error, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   // ============ CUSTOM WIDGETS ============
   Widget _buildSectionHeader({
     required String title,
@@ -1718,29 +2434,13 @@ Widget _buildExpiryWarningCard(DateTime expiryDate) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: colorScheme.onSurface,
-              ),
-            ),
-            if (required)
-              const Padding(
-                padding: EdgeInsets.only(left: 4),
-                child: Text(
-                  '*',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
+        requiredFieldLabel(
+          required ? '$title *' : title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 8),
         Container(
@@ -1768,6 +2468,9 @@ Widget _buildExpiryWarningCard(DateTime expiryDate) {
     bool optional = false,
     bool readOnly = false,
     ValueChanged<String>? onChanged,
+    FocusNode? focusNode,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onSubmitted,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -1776,34 +2479,21 @@ Widget _buildExpiryWarningCard(DateTime expiryDate) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 15,
-                color: colorScheme.onSurface.withOpacity(0.7),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (!optional)
-              const Padding(
-                padding: EdgeInsets.only(left: 2),
-                child: Text(
-                  '*',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
+        requiredFieldLabel(
+          optional ? label : '$label *',
+          style: TextStyle(
+            fontSize: 15,
+            color: colorScheme.onSurface.withOpacity(0.7),
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           readOnly: readOnly,
+          focusNode: focusNode,
+          textInputAction: textInputAction,
+          onSubmitted: readOnly ? null : onSubmitted,
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: TextStyle(
@@ -1895,27 +2585,12 @@ Widget _buildExpiryWarningCard(DateTime expiryDate) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
-          children: [
-            Text(
-              'Category',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.only(left: 2),
-              child: Text(
-                '*',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
+        requiredFieldLabel(
+          'Category *',
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 8),
         Container(
@@ -2019,6 +2694,8 @@ menuChildren: [
           _categoryController.text = category;
           _categoryError = null;
         });
+        // Category picked — the next typed field is Barcode.
+        advanceFocus(context, _barcodeFieldFocusNode);
       },
       child: SizedBox(
         width: double.infinity,
@@ -2526,6 +3203,9 @@ void _showAddCategoryDialog() {
     _nameController.dispose();
     _descriptionController.dispose();
     _skuController.dispose();
+    _barcodeController.dispose();
+    _brandController.dispose();
+    _packSizeController.dispose();
     _categoryController.dispose();
     _priceController.dispose();
     _costController.dispose();
@@ -2533,6 +3213,17 @@ void _showAddCategoryDialog() {
     _lowStockController.dispose();
     _locationController.dispose();
     _supplierController.dispose();
+    _nameFocusNode.dispose();
+    _descriptionFocusNode.dispose();
+    _brandFocusNode.dispose();
+    _packSizeFocusNode.dispose();
+    _skuFocusNode.dispose();
+    _barcodeFieldFocusNode.dispose();
+    _priceFocusNode.dispose();
+    _costFocusNode.dispose();
+    _quantityFocusNode.dispose();
+    _lowStockFocusNode.dispose();
+    _locationFocusNode.dispose();
     super.dispose();
   }
 }

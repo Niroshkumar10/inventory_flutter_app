@@ -7,8 +7,10 @@ class ReportsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-     
-      body: const ReportsDashboardScreen(),
+      // Explicit display order: Sales|Purchase, Inventory|P&L, Customer|Supplier
+      // (indices 2=P&L/3=Inventory are swapped from their default array order
+      // so the pairs read left-to-right the way the rest of the app expects).
+      body: const ReportsDashboardScreen(allowedTabs: [0, 1, 3, 2, 4, 5]),
     );
   }
 }

@@ -3,7 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:inventory_app/features/ledger/services/ledger_service.dart';
 import 'package:inventory_app/features/ledger/models/ledger_model.dart';
 import 'package:inventory_app/features/ledger/screens/add_ledger_entry_screen.dart';
+import 'package:inventory_app/features/ledger/screens/ledger_entry_detail_screen.dart';
 import 'package:inventory_app/core/theme/colors.dart';
+import 'package:inventory_app/core/widgets/summary_stat_card.dart';
 
 // ─── Filter helpers ───────────────────────────────────────────────────────────
 
@@ -140,47 +142,53 @@ class _CashBookDashboardScreenState extends State<CashBookDashboardScreen>
         elevation: 0,
         scrolledUnderElevation: 0.5,
         iconTheme: IconThemeData(color: cs.onSurface),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: StreamBuilder<List<LedgerEntry>>(
-            stream: _ledgerService.getIncomeExpenseEntries(),
-            builder: (context, snap) {
-              final entries = snap.data ?? [];
-              final income  = entries.where((e) => e.type == 'income').fold<double>(0, (s, e) => s + e.amount);
-              final expense = entries.where((e) => e.type == 'expense').fold<double>(0, (s, e) => s + e.amount);
-              final net = income - expense;
-              return Container(
-                color: cs.surface,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Row(
-                  children: [
-                    _NetChip(label: 'Income', value: income, color: AppColors.secondary, fmt: _fmt),
-                    const SizedBox(width: 16),
-                    _NetChip(label: 'Expense', value: expense, color: AppColors.error, fmt: _fmt),
-                    const Spacer(),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('Net Balance', style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.5))),
-                        Text(
-                          '₹${_fmt.format(net)}',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: net >= 0 ? AppColors.secondary : AppColors.error,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
       ),
       body: Column(
         children: [
+          // ── Income / Expense / Net Balance cards ────────────────────────
+          Container(
+            color: cs.surface,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: StreamBuilder<List<LedgerEntry>>(
+              stream: _ledgerService.getIncomeExpenseEntries(),
+              builder: (context, snap) {
+                final entries = snap.data ?? [];
+                final income  = entries.where((e) => e.type == 'income').fold<double>(0, (s, e) => s + e.amount);
+                final expense = entries.where((e) => e.type == 'expense').fold<double>(0, (s, e) => s + e.amount);
+                final net = income - expense;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: SummaryStatCard.card(
+                        label: 'Income',
+                        value: '₹${_fmt.format(income)}',
+                        color: AppColors.secondary,
+                        icon: Icons.arrow_downward_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SummaryStatCard.card(
+                        label: 'Expense',
+                        value: '₹${_fmt.format(expense)}',
+                        color: AppColors.error,
+                        icon: Icons.arrow_upward_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SummaryStatCard.card(
+                        label: 'Net Balance',
+                        value: '₹${_fmt.format(net)}',
+                        color: net >= 0 ? AppColors.secondary : AppColors.error,
+                        icon: Icons.account_balance_wallet_outlined,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
           // Tab bar — All | Income | Expense
           Container(
             color: cs.surface,
@@ -189,10 +197,11 @@ class _CashBookDashboardScreenState extends State<CashBookDashboardScreen>
               labelColor: cs.primary,
               unselectedLabelColor: cs.onSurface.withValues(alpha: 0.5),
               indicatorColor: cs.primary,
+              indicatorWeight: 3,
               tabs: const [
-                Tab(icon: Icon(Icons.list_alt, size: 18), text: 'All'),
-                Tab(icon: Icon(Icons.add_circle_outline, size: 18), text: 'Income'),
-                Tab(icon: Icon(Icons.remove_circle_outline, size: 18), text: 'Expense'),
+                Tab(icon: Icon(Icons.grid_view_rounded, size: 20), text: 'All'),
+                Tab(icon: Icon(Icons.add_circle_outline, size: 20), text: 'Income'),
+                Tab(icon: Icon(Icons.remove_circle_outline, size: 20), text: 'Expense'),
               ],
             ),
           ),
@@ -238,9 +247,9 @@ class _CashBookDashboardScreenState extends State<CashBookDashboardScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _CashEntryList(ledgerService: _ledgerService, type: 'all',     fmt: _fmt, startDate: start, endDate: end),
-                _CashEntryList(ledgerService: _ledgerService, type: 'income',  fmt: _fmt, startDate: start, endDate: end),
-                _CashEntryList(ledgerService: _ledgerService, type: 'expense', fmt: _fmt, startDate: start, endDate: end),
+                _CashEntryList(ledgerService: _ledgerService, type: 'all',     fmt: _fmt, startDate: start, endDate: end, userMobile: widget.userMobile),
+                _CashEntryList(ledgerService: _ledgerService, type: 'income',  fmt: _fmt, startDate: start, endDate: end, userMobile: widget.userMobile),
+                _CashEntryList(ledgerService: _ledgerService, type: 'expense', fmt: _fmt, startDate: start, endDate: end, userMobile: widget.userMobile),
               ],
             ),
           ),
@@ -285,6 +294,7 @@ class _CashEntryList extends StatelessWidget {
   final NumberFormat fmt;
   final DateTime startDate;
   final DateTime endDate;
+  final String userMobile;
 
   const _CashEntryList({
     required this.ledgerService,
@@ -292,6 +302,7 @@ class _CashEntryList extends StatelessWidget {
     required this.fmt,
     required this.startDate,
     required this.endDate,
+    required this.userMobile,
   });
 
   @override
@@ -318,6 +329,11 @@ class _CashEntryList extends StatelessWidget {
           ..sort((a, b) => b.date.compareTo(a.date));
 
         final total = entries.fold<double>(0, (s, e) => s + e.amount);
+        // Net figure for the "All" tab — same income-minus-expense math the
+        // AppBar summary uses, so the two stay consistent.
+        final allIncome  = entries.where((e) => e.type == 'income').fold<double>(0, (s, e) => s + e.amount);
+        final allExpense = entries.where((e) => e.type == 'expense').fold<double>(0, (s, e) => s + e.amount);
+        final net = allIncome - allExpense;
 
         if (entries.isEmpty) {
           return Center(
@@ -356,19 +372,20 @@ class _CashEntryList extends StatelessWidget {
               child: Row(
                 children: [
                   Text(
-                    isAll ? 'All Entries:' : 'Total ${isIncome ? 'Income' : 'Expense'}:',
+                    isAll ? 'Net Balance:' : 'Total ${isIncome ? 'Income' : 'Expense'}:',
                     style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6)),
                   ),
                   const SizedBox(width: 8),
-                  if (!isAll)
-                    Text(
-                      '₹${fmt.format(total)}',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: isIncome ? AppColors.secondary : AppColors.error,
-                      ),
+                  Text(
+                    '₹${fmt.format(isAll ? net : total)}',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isAll
+                          ? (net >= 0 ? AppColors.secondary : AppColors.error)
+                          : (isIncome ? AppColors.secondary : AppColors.error),
                     ),
+                  ),
                   const Spacer(),
                   Text('${entries.length} entries',
                       style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.4))),
@@ -376,6 +393,14 @@ class _CashEntryList extends StatelessWidget {
               ),
             ),
             const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text('Transactions',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: cs.onSurface)),
+            ),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
@@ -393,7 +418,19 @@ class _CashEntryList extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       side: BorderSide(color: cs.outline.withValues(alpha: 0.15)),
                     ),
-                    child: ListTile(
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LedgerEntryDetailScreen(
+                            entry: e,
+                            userMobile: userMobile,
+                          ),
+                        ),
+                      ),
+                      child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       leading: CircleAvatar(
                         radius: 22,
@@ -438,6 +475,7 @@ class _CashEntryList extends StatelessWidget {
                         '₹${fmt.format(e.amount)}',
                         style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: color),
                       ),
+                      ),
                     ),
                   );
                 },
@@ -446,26 +484,6 @@ class _CashEntryList extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _NetChip extends StatelessWidget {
-  final String label;
-  final double value;
-  final Color color;
-  final NumberFormat fmt;
-  const _NetChip({required this.label, required this.value, required this.color, required this.fmt});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5))),
-        Text('₹${fmt.format(value)}',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color)),
-      ],
     );
   }
 }

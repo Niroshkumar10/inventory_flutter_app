@@ -1,4 +1,6 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:inventory_app/core/widgets/required_field_label.dart';
+import 'package:inventory_app/core/services/current_location_service.dart';
 import '../models/supplier_model.dart';
 import '../services/supplier_service.dart';
 import 'location_picker.dart';
@@ -31,6 +33,10 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
   double? _selectedLongitude;
   String? _selectedLocationAddress;
 
+  final _nameFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
+  final _addressFocusNode = FocusNode();
+  bool _isFetchingLocation = false;
 
   bool _isLoading = false;
   List<Supplier> _existingSuppliers = [];
@@ -116,7 +122,25 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
     _phoneController.dispose();
     _emailController.dispose();
     _addressController.dispose();
+    _nameFocusNode.dispose();
+    _phoneFocusNode.dispose();
+    _addressFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => _isFetchingLocation = true);
+    final result = await CurrentLocationService.getCurrentLocation(context);
+    if (!mounted) return;
+    setState(() {
+      _isFetchingLocation = false;
+      if (result != null) {
+        _addressController.text = result.address;
+        _selectedLatitude = result.latitude;
+        _selectedLongitude = result.longitude;
+        _selectedLocationAddress = result.address;
+      }
+    });
   }
 
   // Validation method for name (check if exists)
@@ -345,9 +369,12 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               // Name Field with validation
               TextFormField(
                 controller: _nameController,
+                focusNode: _nameFocusNode,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_phoneFocusNode),
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Supplier Name *',
+                  label: requiredFieldLabel('Supplier Name *'),
                   labelStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -387,6 +414,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               // Phone Field with validation
               TextFormField(
                 controller: _phoneController,
+                focusNode: _phoneFocusNode,
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Phone Number (Optional)',
@@ -427,6 +455,15 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                 keyboardType: TextInputType.phone,
                 maxLength: 10, // Limit to 10 digits
                 validator: _validatePhone,
+                textInputAction: TextInputAction.next,
+                onChanged: (value) {
+                  // Phone numbers are always 10 digits — advance the moment
+                  // it's complete, same as an OTP box.
+                  if (value.length == 10) {
+                    FocusScope.of(context).requestFocus(_addressFocusNode);
+                  }
+                },
+                onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_addressFocusNode),
               ),
               
               const SizedBox(height: 16),
@@ -438,6 +475,7 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
               // Address Field
               TextFormField(
                 controller: _addressController,
+                focusNode: _addressFocusNode,
                 style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Address',
@@ -454,6 +492,20 @@ class _SupplierFormModalState extends State<SupplierFormModal> {
                     borderSide: BorderSide(color: colorScheme.tertiary, width: 2),
                   ),
                   prefixIcon: Icon(Icons.location_on, color: colorScheme.tertiary),
+                  suffixIcon: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: IconButton(
+                      onPressed: _isFetchingLocation ? null : _useCurrentLocation,
+                      tooltip: 'Use current location',
+                      icon: _isFetchingLocation
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.tertiary),
+                            )
+                          : Icon(Icons.my_location, color: colorScheme.tertiary),
+                    ),
+                  ),
                   filled: true,
                   fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                 ),

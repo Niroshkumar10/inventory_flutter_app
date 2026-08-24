@@ -32,7 +32,10 @@ class _SidebarMenuState extends State<SidebarMenu> {
       elevation: 0,
       backgroundColor: colorScheme.surface,
       child: SafeArea(
-        top: true,
+        // The header's own gradient extends to the true top of the screen
+        // (behind the status bar) instead of leaving a plain white gap
+        // above it — see _buildHeader's status-bar-aware top padding below.
+        top: false,
         bottom: false,
         left: false,
         right: false,
@@ -97,7 +100,7 @@ class _SidebarMenuState extends State<SidebarMenu> {
                       children: [
                         _buildSubMenuItem(
                           icon: Icons.swap_horiz_rounded,
-                          title: 'Transactions',
+                          title: 'Bills',
                           onTap: () => widget.onNavigate(Routes.transactions),
                         ),
                         _buildSubMenuItem(
@@ -199,9 +202,11 @@ class _SidebarMenuState extends State<SidebarMenu> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      padding: EdgeInsets.fromLTRB(20, statusBarHeight + 8, 20, 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [

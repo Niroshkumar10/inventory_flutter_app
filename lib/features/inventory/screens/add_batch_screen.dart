@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/required_field_label.dart';
+import '../../../core/utils/focus_utils.dart';
 import '../services/inventory_repo_service.dart';
 import '../models/batch_model.dart';
 import '../../party/services/supplier_service.dart';
@@ -27,6 +29,10 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   final _quantityController = TextEditingController();
   final _purchasePriceController = TextEditingController();
   final _supplierInvoiceController = TextEditingController();
+
+  final _quantityFocusNode = FocusNode();
+  final _purchasePriceFocusNode = FocusNode();
+  final _invoiceFocusNode = FocusNode();
 
   // New batch only
   DateTime? _expiryDate;
@@ -61,6 +67,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     _quantityController.dispose();
     _purchasePriceController.dispose();
     _supplierInvoiceController.dispose();
+    _quantityFocusNode.dispose();
+    _purchasePriceFocusNode.dispose();
+    _invoiceFocusNode.dispose();
     super.dispose();
   }
 
@@ -276,6 +285,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                       keyboardType: TextInputType.number,
                       colorScheme: colorScheme,
                       isDark: isDark,
+                      focusNode: _quantityFocusNode,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) => advanceFocus(context, _purchasePriceFocusNode),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
                           return 'Quantity is required';
@@ -302,6 +314,10 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                           decimal: true),
                       colorScheme: colorScheme,
                       isDark: isDark,
+                      focusNode: _purchasePriceFocusNode,
+                      textInputAction: TextInputAction.done,
+                      // What follows (date pickers / supplier picker) isn't a
+                      // keyboard field, so finishing here just dismisses it.
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
                           return 'Purchase price is required';
@@ -379,6 +395,8 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                       icon: Icons.receipt_outlined,
                       colorScheme: colorScheme,
                       isDark: isDark,
+                      focusNode: _invoiceFocusNode,
+                      textInputAction: TextInputAction.done,
                     ),
 
                     const SizedBox(height: 32),
@@ -586,7 +604,11 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
               ),
             );
           }).toList(),
-          onChanged: (s) => setState(() => _selectedSupplier = s),
+          onChanged: (s) {
+            setState(() => _selectedSupplier = s);
+            // Supplier picked — the next typed field is Invoice No.
+            advanceFocus(context, _invoiceFocusNode);
+          },
         ),
       ),
     );
@@ -739,7 +761,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   Widget _sectionLabel(String text) {
-    return Text(
+    return requiredFieldLabel(
       text,
       style: TextStyle(
         fontSize: 13,
@@ -759,11 +781,17 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     String? suffix,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    FocusNode? focusNode,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onFieldSubmitted,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
+      focusNode: focusNode,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onFieldSubmitted,
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: Padding(

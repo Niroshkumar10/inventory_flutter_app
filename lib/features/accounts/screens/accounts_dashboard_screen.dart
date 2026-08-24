@@ -39,9 +39,9 @@ class AccountsDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 28),
 
-            // 1 — Transactions card
+            // 1 — Bills card
             _AccountCard(
-              title: 'Transactions',
+              title: 'Bills',
               subtitle: 'Sales & Purchases',
               description: 'Record goods sold to customers and bought from suppliers.',
               icon: Icons.swap_horiz_rounded,

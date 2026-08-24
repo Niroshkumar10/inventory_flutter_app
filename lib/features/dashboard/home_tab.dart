@@ -11,11 +11,13 @@ import '../../features/bill/services/bill_service.dart';
 import '../../features/feedback/services/feedback_service.dart'; // Add this
 
 import '../bill/screens/view_bill_screen.dart';
+import '../bill/screens/add_edit_bill_screen.dart';
 
 import 'package:go_router/go_router.dart';
 
 import '../../core/navigation/app_router.dart';
 import '../../core/providers/ai_provider.dart';
+import '../../core/providers/app_providers.dart';
 import '../../features/ai/screens/ai_chat_screen.dart';
 
 // ============ TIME FILTER ENUM (TOP LEVEL) ============
@@ -222,42 +224,60 @@ class _DashboardContentState extends State<DashboardContent> {
           /// ===== SUMMARY CARDS =====
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _summaryCardMobile(
-                    title: 'Customers',
-                    icon: Icons.person,
-                    color: colorScheme.primary,
-                    stream: widget.customerService.getCustomers(),
-                    route: Routes.customers,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 84,
+                    child: _summaryCardMobile(
+                      title: 'Bills',
+                      icon: Icons.receipt_long,
+                      color: Colors.deepPurple,
+                      stream: Provider.of<BillService>(context, listen: false).getBills(),
+                      onTap: () => _openQuickAddSale(context),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _summaryCardMobile(
-                    title: 'Suppliers',
-                    icon: Icons.people,
-                    color: colorScheme.secondary,
-                    stream: widget.supplierService.getSuppliers(),
-                    route: Routes.suppliers,
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 84,
+                    child: _summaryCardMobile(
+                      title: 'Customers',
+                      icon: Icons.person,
+                      color: colorScheme.primary,
+                      stream: widget.customerService.getCustomers(),
+                      route: Routes.customers,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _summaryCardMobile(
-                    title: 'Inventory',
-                    icon: Icons.inventory_2,
-                    color: colorScheme.tertiary,
-                    stream: widget.inventoryService.getInventoryItems(),
-                    route: Routes.inventory,
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 84,
+                    child: _balanceCardMobile(context),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _balanceCardMobile(context),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 84,
+                    child: _summaryCardMobile(
+                      title: 'Inventory',
+                      icon: Icons.inventory_2,
+                      color: colorScheme.tertiary,
+                      stream: widget.inventoryService.getInventoryItems(),
+                      route: Routes.inventory,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 84,
+                    child: _summaryCardMobile(
+                      title: 'Suppliers',
+                      icon: Icons.people,
+                      color: colorScheme.secondary,
+                      stream: widget.supplierService.getSuppliers(),
+                      route: Routes.suppliers,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -937,8 +957,11 @@ class _DashboardContentState extends State<DashboardContent> {
     required IconData icon,
     required Color color,
     required Stream stream,
-    required String route,
+    String? route,
+    VoidCallback? onTap,
   }) {
+    assert(route != null || onTap != null,
+        'Provide either route or onTap for the "$title" summary card');
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -953,7 +976,7 @@ class _DashboardContentState extends State<DashboardContent> {
             margin: EdgeInsets.zero,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => context.push(route),
+              onTap: onTap ?? () => context.push(route!),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -996,6 +1019,28 @@ class _DashboardContentState extends State<DashboardContent> {
           );
         },
       )
+    );
+  }
+
+  /// Dashboard "Bills" shortcut — skips the normal Sales/Purchase
+  /// transaction list and goes straight to the New Sale form. Saving there
+  /// auto-generates and opens the invoice PDF (see
+  /// `AddEditBillScreen.autoDownloadPdfOnSave`), unlike the normal
+  /// Accounts → Bills entry point, which is untouched by this shortcut.
+  void _openQuickAddSale(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AppProviders(
+          userMobile: widget.userMobile,
+          child: AddEditBillScreen(
+            type: 'sales',
+            userMobile: widget.userMobile,
+            billService: BillService(widget.userMobile),
+            autoDownloadPdfOnSave: true,
+          ),
+        ),
+      ),
     );
   }
 

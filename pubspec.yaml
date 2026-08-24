@@ -2,7 +2,7 @@ name: inventory_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.1.0+9
+version: 1.1.1+10
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -66,6 +66,13 @@ dependencies:
 
   # Permissions
   permission_handler: ^11.0.1
+
+  # Barcode scanning & generation
+  mobile_scanner: ^7.0.1
+  barcode_widget: ^2.0.4
+
+  # Product image picking
+  image_picker: ^1.1.2
 
   # App info
   package_info_plus: ^8.0.0

@@ -24,7 +24,6 @@ class CategoriesScreen extends StatefulWidget {
 class _CategoriesScreenState extends State<CategoriesScreen> {
   late InventoryService _inventoryService;
   List<Category> _categories = [];
-  List<InventoryItem> _allItems = [];
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -70,7 +69,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
       setState(() {
         _categories = categories;
-        _allItems = allItems;
         _categoriesCount = categories.length;
         _totalItems = totalItems;
         _lowStockItems = lowStockItems;
@@ -224,6 +222,15 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                               _lowStockItems.toString(),
                               Icons.warning,
                               colorScheme.tertiary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildCompactStatCard(
+                              'Out of Stock',
+                              _outOfStockItems.toString(),
+                              Icons.remove_circle_outline,
+                              colorScheme.error,
                             ),
                           ),
                         ],

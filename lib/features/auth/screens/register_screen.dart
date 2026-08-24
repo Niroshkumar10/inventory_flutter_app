@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../core/widgets/required_field_label.dart';
+import '../../../core/utils/focus_utils.dart';
 import '../services/user_service.dart';
 import '../models/user_model.dart';
 import '../../session/session_service_new.dart';
@@ -26,6 +29,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  final _mobileFocus = FocusNode();
+  final _nameFocus = FocusNode();
+  final _locationFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmPasswordFocus = FocusNode();
+
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
@@ -34,12 +43,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordService = PasswordAuthService();
 
   @override
+  void initState() {
+    super.initState();
+    _mobileFocus.addListener(() => setState(() {}));
+    _nameFocus.addListener(() => setState(() {}));
+    _passwordFocus.addListener(() => setState(() {}));
+    _confirmPasswordFocus.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _mobileController.dispose();
     _nameController.dispose();
     _locationController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _mobileFocus.dispose();
+    _nameFocus.dispose();
+    _locationFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
     super.dispose();
   }
 
@@ -75,16 +98,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _validatePassword(String? v) {
     if (v == null || v.isEmpty) return 'Password is required';
-    if (v.length < 6) return 'At least 6 characters';
-    if (!RegExp(r'^(?=.*[A-Za-z])(?=.*\d)').hasMatch(v)) {
-      return 'Must contain both letters and numbers';
-    }
+    if (v.length < 5) return 'At least 5 characters';
     return null;
   }
 
   String? _validateConfirm(String? v) {
     if (v == null || v.isEmpty) return 'Please confirm password';
-    if (v != _passwordController.text) return 'Passwords do not match';
+    if (v != _passwordController.text) {
+      return 'Password should match the above password';
+    }
     return null;
   }
 
@@ -213,15 +235,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _mobileController,
+                  focusNode: _mobileFocus,
                   keyboardType: TextInputType.phone,
                   maxLength: 10,
                   textInputAction: TextInputAction.next,
                   style: TextStyle(color: cs.onSurface),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
                   decoration: _decoration(cs, isDark,
                       hint: '10-digit mobile number',
                       prefixIcon: Icons.phone,
-                      prefix: '+91  '),
+                      prefix: '+91  ',
+                      helperText:
+                          _mobileFocus.hasFocus ? 'Enter only numbers' : null),
                   validator: _validateMobile,
+                  onChanged: (value) {
+                    // Mobile is always 10 digits — advance the instant it's
+                    // complete, same as an OTP box.
+                    if (value.length == 10) {
+                      advanceFocus(context, _nameFocus);
+                    }
+                  },
+                  onFieldSubmitted: (_) => advanceFocus(context, _nameFocus),
                 ),
 
                 const SizedBox(height: 20),
@@ -231,13 +267,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _nameController,
+                  focusNode: _nameFocus,
                   textInputAction: TextInputAction.next,
                   textCapitalization: TextCapitalization.words,
                   style: TextStyle(color: cs.onSurface),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'[a-zA-Z\s\.\-]')),
+                  ],
                   decoration: _decoration(cs, isDark,
                       hint: 'Enter your full name',
-                      prefixIcon: Icons.person_outline),
+                      prefixIcon: Icons.person_outline,
+                      helperText:
+                          _nameFocus.hasFocus ? 'Enter only letters' : null),
                   validator: _validateName,
+                  onFieldSubmitted: (_) => advanceFocus(context, _locationFocus),
                 ),
 
                 const SizedBox(height: 20),
@@ -247,12 +291,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _locationController,
+                  focusNode: _locationFocus,
                   textInputAction: TextInputAction.next,
                   style: TextStyle(color: cs.onSurface),
                   decoration: _decoration(cs, isDark,
                       hint: 'City or area',
                       prefixIcon: Icons.location_on_outlined),
                   validator: _validateLocation,
+                  onFieldSubmitted: (_) => advanceFocus(context, _passwordFocus),
                 ),
 
                 const SizedBox(height: 20),
@@ -262,12 +308,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _passwordController,
+                  focusNode: _passwordFocus,
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.next,
                   style: TextStyle(color: cs.onSurface),
                   decoration: _decoration(cs, isDark,
-                      hint: 'Min 6 chars, letters + numbers',
+                      hint: 'Enter your password',
                       prefixIcon: Icons.lock_outline,
+                      helperText: _passwordFocus.hasFocus
+                          ? 'Enter only characters, numbers and symbols. Atleast 5 characters'
+                          : null,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -279,6 +329,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             setState(() => _obscurePassword = !_obscurePassword),
                       )),
                   validator: _validatePassword,
+                  onFieldSubmitted: (_) => advanceFocus(context, _confirmPasswordFocus),
                 ),
 
                 const SizedBox(height: 20),
@@ -288,12 +339,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _confirmPasswordController,
+                  focusNode: _confirmPasswordFocus,
                   obscureText: _obscureConfirm,
                   textInputAction: TextInputAction.done,
                   style: TextStyle(color: cs.onSurface),
                   decoration: _decoration(cs, isDark,
                       hint: 'Re-enter password',
                       prefixIcon: Icons.lock_outline,
+                      helperText: _confirmPasswordFocus.hasFocus
+                          ? 'Password should match the above password'
+                          : null,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirm
@@ -369,7 +424,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // ─── helpers ────────────────────────────────────────────────────────────────
 
-  Widget _label(String text, ColorScheme cs) => Text(text,
+  Widget _label(String text, ColorScheme cs) => requiredFieldLabel(text,
       style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
@@ -382,6 +437,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     String? hint,
     IconData? prefixIcon,
     String? prefix,
+    String? helperText,
     Widget? suffixIcon,
   }) {
     return InputDecoration(
@@ -395,6 +451,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       prefixText: prefix,
       prefixStyle: TextStyle(color: cs.onSurface, fontSize: 14),
       suffixIcon: suffixIcon,
+      helperText: helperText,
+      helperStyle: TextStyle(color: cs.error, fontSize: 11.5),
+      helperMaxLines: 2,
       filled: true,
       fillColor: isDark ? cs.surfaceContainerHighest : Colors.white,
       counterText: '',

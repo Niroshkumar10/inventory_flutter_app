@@ -7,6 +7,7 @@ import 'package:open_file/open_file.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'pdf_common.dart' show PdfCommon;
 
 class PdfExportService {
   static final _dateFormat = DateFormat('dd/MM/yyyy');
@@ -20,8 +21,12 @@ class PdfExportService {
 
   void setUserDetailsFromProfile(Map<String, dynamic> userData) {
     _userName = userData['name']?.toString();
-    _businessName = userData['businessName']?.toString() ?? 'My Business';
+    _businessName = userData['businessName']?.toString() ?? 'Kadai';
     _location = userData['location']?.toString();
+    // Firestore stores the GST number under the key `gst` (see
+    // ProfileScreen._updateBusinessProfile), not `gstNumber`.
+    _gstNumber = userData['gst']?.toString();
+    _address = userData['address']?.toString();
   }
 
   void setUserDetails({
@@ -86,6 +91,98 @@ class PdfExportService {
     }
   }
 
+  /// Same inputs as [exportToPdf], but returns the raw saved file path
+  /// instead of a status string, and never opens the file — used by
+  /// WhatsApp sharing, which needs a real path to hand to the share sheet.
+  /// Returns null on web (nothing to point a share sheet at there) or if
+  /// generation fails.
+  Future<String?> exportToPdfFile({
+    required String reportType,
+    required String userMobile,
+    required DateTime startDate,
+    required DateTime endDate,
+    required dynamic data,
+    required String title,
+    Map<String, dynamic>? userData,
+  }) async {
+    try {
+      if (userData != null) setUserDetailsFromProfile(userData);
+
+      List<Map<String, dynamic>> dataRows;
+      Map<String, dynamic> summary = {};
+
+      if (reportType == 'sales' && data is List) {
+        dataRows = _parseSalesReports(data);
+        summary = _calculateSalesSummary(data);
+      } else if (reportType == 'purchase' && data is List) {
+        dataRows = _parsePurchaseReports(data);
+        summary = _calculatePurchaseSummary(data);
+      } else if (reportType == 'inventory' && data is List) {
+        dataRows = _parseInventoryReports(data);
+      } else if (reportType == 'customer' && data is List) {
+        dataRows = _parseCustomerReports(data);
+      } else if (reportType == 'supplier' && data is List) {
+        dataRows = _parseSupplierReports(data);
+      } else if (reportType == 'profit-loss' && data is List) {
+        dataRows = _parseProfitLossReports(data);
+      } else {
+        dataRows = _parseDataToRows(data, reportType);
+        summary = _calculateSummary(dataRows, reportType);
+      }
+
+      return await _generatePdfAndSave(
+        dataRows: dataRows,
+        summary: summary,
+        title: title,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+        reportType: reportType,
+      );
+    } catch (e) {
+      debugPrint('Error generating PDF file: $e');
+      return null;
+    }
+  }
+
+  /// Builds the PDF document and writes it to disk (mobile/desktop), or
+  /// triggers the browser print/save dialog (web). Returns the saved file
+  /// path on mobile/desktop, or null on web — mirrors the return-path
+  /// convention used by `PdfCommon.saveToFile`. Does not open the file;
+  /// callers that want to open it (see [_generateMobilePdf]) do so themselves.
+  Future<String?> _generatePdfAndSave({
+    required List<Map<String, dynamic>> dataRows,
+    required Map<String, dynamic> summary,
+    required String title,
+    required String userMobile,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String reportType,
+  }) async {
+    final pdf = await _generatePdfDocument(
+        dataRows, summary, title, userMobile, startDate, endDate, reportType);
+
+    final fileName =
+        '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+
+    if (kIsWeb) {
+      // Web: trigger browser print/save dialog via the printing package.
+      // There's no real file on disk to share from on web.
+      await Printing.layoutPdf(
+        onLayout: (_) => pdf.save(),
+        name: fileName,
+      );
+      return null;
+    }
+
+    // Mobile / Desktop: write to disk.
+    final directory = await getApplicationDocumentsDirectory();
+    final filePath = '${directory.path}/$fileName';
+    final bytes = await pdf.save();
+    await File(filePath).writeAsBytes(bytes);
+    return filePath;
+  }
+
   Future<String> _generateMobilePdf({
     required List<Map<String, dynamic>> dataRows,
     required Map<String, dynamic> summary,
@@ -96,28 +193,25 @@ class PdfExportService {
     required String reportType,
   }) async {
     try {
-      final pdf = await _generatePdfDocument(
-          dataRows, summary, title, userMobile, startDate, endDate, reportType);
-
-      final fileName =
-          '${reportType}_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final filePath = await _generatePdfAndSave(
+        dataRows: dataRows,
+        summary: summary,
+        title: title,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+        reportType: reportType,
+      );
 
       if (kIsWeb) {
-        // Web: trigger browser print/save dialog via the printing package
-        await Printing.layoutPdf(
-          onLayout: (_) => pdf.save(),
-          name: fileName,
-        );
+        // Web: browser print/save dialog was already triggered above.
         return '✅ PDF download started. Check your browser downloads.';
-      } else {
-        // Mobile / Desktop: write to disk then open with the system viewer
-        final directory = await getApplicationDocumentsDirectory();
-        final filePath = '${directory.path}/$fileName';
-        final bytes = await pdf.save();
-        await File(filePath).writeAsBytes(bytes);
-        await _openFile(filePath);
-        return '✅ PDF saved successfully. Check your files.';
       }
+      if (filePath == null) {
+        return 'Failed to generate PDF.';
+      }
+      await _openFile(filePath);
+      return '✅ PDF saved successfully. Check your files.';
     } catch (e) {
       return 'Failed to generate PDF: $e';
     }
@@ -196,13 +290,13 @@ class PdfExportService {
           'Customer': _val(m, ['customerName', 'customer', 'clientName']),
           'Mobile': _val(m, ['customerMobile', 'mobile', 'phone', 'contact']),
           'Date': _val(m, ['formattedDate', 'date', 'createdAt', 'invoiceDate']),
-          'Categories': _uniqueCategories(items),
-          'Items': _itemsSummary(items),
-          'Total Items': _val(m, ['totalItems', 'itemsCount', 'quantity']),
+          'Subtotal': _amount(m, ['subtotal']),
+          'GST Amount': _amount(m, ['gstAmount']),
           'Total Amount': _amount(m, ['totalAmount', 'grandTotal', 'netAmount']),
           'Amount Paid': _amount(m, ['amountPaid', 'paidAmount', 'paid']),
           'Amount Due': _amount(m, ['amountDue', 'dueAmount', 'balance']),
           'Status': _val(m, ['paymentStatus', 'status', 'payment_state']),
+          '__categoryRows': _categoryRows(items),
         });
       } catch (_) {}
     }
@@ -220,12 +314,13 @@ class PdfExportService {
           'Supplier': _val(m, ['supplierName', 'supplier', 'vendorName']),
           'Mobile': _val(m, ['supplierMobile', 'mobile', 'phone', 'contact']),
           'Date': _val(m, ['formattedDate', 'date', 'createdAt', 'invoiceDate']),
-          'Categories': _uniqueCategories(items),
-          'Items': _itemsSummary(items),
+          'Subtotal': _amount(m, ['subtotal']),
+          'GST Amount': _amount(m, ['gstAmount']),
           'Total Amount': _amount(m, ['totalAmount', 'grandTotal', 'netAmount']),
           'Amount Paid': _amount(m, ['amountPaid', 'paidAmount', 'paid']),
           'Amount Due': _amount(m, ['amountDue', 'dueAmount', 'balance']),
           'Status': _val(m, ['paymentStatus', 'status', 'payment_state']),
+          '__categoryRows': _categoryRows(items),
         });
       } catch (_) {}
     }
@@ -318,19 +413,7 @@ class PdfExportService {
     };
   }
 
-  // ── PDF document builder ──────────────────────────────────────────────────
-
-  String _getTableTitle(String reportType) {
-    switch (reportType) {
-      case 'sales':       return 'Sales Details';
-      case 'purchase':    return 'Purchase Details';
-      case 'profit-loss': return 'Profit & Loss Summary';
-      case 'inventory':   return 'Inventory Details';
-      case 'customer':    return 'Customer Reports';
-      case 'supplier':    return 'Supplier Reports';
-      default:            return 'Report Details';
-    }
-  }
+  // ── PDF document builder (supermarket-receipt style) ───────────────────────
 
   Future<pw.Document> _generatePdfDocument(
     List<Map<String, dynamic>> dataRows,
@@ -354,220 +437,556 @@ class PdfExportService {
 
     final pdf = pw.Document(theme: theme);
     pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      pw.Page(
+        // Narrow, auto-height "receipt roll" format — same width a supermarket
+        // counter printer uses — instead of a full A4 desktop page. Same
+        // explicit margin as `BillInvoicePdfService`/`LedgerReceiptPdfService`
+        // so every single- and bulk-document PDF renders at an identical
+        // usable content width, not just the same nominal page format.
+        pageFormat: PdfPageFormat.roll80,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         build: (pw.Context context) {
-          final widgets = <pw.Widget>[
-            _buildPdfHeader(title, userMobile, startDate, endDate, reportType, dataRows.length),
-          ];
-          if (reportType == 'sales' || reportType == 'purchase') {
-            widgets.add(pw.SizedBox(height: 6));
-            widgets.add(_buildPdfSummary(summary, reportType));
-          }
-          widgets.add(pw.SizedBox(height: 6));
-          widgets.add(_buildPdfDataTable(dataRows, reportType, context));
-          widgets.add(pw.SizedBox(height: 8));
-          widgets.add(_buildPdfFooter());
-          return widgets;
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              _receiptHeader(title, userMobile, startDate, endDate, reportType, dataRows.length),
+              _dashedLine(),
+              ..._receiptItems(dataRows, reportType),
+              _dashedLine(),
+              if (reportType == 'sales' || reportType == 'purchase') ...[
+                _receiptSummaryTable(summary, reportType),
+                pw.SizedBox(height: 8),
+              ],
+              _receiptFooter(),
+            ],
+          );
         },
       ),
     );
     return pdf;
   }
 
-  pw.Widget _buildPdfHeader(String title, String userMobile,
-      DateTime startDate, DateTime endDate, String reportType, int recordCount) {
-    return pw.Column(children: [
-      pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Expanded(
-            flex: 3,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(_businessName ?? 'My Business',
-                    style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                if (_userName != null && _userName!.isNotEmpty)
-                  pw.Text(_userName!, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                if (_location != null && _location!.isNotEmpty)
-                  pw.Text(_location!, style: pw.TextStyle(fontSize: 9, color: PdfColors.grey700), maxLines: 1),
-                if (_address != null && _address!.isNotEmpty)
-                  pw.Text(_address!, style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600), maxLines: 1),
-                if (_gstNumber != null && _gstNumber!.isNotEmpty)
-                  pw.Text('GST: $_gstNumber', style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-                pw.SizedBox(height: 2),
-                pw.Row(children: [
-                  pw.Text('Phone: ', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                  pw.Text(userMobile, style: pw.TextStyle(fontSize: 9)),
-                ]),
-              ],
+  /// A row of evenly-spaced dashes spanning the receipt width — the "- - - -"
+  /// divider you'd see between sections on a real till receipt.
+  /// Measures the actual available width and generates exactly enough dash
+  /// segments to fill it edge-to-edge — a fixed character count doesn't
+  /// reliably span the real content width across contexts (it was cutting
+  /// off partway across the row before).
+  pw.Widget _dashedLine() {
+    const dashWidth = 2.5;
+    const gapWidth = 2.0;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 5),
+      child: pw.LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints?.maxWidth ?? 200;
+          final count = (width / (dashWidth + gapWidth)).floor();
+          return pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: List.generate(
+              count,
+              (_) => pw.Container(width: dashWidth, height: 0.75, color: PdfColors.grey500),
             ),
-          ),
-          pw.SizedBox(width: 16),
-          pw.Expanded(
-            flex: 7,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: [
-                pw.Text(title,
-                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800),
-                    textAlign: pw.TextAlign.right),
-                pw.Text('Inventory Management System',
-                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-                    textAlign: pw.TextAlign.right),
-                pw.Text('Generated: ${formatDate(DateTime.now())} ${DateFormat('HH:mm').format(DateTime.now())}',
-                    style: pw.TextStyle(fontSize: 7, color: PdfColors.grey500),
-                    textAlign: pw.TextAlign.right),
-              ],
-            ),
-          ),
-        ],
+          );
+        },
       ),
-      pw.SizedBox(height: 6),
-      pw.Container(
-        width: double.infinity,
-        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: pw.BoxDecoration(
-          color: PdfColors.blue50,
-          borderRadius: pw.BorderRadius.circular(4),
-          border: pw.Border.all(color: PdfColors.blue200, width: 0.5),
-        ),
-        child: pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              _buildInfoRow('Report Type:', reportType.toUpperCase()),
-              _buildInfoRow('Period:', '${formatDate(startDate)} to ${formatDate(endDate)}'),
-            ]),
-            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              _buildInfoRow('Records:', recordCount.toString()),
-              _buildInfoRow('Report ID:',
-                  'RPT-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}'),
-            ]),
-          ],
-        ),
-      ),
-      pw.SizedBox(height: 6),
-    ]);
+    );
   }
 
-  pw.Widget _buildInfoRow(String label, String value) {
+  /// A single label/value line, label on the left and value on the right —
+  /// the standard receipt "field: value" row.
+  pw.Widget _kv(String label, String value, {bool bold = false}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 1),
-      child: pw.Row(children: [
-        pw.Text(label,
-            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-        pw.SizedBox(width: 3),
-        pw.Text(value, style: pw.TextStyle(fontSize: 8)),
-      ]),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label,
+              style: pw.TextStyle(
+                  fontSize: bold ? 9 : 8,
+                  fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+          pw.SizedBox(width: 6),
+          pw.Text(value,
+              style: pw.TextStyle(
+                  fontSize: bold ? 9 : 8,
+                  fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+        ],
+      ),
     );
   }
 
-  pw.Widget _buildPdfSummary(Map<String, dynamic> summary, String reportType) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-      decoration: pw.BoxDecoration(
-        color: PdfColors.blue50,
-        borderRadius: pw.BorderRadius.circular(3),
-        border: pw.Border.all(color: PdfColors.blue200, width: 0.5),
-      ),
-      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Text('SUMMARY',
-            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+  pw.Widget _receiptHeader(String title, String userMobile, DateTime startDate,
+      DateTime endDate, String reportType, int recordCount) {
+    final periodRows = [
+      ['Period', '${formatDate(startDate)} - ${formatDate(endDate)}'],
+      ['Records', '$recordCount'],
+      ['Printed', formatDate(DateTime.now())],
+    ];
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Align(
+          alignment: pw.Alignment.topRight,
+          child: pw.Text(title.toUpperCase(),
+              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+        ),
         pw.SizedBox(height: 4),
+        ..._businessIdentityLines(userMobile),
+        pw.SizedBox(height: 6),
+        if (_usesTableLayout(reportType))
+          _boxedKvTable(periodRows)
+        else
+          for (final r in periodRows) _kv(r[0], r[1]),
+      ],
+    );
+  }
+
+  /// Report types that use the boxed/tabular invoice-style layout (bordered
+  /// Period/Records/Printed block, bordered data table instead of plain
+  /// vertical fields) — every report type.
+  bool _usesTableLayout(String reportType) =>
+      reportType == 'sales' ||
+      reportType == 'purchase' ||
+      reportType == 'inventory' ||
+      reportType == 'profit-loss' ||
+      reportType == 'customer' ||
+      reportType == 'supplier';
+
+  /// A bordered 2-column label/value table — used for the boxed reports'
+  /// Period/Records/Printed block and the Sales/Purchase summary table,
+  /// matching the reference invoice layout (boxed, not plain text rows).
+  pw.Widget _boxedKvTable(List<List<String>> rows) {
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+      columnWidths: const {0: pw.FlexColumnWidth(1), 1: pw.FlexColumnWidth(1.4)},
+      children: rows
+          .map((r) => pw.TableRow(children: [
+                _tableCell(r[0], bold: true),
+                _tableCell(r[1]),
+              ]))
+          .toList(),
+    );
+  }
+
+  pw.Widget _tableCell(String text, {bool bold = false, bool header = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      child: pw.Text(text,
+          style: pw.TextStyle(
+              fontSize: 7.5,
+              fontWeight: bold || header ? pw.FontWeight.bold : pw.FontWeight.normal)),
+    );
+  }
+
+  /// Business-identity block — brand name plus the owner's own profile
+  /// details (name/location/address/phone/GST), each only rendered when the
+  /// underlying value is non-null/non-empty.
+  List<pw.Widget> _businessIdentityLines(String userMobile) {
+    return [
+      pw.Text(PdfCommon.brandName.toUpperCase(),
+          textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+      if (_userName != null && _userName!.isNotEmpty)
+        pw.Text(_userName!,
+            textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 8)),
+      if (_location != null && _location!.isNotEmpty)
+        pw.Text(_location!,
+            textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+      if (_address != null && _address!.isNotEmpty)
+        pw.Text(_address!,
+            textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+      pw.Text('Ph: $userMobile',
+          textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+      if (_gstNumber != null && _gstNumber!.isNotEmpty)
+        pw.Text('GSTIN: $_gstNumber',
+            textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+    ];
+  }
+
+  /// Boxed SUMMARY table — Total Sales/Purchases / Total Amount / Paid /
+  /// Pending as a 4-column header row with one data row beneath it — shown
+  /// after all records for the Sales and Purchase reports, matching the
+  /// reference invoice layout.
+  pw.Widget _receiptSummaryTable(Map<String, dynamic> summary, String reportType) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Text('Summary:', style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 3),
         pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.blue100, width: 0.5),
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
           children: [
-            _buildSummaryRow(
-                'Total ${reportType == 'sales' ? 'Sales' : 'Purchases'}:', '${summary['totalCount']}',
-                'Total Amount:', _fmtPdf(summary['totalAmount'])),
-            _buildSummaryRow('Paid:', '${summary['paidCount']}',
-                'Paid Amount:', _fmtPdf(summary['paidAmount'])),
-            _buildSummaryRow('Pending:', '${summary['pendingCount']}',
-                'Pending Amount:', _fmtPdf(summary['pendingAmount'])),
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              children: [
+                _tableCell('Total ${reportType == 'sales' ? 'Sales' : 'Purchases'}', header: true),
+                _tableCell('Total Amount', header: true),
+                _tableCell('Paid', header: true),
+                _tableCell('Pending', header: true),
+              ],
+            ),
+            pw.TableRow(children: [
+              _tableCell('${summary['totalCount']}'),
+              _tableCell(_fmtPdf(summary['totalAmount'])),
+              _tableCell('${summary['paidCount']}'),
+              _tableCell('${summary['pendingCount']}'),
+            ]),
           ],
         ),
-      ]),
+      ],
     );
-  }
-
-  pw.TableRow _buildSummaryRow(String l1, String v1, String l2, String v2) {
-    cell(String text, {bool bold = false}) => pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: pw.Text(text,
-              style: pw.TextStyle(
-                  fontSize: 7,
-                  fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
-        );
-    return pw.TableRow(children: [cell(l1, bold: true), cell(v1), cell(l2, bold: true), cell(v2)]);
   }
 
   String _fmtPdf(double amount) => '₹${_pdfCurrencyFormat.format(amount)}';
 
-  pw.Widget _buildPdfDataTable(
-      List<Map<String, dynamic>> rows, String reportType, pw.Context context) {
+  /// Sales/Purchase render as per-record bordered category tables; Inventory
+  /// renders as one continuous bordered table across every item; Profit &
+  /// Loss renders as per-period boxed label/value tables; Customer/Supplier
+  /// keep the original heading-line + label/value layout.
+  List<pw.Widget> _receiptItems(List<Map<String, dynamic>> rows, String reportType) {
     if (rows.isEmpty) {
-      return pw.Center(
-          child: pw.Text('No data available',
-              style: pw.TextStyle(fontSize: 11, color: PdfColors.grey500, fontStyle: pw.FontStyle.italic)));
+      return [
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 12),
+          child: pw.Text('No records found',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(fontSize: 8, color: PdfColors.grey500, fontStyle: pw.FontStyle.italic)),
+        ),
+      ];
     }
-    final columns = rows.first.keys.toList();
-    final tableData = <List<String>>[
-      columns.map(_fmtColumnName).toList(),
-      ...rows.map((row) => columns.map((col) => _fmtPdfCell(col, row[col])).toList()),
-    ];
-    return pw.Column(children: [
-      pw.Text(_getTableTitle(reportType),
-          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-      pw.SizedBox(height: 4),
-      pw.TableHelper.fromTextArray(
-        context: context,
-        data: tableData,
-        border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.4),
-        headerStyle: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-        headerDecoration: pw.BoxDecoration(color: PdfColors.blue700),
-        cellStyle: pw.TextStyle(fontSize: 6.5),
-        cellPadding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-        cellAlignment: pw.Alignment.centerLeft,
-        columnWidths: _columnWidths(columns),
-      ),
-    ]);
+
+    if (reportType == 'inventory') return [_inventoryTable(rows)];
+    if (reportType == 'customer') return [_customerTable(rows)];
+    if (reportType == 'supplier') return [_supplierTable(rows)];
+
+    final widgets = <pw.Widget>[];
+    for (var i = 0; i < rows.length; i++) {
+      pw.Widget block;
+      switch (reportType) {
+        case 'sales':
+        case 'purchase':
+          block = _transactionTableBlock(rows[i], reportType);
+          break;
+        case 'profit-loss':
+          block = _profitLossBlock(rows[i]);
+          break;
+        default:
+          block = _genericRecordBlock(rows[i]);
+      }
+      widgets.add(block);
+      if (i != rows.length - 1) widgets.add(_dashedLine());
+    }
+    return widgets;
   }
 
-  Map<int, pw.TableColumnWidth> _columnWidths(List<String> columns) {
-    final widths = <int, pw.TableColumnWidth>{};
-    for (var i = 0; i < columns.length; i++) {
-      final col = columns[i].toLowerCase();
-      if (col == 'period') {
-        // Date-range string like "03 May 2026 - 02 Jun 2026" needs ample space
-        widths[i] = const pw.FixedColumnWidth(110);
-      } else if (col.contains('invoice') || col.contains('number')) {
-        widths[i] = const pw.FixedColumnWidth(40);
-      } else if (col.contains('customer') || col.contains('supplier')) {
-        widths[i] = const pw.FixedColumnWidth(50);
-      } else if (col.contains('mobile') || col.contains('phone')) {
-        widths[i] = const pw.FixedColumnWidth(35);
-      } else if (col.contains('date')) {
-        widths[i] = const pw.FixedColumnWidth(30);
-      } else if (col.contains('categories')) {
-        widths[i] = const pw.FixedColumnWidth(50);
-      } else if (col.contains('items')) {
-        widths[i] = const pw.FixedColumnWidth(70);
-      } else if (col.contains('amount') || col.contains('price') || col.contains('total')) {
-        widths[i] = const pw.FixedColumnWidth(40);
-      } else if (col.contains('status')) {
-        widths[i] = const pw.FixedColumnWidth(25);
-      } else if (col.contains('quantity')) {
-        widths[i] = const pw.FixedColumnWidth(20);
-      } else if (col.contains('unit')) {
-        widths[i] = const pw.FixedColumnWidth(20);
-      } else {
-        widths[i] = const pw.FixedColumnWidth(40);
-      }
+  /// Sales/Purchase record layout: Date(left)/Bill No(right) row, party
+  /// name/Mobile row (Bill To/Customer for Sales, Bill From/Supplier for
+  /// Purchase), a bordered Categories/Total Items/Price-per-unit/Total
+  /// Amount table (one row per category, grouping that record's line
+  /// items), then Amount Paid/Amount Due beneath the table since they're
+  /// record-level figures.
+  pw.Widget _transactionTableBlock(Map<String, dynamic> row, String reportType) {
+    final isSales = reportType == 'sales';
+    String field(String key) => row[key]?.toString() ?? '';
+    final categoryRows = (row['__categoryRows'] as List<Map<String, String>>?) ?? const [];
+    final partyLabel = isSales ? 'Bill To' : 'Bill From';
+    final partyName = isSales ? field('Customer') : field('Supplier');
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(_fmtPdfCell('Date', row['Date']), style: const pw.TextStyle(fontSize: 7.5)),
+            pw.Text('Bill No: ${field('Invoice No.')}',
+                style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+          ],
+        ),
+        pw.SizedBox(height: 3),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('$partyLabel: $partyName',
+                style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+            pw.Text('Mobile: ${field('Mobile')}', style: const pw.TextStyle(fontSize: 7.5)),
+          ],
+        ),
+        pw.SizedBox(height: 4),
+        _categoryTable(categoryRows),
+        pw.SizedBox(height: 3),
+        // The category table above only sums each item's own price × qty —
+        // it doesn't include GST. Showing Subtotal → GST → Total Amount
+        // here (the bill's real, stored totals) is what makes Amount Due
+        // reconcile with Total Amount instead of looking inflated/wrong.
+        _kv('Subtotal', _fmtPdfCell('Subtotal', row['Subtotal'])),
+        if ((row['GST Amount'] as double? ?? 0) > 0)
+          _kv('GST', _fmtPdfCell('GST Amount', row['GST Amount'])),
+        _kv('Total Amount', _fmtPdfCell('Total Amount', row['Total Amount']), bold: true),
+        pw.SizedBox(height: 3),
+        _kv('Amount Paid', _fmtPdfCell('Amount Paid', row['Amount Paid'])),
+        _kv('Amount Due', _fmtPdfCell('Amount Due', row['Amount Due']), bold: true),
+      ],
+    );
+  }
+
+  /// Bordered table — # / Categories / Total Items / Price-per-unit / Total
+  /// Amount — one row per category found in the sale's line items. Column
+  /// widths are fixed so a large amount wraps onto a second line inside its
+  /// own cell instead of overflowing the receipt width.
+  pw.Widget _categoryTable(List<Map<String, String>> rows) {
+    if (rows.isEmpty) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 4),
+        child: pw.Text('No items',
+            style: pw.TextStyle(fontSize: 7.5, color: PdfColors.grey500, fontStyle: pw.FontStyle.italic)),
+      );
     }
-    return widths;
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+      columnWidths: const {
+        0: pw.FixedColumnWidth(14),
+        1: pw.FlexColumnWidth(2.2),
+        2: pw.FlexColumnWidth(1.2),
+        3: pw.FlexColumnWidth(1.3),
+        4: pw.FlexColumnWidth(1.6),
+      },
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+          children: [
+            _tableCell('#', header: true),
+            _tableCell('Categories', header: true),
+            _tableCell('Total Items', header: true),
+            _tableCell('Price/unit', header: true),
+            _tableCell('Total Amount', header: true),
+          ],
+        ),
+        for (var i = 0; i < rows.length; i++)
+          pw.TableRow(children: [
+            _tableCell('${i + 1}'),
+            _tableCell(rows[i]['category']!),
+            _tableCell(rows[i]['qty']!),
+            _tableCell(rows[i]['priceUnit']!),
+            _tableCell(rows[i]['amount']!),
+          ]),
+      ],
+    );
+  }
+
+  /// One continuous bordered table across every inventory item — # / Item /
+  /// Category / Qty / Price / Value, with Status as a small grey line under
+  /// the item name (rather than its own column) to keep 6 columns legible
+  /// at the roll80 width.
+  pw.Widget _inventoryTable(List<Map<String, dynamic>> rows) {
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+      columnWidths: const {
+        0: pw.FixedColumnWidth(14),
+        1: pw.FlexColumnWidth(2.4),
+        2: pw.FlexColumnWidth(1.6),
+        3: pw.FlexColumnWidth(1.0),
+        4: pw.FlexColumnWidth(1.3),
+        5: pw.FlexColumnWidth(1.5),
+      },
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+          children: [
+            _tableCell('#', header: true),
+            _tableCell('Item', header: true),
+            _tableCell('Category', header: true),
+            _tableCell('Qty', header: true),
+            _tableCell('Price', header: true),
+            _tableCell('Value', header: true),
+          ],
+        ),
+        for (var i = 0; i < rows.length; i++)
+          pw.TableRow(children: [
+            _tableCell('${i + 1}'),
+            _nameCell(_fmtPdfCell('Name', rows[i]['Name']), _val(rows[i], ['Status'])),
+            _tableCell(_fmtPdfCell('Category', rows[i]['Category'])),
+            _tableCell(_fmtPdfCell('Quantity', rows[i]['Quantity'])),
+            _tableCell(_fmtPdfCell('Price', rows[i]['Price'])),
+            _tableCell(_fmtPdfCell('Total Value', rows[i]['Total Value'])),
+          ]),
+      ],
+    );
+  }
+
+  /// One continuous bordered table across every customer — # / Name /
+  /// Mobile / Purchases / Spent / Outstanding.
+  pw.Widget _customerTable(List<Map<String, dynamic>> rows) {
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+      columnWidths: const {
+        0: pw.FixedColumnWidth(14),
+        1: pw.FlexColumnWidth(2.2),
+        2: pw.FlexColumnWidth(1.6),
+        3: pw.FlexColumnWidth(1.1),
+        4: pw.FlexColumnWidth(1.4),
+        5: pw.FlexColumnWidth(1.4),
+      },
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+          children: [
+            _tableCell('#', header: true),
+            _tableCell('Name', header: true),
+            _tableCell('Mobile', header: true),
+            _tableCell('Purchases', header: true),
+            _tableCell('Spent', header: true),
+            _tableCell('Outstanding', header: true),
+          ],
+        ),
+        for (var i = 0; i < rows.length; i++)
+          pw.TableRow(children: [
+            _tableCell('${i + 1}'),
+            _tableCell(_fmtPdfCell('Name', rows[i]['Name'])),
+            _tableCell(_fmtPdfCell('Mobile', rows[i]['Mobile'])),
+            _tableCell(_fmtPdfCell('Total Purchases', rows[i]['Total Purchases'])),
+            _tableCell(_fmtPdfCell('Total Spent', rows[i]['Total Spent'])),
+            _tableCell(_fmtPdfCell('Outstanding', rows[i]['Outstanding'])),
+          ]),
+      ],
+    );
+  }
+
+  /// One continuous bordered table across every supplier — # / Name(+
+  /// Address as a grey sub-line) / Phone / Orders / Purchases / Pending /
+  /// Last Order.
+  pw.Widget _supplierTable(List<Map<String, dynamic>> rows) {
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+      columnWidths: const {
+        0: pw.FixedColumnWidth(14),
+        1: pw.FlexColumnWidth(2.2),
+        2: pw.FlexColumnWidth(1.6),
+        3: pw.FlexColumnWidth(1.0),
+        4: pw.FlexColumnWidth(1.4),
+        5: pw.FlexColumnWidth(1.4),
+        6: pw.FlexColumnWidth(1.4),
+      },
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+          children: [
+            _tableCell('#', header: true),
+            _tableCell('Name', header: true),
+            _tableCell('Phone', header: true),
+            _tableCell('Orders', header: true),
+            _tableCell('Purchases', header: true),
+            _tableCell('Pending', header: true),
+            _tableCell('Last Order', header: true),
+          ],
+        ),
+        for (var i = 0; i < rows.length; i++)
+          pw.TableRow(children: [
+            _tableCell('${i + 1}'),
+            _nameCell(_fmtPdfCell('Name', rows[i]['Name']), _val(rows[i], ['Address'])),
+            _tableCell(_fmtPdfCell('Phone', rows[i]['Phone'])),
+            _tableCell(_fmtPdfCell('Total Orders', rows[i]['Total Orders'])),
+            _tableCell(_fmtPdfCell('Total Purchases', rows[i]['Total Purchases'])),
+            _tableCell(_fmtPdfCell('Pending Payment', rows[i]['Pending Payment'])),
+            _tableCell(_fmtPdfCell('Last Order', rows[i]['Last Order'])),
+          ]),
+      ],
+    );
+  }
+
+  /// A table cell holding a primary line plus an optional smaller grey
+  /// sub-line beneath it (e.g. item name + status, supplier name + address).
+  pw.Widget _nameCell(String primary, String? sub) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(primary, style: const pw.TextStyle(fontSize: 7.5)),
+          if (sub != null && sub.isNotEmpty)
+            pw.Text(sub, style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
+        ],
+      ),
+    );
+  }
+
+  /// One boxed label/value table per period — Total Revenue / Total Cost /
+  /// Gross Profit / Expenses / Net Profit / Profit Margin — with the period
+  /// label as a bold heading line above it, mirroring the boxed style used
+  /// for the Period/Records/Printed header block.
+  pw.Widget _profitLossBlock(Map<String, dynamic> row) {
+    final period = row['Period']?.toString() ?? '';
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        if (period.isNotEmpty) ...[
+          pw.Text(period, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 3),
+        ],
+        _boxedKvTable([
+          ['Total Revenue', _fmtPdfCell('Total Revenue', row['Total Revenue'])],
+          ['Total Cost', _fmtPdfCell('Total Cost', row['Total Cost'])],
+          ['Gross Profit', _fmtPdfCell('Gross Profit', row['Gross Profit'])],
+          ['Expenses', _fmtPdfCell('Expenses', row['Expenses'])],
+          ['Net Profit', _fmtPdfCell('Net Profit', row['Net Profit'])],
+          ['Profit Margin', _fmtPdfCell('Profit Margin', row['Profit Margin'])],
+        ]),
+      ],
+    );
+  }
+
+  /// First column as a bold heading line, the rest as label/value rows —
+  /// used as a fallback for any report type not covered by a dedicated
+  /// layout above.
+  pw.Widget _genericRecordBlock(Map<String, dynamic> row) {
+    final columns = row.keys.toList();
+    final heading = columns.isNotEmpty ? _fmtPdfCell(columns.first, row[columns.first]) : 'Record';
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Text(heading, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 2),
+        for (final col in columns.skip(1)) _receiptField(col, row[col]),
+      ],
+    );
+  }
+
+  /// Short values sit on one label/value line; long values (item lists,
+  /// categories, etc.) get their own wrapped line beneath the label so they
+  /// aren't cut off in the narrow receipt width.
+  pw.Widget _receiptField(String column, dynamic value) {
+    final formatted = _fmtPdfCell(column, value);
+    final label = _fmtColumnName(column);
+    if (formatted.length > 18) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('$label:', style: pw.TextStyle(fontSize: 7.5, color: PdfColors.grey700)),
+            pw.Text(formatted, style: const pw.TextStyle(fontSize: 7.5)),
+          ],
+        ),
+      );
+    }
+    return _kv(label, formatted);
+  }
+
+  pw.Widget _receiptFooter() {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.center,
+      children: [
+        pw.Text('Computer-generated report',
+            textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
+        pw.Text('Inventory Management System',
+            textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
+        pw.SizedBox(height: 6),
+        pw.Text('* * *  THANK YOU  * * *',
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 4),
+      ],
+    );
   }
 
   String _fmtPdfCell(String column, dynamic value) {
@@ -579,10 +998,14 @@ class PdfExportService {
     if (col.contains('date') && value is String) {
       try { return DateFormat('dd/MM').format(DateTime.parse(value)); } catch (_) {}
     }
-    if (col.contains('amount') || col.contains('price') ||
-        col.contains('total') || col.contains('value') ||
-        col.contains('revenue') || col.contains('cost') ||
-        col.contains('profit') || col.contains('expenses')) {
+    // "Profit Margin" is a percentage, not a currency amount — excluded
+    // here even though it contains "profit", so it isn't run through the
+    // ₹-amount formatter below (that turned "12.3%" into "₹12.30").
+    if (!col.contains('margin') &&
+        (col.contains('amount') || col.contains('price') ||
+         col.contains('total') || col.contains('value') ||
+         col.contains('revenue') || col.contains('cost') ||
+         col.contains('profit') || col.contains('expenses'))) {
       try {
         if (value is num) return _fmtPdf(value.toDouble());
         if (value is String) {
@@ -599,36 +1022,9 @@ class PdfExportService {
       if (s.contains('cancel') || s.contains('void')) return 'Canceled';
       return truncate(value.toString(), 8);
     }
-    if (col.contains('name')) return truncate(value.toString(), 12);
-    if (col.contains('mobile') || col.contains('phone')) return truncate(value.toString(), 10);
-    return truncate(value.toString(), 15);
-  }
-
-  pw.Widget _buildPdfFooter() {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      child: pw.Column(children: [
-        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text('Note: Computer-generated report.',
-              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
-          pw.Text('Authorized Signature: _________________',
-              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey600, fontWeight: pw.FontWeight.bold)),
-        ]),
-        pw.SizedBox(height: 3),
-        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text('Generated by Inventory Management System',
-              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
-          pw.Text('(Authorized Person)',
-              style: pw.TextStyle(fontSize: 6, color: PdfColors.grey500, fontStyle: pw.FontStyle.italic)),
-        ]),
-        pw.SizedBox(height: 3),
-        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text(DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey500)),
-          pw.Text('Page 1/1', style: pw.TextStyle(fontSize: 7, color: PdfColors.grey500)),
-        ]),
-      ]),
-    );
+    if (col.contains('name')) return truncate(value.toString(), 28);
+    if (col.contains('mobile') || col.contains('phone')) return truncate(value.toString(), 14);
+    return truncate(value.toString(), 28);
   }
 
   // ── Shared helpers ─────────────────────────────────────────────────────────
@@ -697,28 +1093,49 @@ class PdfExportService {
     return [];
   }
 
-  String _uniqueCategories(List<dynamic> items) {
-    final cats = <String>{};
-    for (var item in items) {
+  /// Groups a sale's line items by category — summing quantity and amount
+  /// per category — for the Sales report's per-record table (one row per
+  /// category, not per raw line item). `Total Items` in that table is the
+  /// summed quantity for the category; `Price/unit` is the category's total
+  /// amount divided by its total quantity.
+  List<Map<String, String>> _categoryRows(List<dynamic> items) {
+    final order = <String>[];
+    final qtyByCat = <String, double>{};
+    final amountByCat = <String, double>{};
+    final unitByCat = <String, String?>{};
+
+    for (final item in items) {
       final m = _toMap(item);
       final cat = _val(m, ['category', 'type', 'group']);
-      cats.add(cat.isNotEmpty ? cat : 'Uncategorized');
+      final key = cat.isNotEmpty ? cat : 'Uncategorized';
+      final unit = _val(m, ['unit']);
+      if (!qtyByCat.containsKey(key)) {
+        order.add(key);
+        qtyByCat[key] = 0;
+        amountByCat[key] = 0;
+        unitByCat[key] = unit.isNotEmpty ? unit : null;
+      } else if (unitByCat[key] != (unit.isNotEmpty ? unit : null)) {
+        unitByCat[key] = null;
+      }
+      qtyByCat[key] = qtyByCat[key]! + _amount(m, ['quantity', 'qty']);
+      amountByCat[key] = amountByCat[key]! + _amount(m, ['total', 'amount', 'lineTotal']);
     }
-    return cats.isEmpty ? 'No categories' : cats.join(', ');
-  }
 
-  String _itemsSummary(List<dynamic> items) {
-    if (items.isEmpty) return 'No items';
-    final summaries = <String>[];
-    for (var item in items) {
-      final m = _toMap(item);
-      final name = _val(m, ['name', 'productName', 'itemName']);
-      final qty = _val(m, ['quantity', 'qty', 'amount']);
-      if (name.isNotEmpty && qty.isNotEmpty) summaries.add('$name ×$qty');
+    final rows = <Map<String, String>>[];
+    for (final key in order) {
+      final qty = qtyByCat[key]!;
+      final amount = amountByCat[key]!;
+      final unit = unitByCat[key];
+      final qtyStr = qty == qty.roundToDouble() ? qty.toStringAsFixed(0) : qty.toString();
+      final priceUnit = qty > 0 ? amount / qty : amount;
+      rows.add({
+        'category': key,
+        'qty': unit != null ? '$qtyStr $unit' : qtyStr,
+        'priceUnit': _fmtPdf(priceUnit),
+        'amount': _fmtPdf(amount),
+      });
     }
-    if (summaries.isEmpty) return '${items.length} item(s)';
-    final s = summaries.join(', ');
-    return s.length > 50 ? '${s.substring(0, 47)}...' : s;
+    return rows;
   }
 
   List<Map<String, dynamic>> _parseDataToRows(dynamic data, String reportType) {

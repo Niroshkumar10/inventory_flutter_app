@@ -222,9 +222,12 @@ Stream<BillSummary> getBillSummary() {
   Future<void> addPayment(String billId, double paymentAmount) async {
     try {
       final bill = await getBillById(billId);
-      final newAmountPaid = bill.amountPaid + paymentAmount;
+      // Clamp so a payment can never push amountPaid past totalAmount —
+      // the UI already blocks this, but guarding it here too means this
+      // method can't write a negative amountDue no matter how it's called.
+      final newAmountPaid = (bill.amountPaid + paymentAmount).clamp(0.0, bill.totalAmount);
       final newAmountDue = bill.totalAmount - newAmountPaid;
-      
+
       await _userBillsCollection.doc(billId).update({
         'amountPaid': newAmountPaid,
         'amountDue': newAmountDue,

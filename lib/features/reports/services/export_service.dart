@@ -46,6 +46,28 @@ class ExportService {
         userData: userData,
       );
 
+  /// Same inputs as [exportToPdf], but returns the raw saved file path (or
+  /// null on web/failure) instead of a status string — used by WhatsApp
+  /// sharing, which needs a real path to hand to the share sheet.
+  Future<String?> exportToPdfFile({
+    required String reportType,
+    required String userMobile,
+    required DateTime startDate,
+    required DateTime endDate,
+    required dynamic data,
+    required String title,
+    Map<String, dynamic>? userData,
+  }) =>
+      _pdf.exportToPdfFile(
+        reportType: reportType,
+        userMobile: userMobile,
+        startDate: startDate,
+        endDate: endDate,
+        data: data,
+        title: title,
+        userData: userData,
+      );
+
   Future<String> exportToExcel({
     required String reportType,
     required String userMobile,
